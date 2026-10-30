@@ -5,13 +5,20 @@ cd /d "%~dp0"
 REM ============================================================
 REM  Game Performance Optimizer - GUI Launcher
 REM  Double-click to start. The GUI will request admin rights.
+REM  First run re-enters hidden, so no console window lingers
+REM  while the UAC prompt is waiting.
 REM ============================================================
 
+if /i "%~1"=="__hidden" goto run
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "try { Start-Process -FilePath '%~f0' -ArgumentList '__hidden' -WindowStyle Hidden -ErrorAction Stop } catch { Start-Process -FilePath '%~f0' -ArgumentList '__hidden' }" >nul 2>nul
+if not errorlevel 1 exit /b 0
+
+:run
 set "GUIPATH="
 for %%f in ("%~dp0*-GUI.ps1") do set "GUIPATH=%%~ff"
 if not defined GUIPATH (
-    echo [ERROR] GUI script not found in this folder.
-    pause
+    powershell.exe -NoProfile -WindowStyle Hidden -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('GUI script not found. Please extract the whole zip first.','Game Performance Optimizer','OK','Error')" >nul 2>nul
     exit /b 1
 )
 
@@ -20,8 +27,6 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-ChildItem -Liter
 
 powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File "%GUIPATH%"
 if errorlevel 1 (
-    echo.
-    echo [ERROR] Failed to start. Please run this file as administrator.
-    pause
+    powershell.exe -NoProfile -WindowStyle Hidden -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.MessageBox]::Show('Failed to start. Right-click this file and choose Run as administrator.','Game Performance Optimizer','OK','Error')" >nul 2>nul
 )
 exit /b 0
