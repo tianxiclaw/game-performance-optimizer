@@ -48,7 +48,7 @@ jobs:
           }
           Set-Content -LiteralPath (Join-Path $stage 'SHA256.txt') -Value $lines -Encoding utf8NoBOM
 
-          $zip = Join-Path $env:RUNNER_TEMP "$name.zip"
+          $zip = Join-Path $env:RUNNER_TEMP 'game-performance-optimizer_v5.0_portable.zip'
           Compress-Archive -Path $stage -DestinationPath $zip -CompressionLevel Optimal
 
           "PKG=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
@@ -62,3 +62,15 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $title = if ($env:TAG -match '^v\d+\.\d+') { ($env:TAG -replace '^v(\d+\.\d+).*$', 'v$1 便携版') } else { "$env:TAG 便携版" }
           gh release create $env:TAG $env:PKG --title $title --notes-file .github/release-notes.md
+
+      - name: Set Chinese asset label
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $asset = gh api "repos/${{ github.repository }}/releases/tags/$env:TAG" --jq '.assets[0].id'
+          $json = '{"label":"游戏性能优化中心_v5.0_便携版.zip"}'
+          $file = Join-Path $env:RUNNER_TEMP 'asset-label.json'
+          [IO.File]::WriteAllText($file, $json, (New-Object System.Text.UTF8Encoding($false)))
+          gh api -X PATCH "repos/${{ github.repository }}/releases/assets/$asset" --input $file
