@@ -13,14 +13,17 @@ jobs:
   rename:
     runs-on: ubuntu-latest
     steps:
-      - name: Rename asset to UTF-8 name
+      - name: Set ASCII filename and Chinese label
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python3 - <<'PY'
           import json
-          name = "游戏性能优化中心_v5.0_便携版.zip"
+          data = {
+              "name": "game-performance-optimizer_v5.0_portable.zip",
+              "label": "游戏性能优化中心_v5.0_便携版.zip",
+          }
           with open("/tmp/asset-name.json", "w", encoding="utf-8") as f:
-              json.dump({"name": name}, f, ensure_ascii=False)
+              json.dump(data, f, ensure_ascii=False)
           PY
           gh api -X PATCH repos/${{ github.repository }}/releases/assets/691507899 --input /tmp/asset-name.json
