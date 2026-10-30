@@ -114,6 +114,12 @@ Intel / NVIDIA / AMD / Qualcomm 显卡；核显、独显、混合显卡自动判
 **高缩放屏幕上界面模糊？**
 在“设置”页开启实验性高 DPI，然后重启界面。
 
+## English
+
+A local, reversible game performance optimizer for Windows 10/11. It detects the installed GPU / iGPU / dGPU and only offers tweaks that apply to the machine: GameDVR and background recording, HAGS, variable refresh rate, power plans, CPU core parking, NIC power saving, PCIe link power management, Prefetch and visual effects. Every change is backed up as JSON plus a `.reg` snapshot and can be reverted. No telemetry, no downloads, no background service.
+
+Keywords: Windows game optimizer, gaming performance tweaks, FPS and latency, PowerShell GUI, reversible registry tweaks, Intel Arc / NVIDIA / AMD.
+
 ## 支持作者
 
 如果这个工具帮到了你，可以扫码请作者喝一杯。完全自愿，不影响任何功能。
