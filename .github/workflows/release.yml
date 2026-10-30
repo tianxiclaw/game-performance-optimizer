@@ -1,0 +1,64 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要发布的标签，例如 v5.0.0'
+        required: true
+        default: 'v5.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build portable package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = if ('${{ github.event_name }}' -eq 'workflow_dispatch') { '${{ inputs.tag }}' } else { '${{ github.ref_name }}' }
+          $name = '游戏性能优化中心_v5.0'
+          $stage = Join-Path $env:RUNNER_TEMP $name
+          New-Item -ItemType Directory -Path $stage -Force | Out-Null
+
+          $files = @(
+            '游戏性能优化-GUI.ps1',
+            '游戏性能优化.ps1',
+            '启动优化脚本.bat',
+            '启动控制台版.bat',
+            '赞赏码.png',
+            '使用说明.txt'
+          )
+          foreach ($f in $files) {
+            if (-not (Test-Path -LiteralPath $f)) { throw "缺少文件: $f" }
+            Copy-Item -LiteralPath $f -Destination (Join-Path $stage $f) -Force
+          }
+
+          $lines = foreach ($f in (Get-ChildItem -LiteralPath $stage -File | Sort-Object Name)) {
+            '{0}  {1}' -f (Get-FileHash -Algorithm SHA256 -LiteralPath $f.FullName).Hash, $f.Name
+          }
+          Set-Content -LiteralPath (Join-Path $stage 'SHA256.txt') -Value $lines -Encoding utf8NoBOM
+
+          $zip = Join-Path $env:RUNNER_TEMP "$name.zip"
+          Compress-Archive -Path $stage -DestinationPath $zip -CompressionLevel Optimal
+
+          "PKG=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Create release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $title = if ($env:TAG -match '^v\d+\.\d+') { ($env:TAG -replace '^v(\d+\.\d+).*$', 'v$1 便携版') } else { "$env:TAG 便携版" }
+          gh release create $env:TAG $env:PKG --title $title --notes-file .github/release-notes.md
