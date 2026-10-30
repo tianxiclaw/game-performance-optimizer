@@ -1,0 +1,23 @@
+# 运行时生成，不纳入版本库
+backups/
+*.log
+optimize_*.log
+gui-settings.json
+profiles.json
+state_last_apply.json
+SHA256.txt
+
+# 打包产物（便携包通过 Release 发布）
+*.zip
+
+# 临时文件
+.writing/
+._*
+*.tmp
+Thumbs.db
+desktop.ini
+.vs/
+
+# 系统目录
+System Volume Information/
+$RECYCLE.BIN/
