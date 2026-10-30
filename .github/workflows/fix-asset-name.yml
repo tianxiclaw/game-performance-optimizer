@@ -1,0 +1,26 @@
+name: Fix release asset name
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-asset-name.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  rename:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Rename asset to UTF-8 name
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json
+          name = "游戏性能优化中心_v5.0_便携版.zip"
+          with open("/tmp/asset-name.json", "w", encoding="utf-8") as f:
+              json.dump({"name": name}, f, ensure_ascii=False)
+          PY
+          gh api -X PATCH repos/${{ github.repository }}/releases/assets/691507899 --input /tmp/asset-name.json
