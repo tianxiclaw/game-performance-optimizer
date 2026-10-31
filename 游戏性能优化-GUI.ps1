@@ -817,11 +817,84 @@ namespace TxUi
         }
     }
 
+    public class SplashBar : Control
+    {
+        private Timer _timer;
+        private float _phase;
+
+        public SplashBar()
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+            TabStop = false;
+            _timer = new Timer();
+            _timer.Interval = 16;
+            _timer.Tick += delegate
+            {
+                _phase += 0.010f;
+                if (_phase >= 1f) _phase -= 1f;
+                Invalidate();
+            };
+        }
+
+        public void Start()
+        {
+            try { if (!_timer.Enabled) _timer.Start(); } catch { }
+        }
+
+        public void Stop()
+        {
+            try { _timer.Stop(); } catch { }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                try { _timer.Stop(); _timer.Dispose(); } catch { }
+            }
+            base.Dispose(disposing);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.Clear(BackColor);
+
+            Rectangle r = new Rectangle(0, 0, Math.Max(1, Width - 1), Math.Max(1, Height - 1));
+            int rad = Math.Max(2, Math.Min(Height, Width) / 2);
+            using (GraphicsPath path = Gfx.Round(r, rad))
+            {
+                using (SolidBrush track = new SolidBrush(Color.FromArgb(31, 41, 57)))
+                    g.FillPath(track, path);
+
+                g.SetClip(path);
+                int band = Math.Max(48, Width / 4);
+                float x = -band + (Width + band) * _phase;
+                RectangleF rect = new RectangleF(x, 0f, band, Height);
+                using (LinearGradientBrush lg = new LinearGradientBrush(rect, Color.Transparent, Color.Transparent, LinearGradientMode.Horizontal))
+                {
+                    ColorBlend cb = new ColorBlend(4);
+                    cb.Colors = new Color[] {
+                        Color.FromArgb(0, 0, 229, 255),
+                        Color.FromArgb(255, 0, 229, 255),
+                        Color.FromArgb(255, 0, 230, 118),
+                        Color.FromArgb(0, 0, 230, 118)
+                    };
+                    cb.Positions = new float[] { 0f, 0.3f, 0.7f, 1f };
+                    lg.InterpolationColors = cb;
+                    g.FillRectangle(lg, rect);
+                }
+                g.ResetClip();
+            }
+        }
+    }
+
     public class SplashForm : Form
     {
         private Label _sub;
         private Label _close;
-        private ProgressBar _bar;
+        private SplashBar _bar;
         private int _radius = 18;
         public bool UserClosed = false;
 
@@ -857,10 +930,9 @@ namespace TxUi
             _sub.SetBounds(32, 68, 380, 24);
             Controls.Add(_sub);
 
-            _bar = new ProgressBar();
+            _bar = new SplashBar();
+            _bar.BackColor = BackColor;
             _bar.SetBounds(32, 112, 396, 7);
-            _bar.Style = ProgressBarStyle.Marquee;
-            _bar.MarqueeAnimationSpeed = 26;
             Controls.Add(_bar);
 
             Label ver = new Label();
@@ -905,6 +977,18 @@ namespace TxUi
                     Region = new Region(p);
             }
             catch { }
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            try { _bar.Start(); } catch { }
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            try { _bar.Stop(); } catch { }
+            base.OnFormClosed(e);
         }
 
         protected override bool ShowWithoutActivation
