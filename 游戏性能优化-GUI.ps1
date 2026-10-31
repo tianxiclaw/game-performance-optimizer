@@ -1125,7 +1125,7 @@ $top.BackColor = $script:C_PANEL2
 $form.Controls.Add($top)
 $null = New-Badge $top 'TX' 20 14 38 32 $script:C_GRAY_BG $script:C_CYAN $script:C_CYAN 13
 $null = New-Label $top '游戏性能优化' 70 11 220 24 12 $true $script:C_TEXT
-$null = New-Label $top '天禧 · 性能优化中心' 70 33 240 18 8 $false $script:C_DIM
+$null = New-Label $top '本地运行 · 所有改动可还原' 70 33 260 18 8 $false $script:C_DIM
 $machineTxt = '未知机型'
 if ($script:Snap.Machine) { $machineTxt = [string]$script:Snap.Machine }
 $script:MachineTxt = $machineTxt
