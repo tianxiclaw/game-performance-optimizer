@@ -896,6 +896,9 @@ namespace TxUi
         private Label _close;
         private SplashBar _bar;
         private int _radius = 18;
+        private bool _drag = false;
+        private Point _dragStart;
+        private Point _dragOrigin;
         public bool UserClosed = false;
 
         public SplashForm() : this(1f) { }
@@ -913,6 +916,7 @@ namespace TxUi
             // 不投机取巧抢前台: 不置顶、不激活, 交给 Windows 的窗口层级规则
             DoubleBuffered = true;
             Font = new Font("Microsoft YaHei UI", 9f);
+            KeyPreview = true;
 
             Label title = new Label();
             title.Text = "游戏性能优化中心";
@@ -964,6 +968,17 @@ namespace TxUi
             _close.MouseLeave += delegate { _close.ForeColor = Color.FromArgb(100, 116, 139); };
             Controls.Add(_close);
 
+            EnableDrag(this);
+            EnableDrag(title);
+            EnableDrag(_sub);
+            EnableDrag(_bar);
+            EnableDrag(ver);
+            EnableDrag(hint);
+            KeyDown += delegate(object s, KeyEventArgs e)
+            {
+                if (e.KeyCode == Keys.Escape) { UserClosed = true; Close(); }
+            };
+
             Resize += delegate { ApplyRound(); };
             if (sc > 1f) Scale(new SizeF(sc, sc));
             ApplyRound();
@@ -996,20 +1011,38 @@ namespace TxUi
             get { return true; }
         }
 
-        protected override void WndProc(ref Message m)
+        private void EnableDrag(Control c)
         {
-            if (m.Msg == 0x84)
-            {
-                base.WndProc(ref m);
-                if ((int)m.Result == 1)
-                {
-                    int lp = m.LParam.ToInt32();
-                    Point pt = PointToClient(new Point((short)(lp & 0xFFFF), (short)((lp >> 16) & 0xFFFF)));
-                    if (!_close.Bounds.Contains(pt)) m.Result = (IntPtr)2;
-                }
-                return;
-            }
-            base.WndProc(ref m);
+            if (c == null) return;
+            c.MouseDown += DragBegin;
+            c.MouseMove += DragMove;
+            c.MouseUp += DragEnd;
+        }
+
+        private void DragBegin(object sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left) return;
+            _drag = true;
+            _dragStart = Cursor.Position;
+            _dragOrigin = Location;
+            Control c = sender as Control;
+            if (c != null) { try { c.Capture = true; } catch { } }
+            try { Activate(); } catch { }
+        }
+
+        private void DragMove(object sender, MouseEventArgs e)
+        {
+            if (!_drag) return;
+            Point now = Cursor.Position;
+            Location = new Point(_dragOrigin.X + (now.X - _dragStart.X), _dragOrigin.Y + (now.Y - _dragStart.Y));
+        }
+
+        private void DragEnd(object sender, MouseEventArgs e)
+        {
+            if (!_drag) return;
+            _drag = false;
+            Control c = sender as Control;
+            if (c != null) { try { c.Capture = false; } catch { } }
         }
 
         public void SetStatus(string text)
