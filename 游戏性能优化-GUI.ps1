@@ -22,9 +22,14 @@ try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 # 设置文件默认放在脚本目录; TX_GUI_SETTINGS 仅用于测试时指向临时文件
 $script:GuiSettingsFile = Join-Path $PSScriptRoot 'gui-settings.json'
 if ($env:TX_GUI_SETTINGS) { $script:GuiSettingsFile = [string]$env:TX_GUI_SETTINGS }
+$script:AppVersion = '5.0.9'
+$script:RepoSlug   = 'tianxiclaw/game-performance-optimizer'
 $script:GuiCfg = [ordered]@{
     ExperimentalDpi = $false
     ShowRenderInfo  = $false
+    Theme           = 'dark'
+    MinimizeToTray  = $false
+    NotifyDriver    = $true
 }
 
 function Load-GuiSettings {
@@ -33,15 +38,22 @@ function Load-GuiSettings {
         $j = Get-Content -Raw -LiteralPath $script:GuiSettingsFile | ConvertFrom-Json
         if ($null -ne $j.ExperimentalDpi) { $script:GuiCfg.ExperimentalDpi = [bool]$j.ExperimentalDpi }
         if ($null -ne $j.ShowRenderInfo)  { $script:GuiCfg.ShowRenderInfo  = [bool]$j.ShowRenderInfo }
+        if ([string]$j.Theme -eq 'light') { $script:GuiCfg.Theme = 'light' }
+        else { $script:GuiCfg.Theme = 'dark' }
+        if ($null -ne $j.MinimizeToTray) { $script:GuiCfg.MinimizeToTray = [bool]$j.MinimizeToTray }
+        if ($null -ne $j.NotifyDriver)   { $script:GuiCfg.NotifyDriver   = [bool]$j.NotifyDriver }
     } catch {}
 }
 
 function Save-GuiSettings {
     try {
         $obj = [ordered]@{
-            Version         = 1
+            Version         = 2
             ExperimentalDpi = [bool]$script:GuiCfg.ExperimentalDpi
             ShowRenderInfo  = [bool]$script:GuiCfg.ShowRenderInfo
+            Theme           = [string]$script:GuiCfg.Theme
+            MinimizeToTray  = [bool]$script:GuiCfg.MinimizeToTray
+            NotifyDriver    = [bool]$script:GuiCfg.NotifyDriver
             Updated         = (Get-Date).ToString('s')
         }
         ($obj | ConvertTo-Json -Depth 4) | Out-File -LiteralPath $script:GuiSettingsFile -Encoding UTF8
@@ -148,6 +160,105 @@ $script:C_ORANGE_BD = [Drawing.Color]::FromArgb(122,90,24)
 $script:C_GRAY_BG   = [Drawing.Color]::FromArgb(26,33,48)
 $script:C_GRAY_BD   = [Drawing.Color]::FromArgb(51,65,85)
 
+# 浅色主题: 只替换语义色板; 内联颜色统一走 TC() 做映射
+$script:ThemeName = 'dark'
+try { if ([string]$script:GuiCfg.Theme -eq 'light') { $script:ThemeName = 'light' } } catch {}
+if ($script:ThemeName -eq 'light') {
+    $script:C_BG      = [Drawing.Color]::FromArgb(243,246,250)
+    $script:C_PANEL   = [Drawing.Color]::FromArgb(255,255,255)
+    $script:C_PANEL2  = [Drawing.Color]::FromArgb(236,241,247)
+    $script:C_BORDER  = [Drawing.Color]::FromArgb(214,222,232)
+    $script:C_TEXT    = [Drawing.Color]::FromArgb(30,41,59)
+    $script:C_SUB     = [Drawing.Color]::FromArgb(71,85,105)
+    $script:C_DIM     = [Drawing.Color]::FromArgb(100,116,139)
+    $script:C_CYAN    = [Drawing.Color]::FromArgb(0,132,158)
+    $script:C_GREEN   = [Drawing.Color]::FromArgb(0,145,80)
+    $script:C_ORANGE  = [Drawing.Color]::FromArgb(190,118,0)
+    $script:C_RED     = [Drawing.Color]::FromArgb(200,45,45)
+    $script:C_PURPLE  = [Drawing.Color]::FromArgb(96,64,200)
+    $script:C_BLUE    = [Drawing.Color]::FromArgb(28,92,205)
+    $script:C_GREEN_BG  = [Drawing.Color]::FromArgb(226,246,235)
+    $script:C_GREEN_BD  = [Drawing.Color]::FromArgb(150,214,178)
+    $script:C_ORANGE_BG = [Drawing.Color]::FromArgb(255,244,226)
+    $script:C_ORANGE_BD = [Drawing.Color]::FromArgb(235,199,136)
+    $script:C_GRAY_BG   = [Drawing.Color]::FromArgb(240,244,249)
+    $script:C_GRAY_BD   = [Drawing.Color]::FromArgb(214,222,232)
+}
+
+function Get-TxHsl([int]$r, [int]$g, [int]$b) {
+    $rf = $r / 255.0; $gf = $g / 255.0; $bf = $b / 255.0
+    $max = [Math]::Max($rf, [Math]::Max($gf, $bf))
+    $min = [Math]::Min($rf, [Math]::Min($gf, $bf))
+    $l = ($max + $min) / 2.0
+    $h = 0.0; $s = 0.0
+    if ($max -ne $min) {
+        $d = $max - $min
+        if ($l -gt 0.5) { $s = $d / (2.0 - $max - $min) } else { $s = $d / ($max + $min) }
+        if ($max -eq $rf) { $h = (($gf - $bf) / $d) + $(if ($gf -lt $bf) { 6 } else { 0 }) }
+        elseif ($max -eq $gf) { $h = (($bf - $rf) / $d) + 2 }
+        else { $h = (($rf - $gf) / $d) + 4 }
+        $h = $h / 6.0
+    }
+    return @($h, $s, $l)
+}
+
+function Get-TxRgbFromHsl([double]$h, [double]$s, [double]$l) {
+    if ($s -le 0) { $v = [int][Math]::Round($l * 255); return @($v, $v, $v) }
+    $q = $l * (1 + $s)
+    if ($l -ge 0.5) { $q = $l + $s - ($l * $s) }
+    $p = 2 * $l - $q
+    $conv = {
+        param($t)
+        if ($t -lt 0) { $t += 1 }
+        if ($t -gt 1) { $t -= 1 }
+        if ($t -lt (1.0 / 6.0)) { return $p + ($q - $p) * 6 * $t }
+        if ($t -lt 0.5) { return $q }
+        if ($t -lt (2.0 / 3.0)) { return $p + ($q - $p) * ((2.0 / 3.0) - $t) * 6 }
+        return $p
+    }
+    $r = [int][Math]::Round((& $conv ($h + 1.0 / 3.0)) * 255)
+    $g = [int][Math]::Round((& $conv $h) * 255)
+    $b = [int][Math]::Round((& $conv ($h - 1.0 / 3.0)) * 255)
+    return @($r, $g, $b)
+}
+
+# 深色主题原样返回; 浅色主题把深底/亮字映射成浅底/深字
+function TC {
+    param([int]$a, [int]$b, [int]$c, $d = $null)
+    if ($script:ThemeName -ne 'light') {
+        if ($null -ne $d) { return [Drawing.Color]::FromArgb($a, $b, $c, [int]$d) }
+        return [Drawing.Color]::FromArgb($a, $b, $c)
+    }
+    $alpha = 255; $r = $a; $g = $b; $bl = $c
+    if ($null -ne $d) { $alpha = $a; $r = $b; $g = $c; $bl = [int]$d }
+    $hsl = Get-TxHsl $r $g $bl
+    $h = [double]$hsl[0]; $s = [double]$hsl[1]; $l = [double]$hsl[2]
+    if ($s -gt 0.45 -and $l -ge 0.38) {
+        # 彩色强调色: 压到中等明度, 保证浅底上可辨认
+        $l2 = 0.36
+        $s2 = [Math]::Min($s, 0.9)
+    } elseif ($l -ge 0.45) {
+        # 浅色前景 / 文字
+        $l2 = 1.0 - $l
+        if ($l2 -lt 0.06) { $l2 = 0.06 }
+        $s2 = [Math]::Min($s, 0.14)
+    } elseif ($l -ge 0.30) {
+        # 中间调: 保留层次感, 用于分隔线/次要边框
+        $l2 = 1.0 - $l
+        $s2 = [Math]::Min($s, 0.14)
+    } else {
+        # 深色面板 / 按钮底色
+        $l2 = 0.86 + 0.10 * ($l / 0.30)
+        if ($l2 -gt 0.975) { $l2 = 0.975 }
+        $s2 = [Math]::Min($s, 0.14)
+    }
+    $rgb = Get-TxRgbFromHsl $h $s2 $l2
+    $rr = [Math]::Min(255, [Math]::Max(0, [int]$rgb[0]))
+    $gg = [Math]::Min(255, [Math]::Max(0, [int]$rgb[1]))
+    $bb = [Math]::Min(255, [Math]::Max(0, [int]$rgb[2]))
+    return [Drawing.Color]::FromArgb($alpha, $rr, $gg, $bb)
+}
+
 $script:FF = 'Microsoft YaHei UI'
 try { $null = New-Object Drawing.FontFamily -ArgumentList $script:FF } catch { $script:FF = 'Microsoft YaHei' }
 
@@ -245,17 +356,17 @@ function New-PageHero($page, [string]$eyebrow, [string]$title, [string]$subtitle
             $g = $e.Graphics
             $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
             $r = New-Object Drawing.Rectangle -ArgumentList @(0, 0, ($s.Width - 1), ($s.Height - 1))
-            $lg = New-Object System.Drawing.Drawing2D.LinearGradientBrush -ArgumentList @($r, [Drawing.Color]::FromArgb(12, 34, 50), [Drawing.Color]::FromArgb(30, 22, 60), [single](20 * $sc))
+            $lg = New-Object System.Drawing.Drawing2D.LinearGradientBrush -ArgumentList @($r, (TC 12 34 50), (TC 30 22 60), [single](20 * $sc))
             $g.FillRectangle($lg, $r)
             $lg.Dispose()
             $ar = New-Object Drawing.Rectangle -ArgumentList @(0, 1, $s.Width, [int](3 * $sc))
             $ag = New-Object System.Drawing.Drawing2D.LinearGradientBrush -ArgumentList @($ar, $script:C_CYAN, $script:C_PURPLE, [single]0)
             $g.FillRectangle($ag, $ar)
             $ag.Dispose()
-            $glow = New-Object Drawing.SolidBrush -ArgumentList @([Drawing.Color]::FromArgb(18, 0, 229, 255))
+            $glow = New-Object Drawing.SolidBrush -ArgumentList @((TC 18 0 229 255))
             $g.FillEllipse($glow, ($s.Width - 240 * $sc), (-100 * $sc), (260 * $sc), (260 * $sc))
             $glow.Dispose()
-            $glow2 = New-Object Drawing.SolidBrush -ArgumentList @([Drawing.Color]::FromArgb(12, 124, 77, 255))
+            $glow2 = New-Object Drawing.SolidBrush -ArgumentList @((TC 12 124 77 255))
             $g.FillEllipse($glow2, ($s.Width - 430 * $sc), (70 * $sc), (240 * $sc), (200 * $sc))
             $glow2.Dispose()
             $tg = $s.Tag
@@ -265,7 +376,7 @@ function New-PageHero($page, [string]$eyebrow, [string]$title, [string]$subtitle
             $b2 = New-Object Drawing.SolidBrush -ArgumentList @($script:C_TEXT)
             $g.DrawString([string]$tg.Title, $script:PageHF.Title, $b2, (22 * $sc), (28 * $sc))
             $b2.Dispose()
-            $b3 = New-Object Drawing.SolidBrush -ArgumentList @([Drawing.Color]::FromArgb(168, 199, 216))
+            $b3 = New-Object Drawing.SolidBrush -ArgumentList @((TC 168 199 216))
             $g.DrawString([string]$tg.Subtitle, $script:PageHF.Sub, $b3, (24 * $sc), (60 * $sc))
             $b3.Dispose()
         } catch {}
@@ -312,6 +423,9 @@ function New-Check($parent, $text, [int]$x, [int]$y, [int]$w, [int]$h, [bool]$ch
     $c.BackColor = [Drawing.Color]::Transparent
     $c.Font = F 9
     $c.UiScale = [single]$script:UI_SCALE
+    $c.BoxFill = TC 22 30 44
+    $c.BoxBorder = TC 71 85 105
+    $c.CheckColor = $script:C_CYAN
     $c.Checked = $checked
     $parent.Controls.Add($c)
     return $c
@@ -333,7 +447,7 @@ function New-Combo($parent, [int]$x, [int]$y, [int]$w) {
         if ($e.Index -lt 0) { return }
         $sc = [double]$script:UI_SCALE
         $bg = $script:C_PANEL2
-        if (($e.State -band [System.Windows.Forms.DrawItemState]::Selected) -ne 0) { $bg = [Drawing.Color]::FromArgb(30,42,58) }
+        if (($e.State -band [System.Windows.Forms.DrawItemState]::Selected) -ne 0) { $bg = (TC 30 42 58) }
         $br = New-Object Drawing.SolidBrush -ArgumentList @($bg)
         $e.Graphics.FillRectangle($br, $e.Bounds)
         $br.Dispose()
@@ -401,6 +515,8 @@ namespace TxUi
 {
     public static class Native
     {
+        public static bool DarkEnabled = true;
+
         [DllImport("dwmapi.dll")]
         public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
 
@@ -415,6 +531,7 @@ namespace TxUi
 
         public static void DarkTitle(IntPtr h)
         {
+            if (!DarkEnabled) return;
             int v = 1;
             try { DwmSetWindowAttribute(h, 20, ref v, 4); } catch { }
             try { DwmSetWindowAttribute(h, 19, ref v, 4); } catch { }
@@ -433,6 +550,7 @@ namespace TxUi
 
         public static void DarkScroll(IntPtr h)
         {
+            if (!DarkEnabled) return;
             try { SetWindowTheme(h, "DarkMode_Explorer", null); } catch { }
         }
     }
@@ -671,6 +789,7 @@ namespace TxUi
         public string Caption = "--";
         public Color Accent = Color.FromArgb(0, 229, 255);
         public float UiScale = 1f;
+        public bool LightMode = false;
         public Meter()
         {
             DoubleBuffered = true;
@@ -682,10 +801,13 @@ namespace TxUi
             Graphics g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
             float sc = UiScale > 0f ? UiScale : 1f;
+            Color capColor = LightMode ? Color.FromArgb(71, 85, 105) : Color.FromArgb(143, 163, 184);
+            Color valColor = LightMode ? Color.FromArgb(30, 41, 59) : Color.FromArgb(235, 241, 248);
+            Color trackColor = LightMode ? Color.FromArgb(218, 225, 233) : Color.FromArgb(30, 39, 54);
             using (SolidBrush bg = new SolidBrush(BackColor)) g.FillRectangle(bg, ClientRectangle);
             using (Font f1 = new Font("Microsoft YaHei UI", 9f))
             {
-                using (SolidBrush br = new SolidBrush(Color.FromArgb(143, 163, 184))) g.DrawString(Caption, f1, br, 0, 0);
+                using (SolidBrush br = new SolidBrush(capColor)) g.DrawString(Caption, f1, br, 0, 0);
                 SizeF capSz = g.MeasureString(Caption, f1);
                 float avail = Width - capSz.Width - 16f * sc;
                 if (avail < 40f * sc) avail = Width - 8f * sc;
@@ -703,7 +825,7 @@ namespace TxUi
                         sz = cs;
                         if (cs.Width <= avail || i == sizes.Length - 1) break;
                     }
-                    using (SolidBrush br2 = new SolidBrush(Color.FromArgb(235, 241, 248))) g.DrawString(ValueText, f2, br2, Width - sz.Width - sc, -sc);
+                    using (SolidBrush br2 = new SolidBrush(valColor)) g.DrawString(ValueText, f2, br2, Width - sz.Width - sc, -sc);
                 }
                 finally
                 {
@@ -715,7 +837,7 @@ namespace TxUi
             int trackR = Math.Max(1, (int)Math.Round(3 * sc));
             Rectangle track = new Rectangle(0, ty, Width, trackH);
             using (GraphicsPath p = Gfx.Round(track, trackR))
-            using (SolidBrush b = new SolidBrush(Color.FromArgb(30, 39, 54))) g.FillPath(b, p);
+            using (SolidBrush b = new SolidBrush(trackColor)) g.FillPath(b, p);
             double v = Value;
             if (v < 0) v = 0;
             if (v > 100) v = 100;
@@ -1070,6 +1192,7 @@ namespace TxUi
 }
 '@
 Add-Type -TypeDefinition $cs -ReferencedAssemblies @('System','System.Core','System.Drawing','System.Windows.Forms')
+try { [TxUi.Native]::DarkEnabled = ($script:ThemeName -ne 'light') } catch {}
 
 # 高 DPI 状态已在脚本入口处确定 (必须先于 GDI+ 初始化)
 
@@ -1281,19 +1404,21 @@ $null = New-Label $nav '功能导航' 20 16 160 20 8 $true $script:C_DIM
 $navDefs = @(
     @{ Key='overview'; Text='概览';     Glyph='01' },
     @{ Key='driver';   Text='驱动中心'; Glyph='02' },
-    @{ Key='items';    Text='优化项';   Glyph='03' },
-    @{ Key='backup';   Text='备份还原'; Glyph='04' },
-    @{ Key='diag';     Text='诊断报告'; Glyph='05' },
-    @{ Key='log';      Text='运行日志'; Glyph='06' },
-    @{ Key='settings'; Text='设置';     Glyph='07' },
-    @{ Key='about';    Text='关于';     Glyph='08' }
+    @{ Key='game';     Text='游戏库';   Glyph='03' },
+    @{ Key='items';    Text='优化项';   Glyph='04' },
+    @{ Key='backup';   Text='备份还原'; Glyph='05' },
+    @{ Key='diag';     Text='诊断报告'; Glyph='06' },
+    @{ Key='startup';  Text='启动项';   Glyph='07' },
+    @{ Key='log';      Text='运行日志'; Glyph='08' },
+    @{ Key='settings'; Text='设置';     Glyph='09' },
+    @{ Key='about';    Text='关于';     Glyph='10' }
 )
 $ny = 46
 foreach ($nd in $navDefs) {
     $nb = New-Object System.Windows.Forms.Button
     $nb.Text = "  $($nd.Glyph)   $($nd.Text)"
     $nb.Location = New-Object Drawing.Point -ArgumentList @(12, $ny)
-    $nb.Size = New-Object Drawing.Size -ArgumentList @(176, 42)
+    $nb.Size = New-Object Drawing.Size -ArgumentList @(176, 40)
     $nb.FlatStyle = 'Flat'
     $nb.FlatAppearance.BorderSize = 0
     $nb.TextAlign = 'MiddleLeft'
@@ -1318,7 +1443,7 @@ foreach ($nd in $navDefs) {
         param($s, $e)
         try {
             if ($script:UI.CurrentPage -ne $s.Tag.Page) {
-                $s.BackColor = [Drawing.Color]::FromArgb(24, 33, 48)
+                $s.BackColor = (TC 24 33 48)
                 $s.ForeColor = $script:C_TEXT
             }
         } catch {}
@@ -1335,7 +1460,7 @@ foreach ($nd in $navDefs) {
     $nav.Controls.Add($nb)
     Set-Round $nb 10
     $script:UI.NavBtns[$nd.Key] = $nb
-    $ny += 50
+    $ny += 46
 }
 $navFoot = New-Label $nav "v5.0`n核显 / 独显 / 混合显卡`n本地运行 · 不上传数据" 20 ($fh - 200) 164 64 8 $false $script:C_DIM
 $navFoot.Anchor = 'Bottom, Left'
@@ -1399,17 +1524,17 @@ $hero.Add_Paint({
     $g = $e.Graphics
     $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
     $r = New-Object Drawing.Rectangle -ArgumentList @(0, 0, ($s.Width - 1), ($s.Height - 1))
-    $lg = New-Object System.Drawing.Drawing2D.LinearGradientBrush -ArgumentList @($r, [Drawing.Color]::FromArgb(12, 38, 52), [Drawing.Color]::FromArgb(30, 26, 72), [single](12 * $sc))
+    $lg = New-Object System.Drawing.Drawing2D.LinearGradientBrush -ArgumentList @($r, (TC 12 38 52), (TC 30 26 72), [single](12 * $sc))
     $g.FillRectangle($lg, $r)
     $lg.Dispose()
     $accentRect = New-Object Drawing.Rectangle -ArgumentList @(0, 1, $s.Width, [int](3 * $sc))
     $ag = New-Object System.Drawing.Drawing2D.LinearGradientBrush -ArgumentList @($accentRect, $script:C_CYAN, $script:C_PURPLE, [single]0)
     $g.FillRectangle($ag, $accentRect)
     $ag.Dispose()
-    $glow1 = New-Object Drawing.SolidBrush -ArgumentList @([Drawing.Color]::FromArgb(16, 0, 229, 255))
+    $glow1 = New-Object Drawing.SolidBrush -ArgumentList @((TC 16 0 229 255))
     $g.FillEllipse($glow1, ($s.Width - 240 * $sc), (-90 * $sc), (260 * $sc), (260 * $sc))
     $glow1.Dispose()
-    $glow2 = New-Object Drawing.SolidBrush -ArgumentList @([Drawing.Color]::FromArgb(14, 124, 77, 255))
+    $glow2 = New-Object Drawing.SolidBrush -ArgumentList @((TC 14 124 77 255))
     $g.FillEllipse($glow2, ($s.Width - 430 * $sc), (70 * $sc), (240 * $sc), (200 * $sc))
     $glow2.Dispose()
     $bTag = New-Object Drawing.SolidBrush -ArgumentList @($script:C_CYAN)
@@ -1424,7 +1549,7 @@ $hero.Add_Paint({
         $sub = "$($script:MachineTxt) · $($gs -join ' + ') · $(if($isAdmin){'管理员模式'}else{'非管理员模式'})"
         if (@($script:Snap.Gpus | Where-Object Dedicated).Count -eq 0) { $sub += ' · 未检测到独显' }
     } catch {}
-    $bSub = New-Object Drawing.SolidBrush -ArgumentList @([Drawing.Color]::FromArgb(168, 199, 216))
+    $bSub = New-Object Drawing.SolidBrush -ArgumentList @((TC 168 199 216))
     $g.DrawString($sub, $script:HF.Sub, $bSub, (28 * $sc), (82 * $sc))
     $bSub.Dispose()
     $chk = 0
@@ -1439,20 +1564,26 @@ $hero.Add_Paint({
         $bV = New-Object Drawing.SolidBrush -ArgumentList @($st.C)
         $g.DrawString([string]$st.V, $script:HF.Stat, $bV, $sx, (40 * $sc))
         $bV.Dispose()
-        $bL = New-Object Drawing.SolidBrush -ArgumentList @([Drawing.Color]::FromArgb(143, 163, 184))
+        $bL = New-Object Drawing.SolidBrush -ArgumentList @((TC 143 163 184))
         $g.DrawString($st.T, $script:HF.StatLabel, $bL, ($sx + 3 * $sc), (88 * $sc))
         $bL.Dispose()
         $sx += 100 * $sc
     }
-    $hp = New-Object Drawing.Pen -ArgumentList @([Drawing.Color]::FromArgb(52, 72, 95), 1)
+    $hp = New-Object Drawing.Pen -ArgumentList @((TC 52 72 95), 1)
     $g.DrawRectangle($hp, 0, 0, $s.Width - 1, $s.Height - 1)
     $hp.Dispose()
 })
-$btnQuick = New-Btn $hero '一键优化' 28 110 118 34 $script:C_GREEN ([Drawing.Color]::FromArgb(6, 22, 13))
+$heroBtnBg = (TC 22 48 62)
+$heroBtnBg2 = (TC 22 36 50)
+if ($script:ThemeName -eq 'light') {
+    $heroBtnBg = [Drawing.Color]::FromArgb(196, 212, 227)
+    $heroBtnBg2 = [Drawing.Color]::FromArgb(203, 217, 231)
+}
+$btnQuick = New-Btn $hero '一键优化' 28 110 118 34 $script:C_GREEN ((TC 6 22 13))
 $btnQuick.Add_Click({ Invoke-QuickOptimize })
-$btnPreview = New-Btn $hero '预览变更' 154 110 110 34 ([Drawing.Color]::FromArgb(22, 48, 62)) ([Drawing.Color]::FromArgb(207, 232, 245))
+$btnPreview = New-Btn $hero '预览变更' 154 110 110 34 $heroBtnBg ((TC 207 232 245))
 $btnPreview.Add_Click({ Invoke-PreviewSelected })
-$btnRestoreLatest = New-Btn $hero '撤销上次优化' 272 110 128 34 ([Drawing.Color]::FromArgb(22, 36, 50)) ([Drawing.Color]::FromArgb(190, 210, 225))
+$btnRestoreLatest = New-Btn $hero '撤销上次优化' 272 110 128 34 $heroBtnBg2 ((TC 190 210 225))
 $btnRestoreLatest.Add_Click({ Invoke-RestoreLatest })
 
 # 硬件卡片悬停 / 点击
@@ -1464,8 +1595,8 @@ function Set-HwCardHover($card, [bool]$on) {
         $accent = $script:C_CYAN
         try { if ($card.Tag -and $card.Tag.Accent) { $accent = $card.Tag.Accent } } catch {}
         if ($on) {
-            $card.Fill = [Drawing.Color]::FromArgb(24, 31, 45)
-            $card.BorderColor = [Drawing.Color]::FromArgb(130, $accent.R, $accent.G, $accent.B)
+            $card.Fill = (TC 24 31 45)
+            $card.BorderColor = (TC 130 $accent.R $accent.G $accent.B)
         } else {
             $card.Fill = $script:C_PANEL
             $card.BorderColor = $script:C_BORDER
@@ -1584,6 +1715,7 @@ foreach ($md in $meterDefs) {
     $m.Accent = $md.Accent
     $m.BackColor = $script:C_PANEL
     $m.UiScale = [single]$script:UI_SCALE
+    $m.LightMode = ($script:ThemeName -eq 'light')
     $m.Height = 58
     $mon.Controls.Add($m)
     $script:UI.Meters[$md.Key] = $m
@@ -1601,7 +1733,7 @@ $leftW = [int](($cw - 40 - 12) * 0.58)
 $pendCard = New-Card $ov 20 506 $leftW 180 12 $script:C_PANEL $script:C_BORDER
 $script:UI.PendCard = $pendCard
 $script:UI.PendTitle = New-SectionTitle $pendCard '待应用项' 16 12 220 11
-$btnGoItems = New-Btn $pendCard '查看全部' ($leftW - 92) 12 76 24 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_CYAN 8 $false
+$btnGoItems = New-Btn $pendCard '查看全部' ($leftW - 92) 12 76 24 ((TC 24 35 50)) $script:C_CYAN 8 $false
 $btnGoItems.Anchor = 'Top, Right'
 $btnGoItems.Add_Click({ Show-Page 'items' })
 $script:UI.PendLabels = @()
@@ -2861,14 +2993,14 @@ $drvHero.Add_Paint({
         $g = $e.Graphics
         $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
         $r = New-Object Drawing.Rectangle -ArgumentList @(0, 0, ($s.Width - 1), ($s.Height - 1))
-        $lg = New-Object System.Drawing.Drawing2D.LinearGradientBrush -ArgumentList @($r, [Drawing.Color]::FromArgb(12, 34, 50), [Drawing.Color]::FromArgb(30, 22, 60), [single](20 * $sc))
+        $lg = New-Object System.Drawing.Drawing2D.LinearGradientBrush -ArgumentList @($r, (TC 12 34 50), (TC 30 22 60), [single](20 * $sc))
         $g.FillRectangle($lg, $r)
         $lg.Dispose()
         $ar = New-Object Drawing.Rectangle -ArgumentList @(0, 1, $s.Width, [int](3 * $sc))
         $ag = New-Object System.Drawing.Drawing2D.LinearGradientBrush -ArgumentList @($ar, $script:C_CYAN, $script:C_PURPLE, [single]0)
         $g.FillRectangle($ag, $ar)
         $ag.Dispose()
-        $glow = New-Object Drawing.SolidBrush -ArgumentList @([Drawing.Color]::FromArgb(18, 0, 229, 255))
+        $glow = New-Object Drawing.SolidBrush -ArgumentList @((TC 18 0 229 255))
         $g.FillEllipse($glow, ($s.Width - 240 * $sc), (-100 * $sc), (260 * $sc), (260 * $sc))
         $glow.Dispose()
         $b1 = New-Object Drawing.SolidBrush -ArgumentList @($script:C_CYAN)
@@ -2877,17 +3009,19 @@ $drvHero.Add_Paint({
         $b2 = New-Object Drawing.SolidBrush -ArgumentList @($script:C_TEXT)
         $g.DrawString('驱动中心', $script:DrvHF.Title, $b2, (22 * $sc), (28 * $sc))
         $b2.Dispose()
-        $b3 = New-Object Drawing.SolidBrush -ArgumentList @([Drawing.Color]::FromArgb(168, 199, 216))
+        $b3 = New-Object Drawing.SolidBrush -ArgumentList @((TC 168 199 216))
         $g.DrawString('扫描本机驱动 · 核对版本 · Intel / NVIDIA / AMD 更新以本机官方工具为准', $script:DrvHF.Sub, $b3, (24 * $sc), (60 * $sc))
         $b3.Dispose()
     } catch {}
 })
-$btnDrvScan = New-Btn $drvHero '扫描本机驱动' 24 84 120 32 $script:C_CYAN ([Drawing.Color]::FromArgb(4, 20, 26)) 9
-$btnDrvWu = New-Btn $drvHero '检测更新' 152 84 104 32 ([Drawing.Color]::FromArgb(34, 28, 60)) ([Drawing.Color]::FromArgb(214, 204, 255)) 9
-$btnDrvDevMgr = New-Btn $drvHero '设备管理器' 264 84 104 32 ([Drawing.Color]::FromArgb(22, 36, 50)) $script:C_SUB 9
+$btnDrvScan = New-Btn $drvHero '扫描本机驱动' 24 84 120 32 $script:C_CYAN ((TC 4 20 26)) 9
+$btnDrvWu = New-Btn $drvHero '检测更新' 152 84 104 32 $heroBtnBg2 ((TC 214 204 255)) 9
+$btnDrvDevMgr = New-Btn $drvHero '设备管理器' 264 84 104 32 $heroBtnBg2 $script:C_SUB 9
+$btnDrvHistory = New-Btn $drvHero '变化记录' 376 84 104 32 $heroBtnBg2 $script:C_SUB 9
 $btnDrvScan.Add_Click({ Refresh-DriverPage $true })
 $btnDrvWu.Add_Click({ Invoke-DriverUpdateCheck })
 $btnDrvDevMgr.Add_Click({ try { Start-Process 'devmgmt.msc' } catch {} })
+$btnDrvHistory.Add_Click({ Show-DriverHistory })
 
 $drvStatX = ($cw - 40) - 300
 $script:UI.DrvStatDev = New-Label $drvHero '0' $drvStatX 28 72 30 19 $true $script:C_TEXT 'MiddleRight'
@@ -2905,7 +3039,7 @@ $null = New-Label $drvFilterCard '筛选' 16 10 40 24 8 $true $script:C_DIM
 $script:UI.DrvFilterBtns = @{}
 $fx = 52
 foreach ($f in @('全部', '显卡', '音频', '外设', '网络')) {
-    $b = New-Btn $drvFilterCard $f $fx 7 76 30 ([Drawing.Color]::FromArgb(22, 30, 44)) $script:C_SUB 8 $false
+    $b = New-Btn $drvFilterCard $f $fx 7 76 30 ((TC 22 30 44)) $script:C_SUB 8 $false
     $b.Tag = $f
     $b.Add_Click({
         param($s, $e)
@@ -3013,7 +3147,7 @@ function New-DriverCard($dev) {
             $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
             $ac = $s.Tag.Accent
             if (-not $ac) { $ac = $script:C_CYAN }
-            $glow = New-Object Drawing.SolidBrush -ArgumentList @([Drawing.Color]::FromArgb(20, $ac.R, $ac.G, $ac.B))
+            $glow = New-Object Drawing.SolidBrush -ArgumentList @((TC 20 $ac.R $ac.G $ac.B))
             $g.FillEllipse($glow, ($s.Width - 110 * $sc), (-60 * $sc), (150 * $sc), (150 * $sc))
             $glow.Dispose()
             $bar = New-Object Drawing.Rectangle -ArgumentList @(0, 1, $s.Width, [int](3 * $sc))
@@ -3042,7 +3176,7 @@ function New-DriverCard($dev) {
     $st = Get-DriverCardInfo $dev
     $lblInfo = New-Label $card $st.Text (UiPx 14) (UiPx 112) ($w - (UiPx 96)) (UiPx 20) 8.5 $false $st.Color
     $lblInfo.AutoEllipsis = $true
-    $btn = New-Btn $card '管理' ($w - (UiPx 76)) ($h - (UiPx 36)) (UiPx 62) (UiPx 26) ([Drawing.Color]::FromArgb(24, 35, 50)) $dev.Accent 8 $false
+    $btn = New-Btn $card '管理' ($w - (UiPx 76)) ($h - (UiPx 36)) (UiPx 62) (UiPx 26) ((TC 24 35 50)) $dev.Accent 8 $false
     $btn.Tag = $dev
     $btn.Add_Click({ param($s, $e) Show-DriverDetails $s.Tag })
     $card.Tag.Labels = @{ Version = $lblVer; Meta = $lblMeta; Info = $lblInfo; Btn = $btn }
@@ -3130,10 +3264,10 @@ function Update-DriverFilterButtons {
         elseif ($counts.ContainsKey($k)) { $n = [int]$counts[$k] }
         $b.Text = "$k $n"
         if ($k -eq $script:DrvFilter) {
-            $b.BackColor = [Drawing.Color]::FromArgb(22, 48, 62)
+            $b.BackColor = (TC 22 48 62)
             $b.ForeColor = $script:C_CYAN
         } else {
-            $b.BackColor = [Drawing.Color]::FromArgb(22, 30, 44)
+            $b.BackColor = (TC 22 30 44)
             $b.ForeColor = $script:C_SUB
         }
     }
@@ -3182,7 +3316,7 @@ function Update-DriverCards {
         $box.Margin = New-Object System.Windows.Forms.Padding -ArgumentList @(0, 0, (UiPx 12), (UiPx 12))
         $null = New-Label $box '没有找到匹配的设备' (UiPx 18) (UiPx 14) ($boxW - (UiPx 36)) (UiPx 24) 10 $true $script:C_TEXT
         $null = New-Label $box '试试清空搜索词、切换分类，或重新扫描本机驱动。' (UiPx 18) (UiPx 42) ($boxW - (UiPx 36)) (UiPx 20) 8.5 $false $script:C_SUB
-        $b = New-Btn $box '重新扫描' (UiPx 18) (UiPx 66) (UiPx 92) (UiPx 28) ([Drawing.Color]::FromArgb(22, 48, 62)) $script:C_CYAN 8.5
+        $b = New-Btn $box '重新扫描' (UiPx 18) (UiPx 66) (UiPx 92) (UiPx 28) ((TC 22 48 62)) $script:C_CYAN 8.5
         $b.Add_Click({ Refresh-DriverPage $true })
         $flow.PerformLayout()
         return
@@ -3250,6 +3384,31 @@ function Finish-DriverEnrich {
     Set-Status "驱动信息已补全 · $cnt 个设备"
 }
 
+function Show-DriverHistory {
+    try {
+        $h = Read-TxDriverHistory
+        $rows = @($h.LastChanges | Sort-Object At -Descending | Select-Object -First 20)
+        if (-not $rows.Count) {
+            [System.Windows.Forms.MessageBox]::Show($form, "还没有驱动版本变化记录。`n`n每次扫描驱动中心时会与上次结果比对；版本升级、回退或重新绑定都会记录在此。", '驱动变化记录', 'OK', 'Information') | Out-Null
+            return
+        }
+        $lines = @("最近 $($rows.Count) 条驱动版本变化：", '')
+        foreach ($c in $rows) {
+            $kind = '变化'
+            if ([string]$c.Type -eq 'RolledBack') { $kind = '回退' }
+            elseif ([string]$c.Type -eq 'Updated') { $kind = '升级' }
+            elseif ([string]$c.Type -eq 'Rebound') { $kind = '重新绑定' }
+            $t = [string]$c.At
+            try { $t = ([datetime]$t).ToString('MM-dd HH:mm') } catch {}
+            $lines += "[$t] $kind · $($c.Name)"
+            $lines += "    $($c.From) → $($c.To)"
+        }
+        [System.Windows.Forms.MessageBox]::Show($form, ($lines -join "`n"), '驱动变化记录', 'OK', 'Information') | Out-Null
+    } catch {
+        [System.Windows.Forms.MessageBox]::Show($form, "读取记录失败:`n$($_.Exception.Message)", '驱动变化记录', 'OK', 'Warning') | Out-Null
+    }
+}
+
 function Refresh-DriverPage([bool]$force = $false) {
     if ($script:DrvBusy) { return }
     $script:DrvBusy = $true
@@ -3263,6 +3422,26 @@ function Refresh-DriverPage([bool]$force = $false) {
 
         # 第一段: 只枚举设备和当前驱动, 先把卡片显示出来
         $devs = @(Get-TxDriverDevices -Force:$force)
+        try {
+            $hr = Update-TxDriverHistory $devs
+            $chg = @($hr.Changes)
+            if ($chg.Count -gt 0) {
+                $parts = @()
+                foreach ($c in @($chg | Select-Object -First 3)) {
+                    $kind = '变化'
+                    if ([string]$c.Type -eq 'RolledBack') { $kind = '回退' }
+                    elseif ([string]$c.Type -eq 'Updated') { $kind = '升级' }
+                    elseif ([string]$c.Type -eq 'Rebound') { $kind = '重新绑定' }
+                    $parts += "$($c.Name): $($c.From) → $($c.To)（$kind）"
+                }
+                $txt = ($parts -join '；')
+                if ($chg.Count -gt 3) { $txt += "；另有 $($chg.Count - 3) 项" }
+                $kindTip = 'Info'
+                if (@($chg | Where-Object { [string]$_.Type -eq 'RolledBack' }).Count -gt 0) { $kindTip = 'Warning' }
+                if ([bool]$script:GuiCfg.NotifyDriver) { Show-TrayBalloon '驱动版本发生变化' $txt $kindTip }
+                Set-Status "驱动变化: $txt"
+            }
+        } catch {}
         $script:DrvPkgs = @(Get-TxDriverPackages -Force:$force)
         $null = Get-TxVendorTools -Force:$force
         $script:DrvData = [PSCustomObject]@{
@@ -3607,10 +3786,10 @@ function Show-DriverDetails($dev) {
             $vTxt = '已是最新'
             $vs = [string]$dev.VendorState
             if ($vs -eq 'RolledBack') {
-                $vFill = [Drawing.Color]::FromArgb(58, 22, 26); $vBd = [Drawing.Color]::FromArgb(120, 45, 45); $vFg = $script:C_RED
+                $vFill = (TC 58 22 26); $vBd = (TC 120 45 45); $vFg = $script:C_RED
                 $vTxt = '版本被回退'
             } elseif ($vs -eq 'Mismatch') {
-                $vFill = [Drawing.Color]::FromArgb(58, 22, 26); $vBd = [Drawing.Color]::FromArgb(120, 45, 45); $vFg = $script:C_RED
+                $vFill = (TC 58 22 26); $vBd = (TC 120 45 45); $vFg = $script:C_RED
                 $vTxt = '版本不匹配'
             } elseif ($vs -eq 'UpdateAvailable') {
                 $vFill = $script:C_ORANGE_BG; $vBd = $script:C_ORANGE_BD; $vFg = $script:C_ORANGE
@@ -3706,17 +3885,19 @@ function Show-DriverDetails($dev) {
         $fy = UiPx 13
         $bh = UiPx 34
         $bx = UiPx 20
-        $bw = UiPx 108
-        $gap = UiPx 8
+        $bw = UiPx 100
+        $gap = UiPx 6
         $btnSwitch = New-Btn $foot '切换所选驱动' $bx $fy $bw $bh (Get-MixColor $script:C_PANEL $accent 0.14) $script:C_TEXT 8.5
         $bx += $bw + $gap
         $btnClean = New-Btn $foot '清理所选旧包' $bx $fy $bw $bh (Get-MixColor $script:C_PANEL $script:C_ORANGE 0.10) $script:C_ORANGE 8.5
         $bx += $bw + $gap
-        $btnInstall = New-Btn $foot '安装所选更新' $bx $fy $bw $bh $accent ([Drawing.Color]::FromArgb(8, 14, 22)) 8.5
+        $btnInstall = New-Btn $foot '安装所选更新' $bx $fy $bw $bh $accent ((TC 8 14 22)) 8.5
         $bx += $bw + $gap
-        $btnHide = New-Btn $foot '隐藏所选更新' $bx $fy $bw $bh ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_SUB 8.5
+        $btnHide = New-Btn $foot '隐藏所选更新' $bx $fy $bw $bh ((TC 24 35 50)) $script:C_SUB 8.5
         $bx += $bw + $gap
-        $btnDevMgr = New-Btn $foot '打开设备管理器' $bx $fy (UiPx 116) $bh ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_SUB 8.5
+        $btnDevMgr = New-Btn $foot '设备管理器' $bx $fy (UiPx 96) $bh ((TC 24 35 50)) $script:C_SUB 8.5
+        $bx += UiPx 96 + $gap
+        $btnRebind = New-Btn $foot '重新绑定驱动' $bx $fy (UiPx 104) $bh ((TC 22 36 50)) $script:C_CYAN 8.5
         $btnClose = New-Btn $foot '关闭' ($dw - (UiPx 20) - (UiPx 72)) $fy (UiPx 72) $bh $script:C_PANEL2 $script:C_SUB 8.5
         $dlg.CancelButton = $btnClose
         $dlg.Tag = @{
@@ -3728,6 +3909,52 @@ function Show-DriverDetails($dev) {
         Update-DriverDetailActions $dlg
         $btnClose.Add_Click({ param($s, $e) try { $s.FindForm().Close() } catch {} })
         $btnDevMgr.Add_Click({ try { Start-Process 'devmgmt.msc' } catch {} })
+
+        $btnRebind.Add_Click({
+            param($s, $e)
+            $f = $s.FindForm()
+            $ctx = $f.Tag
+            $inf = [string]$ctx.Dev.InfName
+            if (-not $inf) {
+                [System.Windows.Forms.MessageBox]::Show($f, '当前设备没有可用的 INF 文件名，无法重新绑定。', '重新绑定驱动', 'OK', 'Warning') | Out-Null
+                return
+            }
+            if (-not $script:isAdmin) {
+                [System.Windows.Forms.MessageBox]::Show($f, '重新绑定驱动需要管理员权限，请以管理员身份重新启动本程序。', '重新绑定驱动', 'OK', 'Warning') | Out-Null
+                return
+            }
+            $infPath = Join-Path (Join-Path $env:WINDIR 'INF') $inf
+            if (-not (Test-Path -LiteralPath $infPath)) {
+                [System.Windows.Forms.MessageBox]::Show($f, "未找到驱动包：`n$infPath", '重新绑定驱动', 'OK', 'Warning') | Out-Null
+                return
+            }
+            $msg = "将使用当前驱动包重新绑定设备：`n$($ctx.Dev.Name)`n$inf`n`n适用于设备状态异常、驱动被系统回退或重新绑定后仍未识别的情况。`n安装时屏幕可能短暂闪烁，完成后可能需要重启。是否继续？"
+            if ([string]$ctx.Dev.Category -eq '音频') { $msg += "`n`n音频设备提示：操作期间声音可能短暂中断，完成后会自动恢复原有静音状态。" }
+            $r = [System.Windows.Forms.MessageBox]::Show($f, $msg, '重新绑定驱动', 'YesNo', 'Warning')
+            if ($r -ne 'Yes') { return }
+            $script:UI.Busy = $true
+            $null = Protect-TxAudioBegin
+            try {
+                Set-Status "正在重新绑定驱动: $inf..."
+                [System.Windows.Forms.Application]::DoEvents()
+                $out = & pnputil.exe /add-driver $infPath /install 2>&1
+                $code = $LASTEXITCODE
+                $text = (@($out) | ForEach-Object { [string]$_ }) -join "`n"
+                if ($code -eq 0) {
+                    $script:DrvNeedRefresh = $true
+                    $script:DrvRefreshDevice = [string]$ctx.Dev.DeviceId
+                    $script:DrvRefreshEnum = $true
+                    [System.Windows.Forms.MessageBox]::Show($f, "重新绑定命令已完成。`n`n$text`n`n如果设备没有立即变化，请重启后再查看。", '重新绑定驱动', 'OK', 'Information') | Out-Null
+                    $f.Close()
+                } else {
+                    [System.Windows.Forms.MessageBox]::Show($f, "重新绑定失败（退出码 $code）。`n`n$text", '重新绑定驱动', 'OK', 'Warning') | Out-Null
+                }
+            } catch {
+                [System.Windows.Forms.MessageBox]::Show($f, $_.Exception.Message, '重新绑定驱动', 'OK', 'Warning') | Out-Null
+            } finally {
+                $script:UI.Busy = $false
+            }
+        })
 
         $btnSwitch.Add_Click({
             param($s, $e)
@@ -3987,8 +4214,8 @@ $statusCombo.Add_SelectedIndexChanged({ Rebuild-Items })
 $onlyRec = New-Check $tool '仅推荐项' 512 16 88 24
 $script:UI.OnlyRec = $onlyRec
 $onlyRec.Add_CheckedChanged({ Rebuild-Items })
-$btnSelRec = New-Btn $tool '全选推荐' 610 12 90 30 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_GREEN 8
-$btnSelNone = New-Btn $tool '全不选' 708 12 72 30 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_SUB 8
+$btnSelRec = New-Btn $tool '全选推荐' 610 12 90 30 ((TC 24 35 50)) $script:C_GREEN 8
+$btnSelNone = New-Btn $tool '全不选' 708 12 72 30 ((TC 24 35 50)) $script:C_SUB 8
 $btnSelRec.Add_Click({ Select-Recommended })
 $btnSelNone.Add_Click({
     foreach ($it in $O) { $it.E = $false }
@@ -3998,13 +4225,13 @@ $btnSelNone.Add_Click({
 
 $profileCombo = New-Combo $tool 16 56 160
 $script:UI.ProfileCombo = $profileCombo
-$btnPLoad = New-Btn $tool '载入方案' 184 56 76 30 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_CYAN 8
-$btnPSave = New-Btn $tool '保存方案' 268 56 76 30 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_SUB 8
+$btnPLoad = New-Btn $tool '载入方案' 184 56 76 30 ((TC 24 35 50)) $script:C_CYAN 8
+$btnPSave = New-Btn $tool '保存方案' 268 56 76 30 ((TC 24 35 50)) $script:C_SUB 8
 $restoreChk = New-Check $tool '应用前创建还原点' 352 58 150 24
 $script:UI.RestoreChk = $restoreChk
-$btnItemPreview = New-Btn $tool '预览变更' ($tw - 268) 56 120 30 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_TEXT 9
+$btnItemPreview = New-Btn $tool '预览变更' ($tw - 268) 56 120 30 ((TC 24 35 50)) $script:C_TEXT 9
 $btnItemPreview.Anchor = 'Top, Right'
-$btnItemApply = New-Btn $tool '应用选中项' ($tw - 136) 56 120 30 $script:C_GREEN ([Drawing.Color]::FromArgb(6, 22, 13)) 9
+$btnItemApply = New-Btn $tool '应用选中项' ($tw - 136) 56 120 30 $script:C_GREEN ((TC 6 22 13)) 9
 $btnItemApply.Anchor = 'Top, Right'
 $script:UI.BtnItemPreview = $btnItemPreview
 $script:UI.BtnItemApply = $btnItemApply
@@ -4136,7 +4363,7 @@ function New-ItemRow($it, $si, [int]$rowW) {
     $catBadge.Anchor = 'Top, Right'
 
     if ($si.NeedsReboot) {
-        $rb = New-Badge $row '需重启' ($rowW - [int](238 * $sc)) ([int](19 * $sc)) ([int](64 * $sc)) ([int](24 * $sc)) ([Drawing.Color]::FromArgb(35, 26, 58)) ([Drawing.Color]::FromArgb(91, 61, 148)) ([Drawing.Color]::FromArgb(196, 181, 253)) 7.5
+        $rb = New-Badge $row '需重启' ($rowW - [int](238 * $sc)) ([int](19 * $sc)) ([int](64 * $sc)) ([int](24 * $sc)) ((TC 35 26 58)) ((TC 91 61 148)) ((TC 196 181 253)) 7.5
         $rb.Anchor = 'Top, Right'
     }
 
@@ -4310,9 +4537,9 @@ function Show-PreviewDialog($result) {
     Add-RtLine $rt '' $script:C_DIM 6
     Add-RtLine $rt '* 部分项（HAGS / DRR / 网卡 / 核显 / 独显）需要重启后才能完全生效。' $script:C_DIM 8.5
 
-    $btnCopy = New-Btn $dlg '复制预览' 592 566 100 34 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_TEXT 9
+    $btnCopy = New-Btn $dlg '复制预览' 592 566 100 34 ((TC 24 35 50)) $script:C_TEXT 9
     $btnCopy.Anchor = 'Bottom, Right'
-    $btnClose = New-Btn $dlg '关闭' 704 566 116 34 $script:C_CYAN ([Drawing.Color]::FromArgb(4, 20, 26)) 9
+    $btnClose = New-Btn $dlg '关闭' 704 566 116 34 $script:C_CYAN ((TC 4 20 26)) 9
     $btnClose.Anchor = 'Bottom, Right'
     $script:PreviewDlg = $dlg
     $btnClose.Add_Click({ try { $script:PreviewDlg.Close() } catch {} })
@@ -4447,12 +4674,12 @@ $script:UI.BakCount = $bakHero.Values[0]
 $script:UI.BakLatest = $bakHero.Values[1]
 $script:UI.BakRegs = $bakHero.Values[2]
 $script:UI.BakLast = $bakHero.Values[3]
-$btnBakRestore = New-Btn $bakHero.Card '还原选中' 24 84 104 32 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_TEXT 9
-$btnBakLatest = New-Btn $bakHero.Card '还原最近' 136 84 104 32 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_TEXT 9
-$btnBakAll = New-Btn $bakHero.Card '全部还原' 248 84 104 32 ([Drawing.Color]::FromArgb(46, 25, 30)) $script:C_RED 9
-$btnBakPoint = New-Btn $bakHero.Card '创建还原点' 360 84 112 32 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_CYAN 9
-$btnBakOpen = New-Btn $bakHero.Card '打开备份目录' 480 84 116 32 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_SUB 9
-$btnBakRefresh = New-Btn $bakHero.Card '刷新' 604 84 72 32 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_SUB 9
+$btnBakRestore = New-Btn $bakHero.Card '还原选中' 24 84 104 32 $heroBtnBg2 $script:C_TEXT 9
+$btnBakLatest = New-Btn $bakHero.Card '还原最近' 136 84 104 32 $heroBtnBg2 $script:C_TEXT 9
+$btnBakAll = New-Btn $bakHero.Card '全部还原' 248 84 104 32 ((TC 46 25 30)) $script:C_RED 9
+$btnBakPoint = New-Btn $bakHero.Card '创建还原点' 360 84 112 32 $heroBtnBg2 $script:C_CYAN 9
+$btnBakOpen = New-Btn $bakHero.Card '打开备份目录' 480 84 116 32 $heroBtnBg2 $script:C_SUB 9
+$btnBakRefresh = New-Btn $bakHero.Card '刷新' 604 84 72 32 $heroBtnBg2 $script:C_SUB 9
 $btnBakRestore.Add_Click({ Invoke-RestoreSelected })
 $btnBakLatest.Add_Click({ Invoke-RestoreLatest })
 $btnBakAll.Add_Click({ Invoke-RestoreAll })
@@ -4465,19 +4692,19 @@ function Style-Grid($g) {
     $g.BorderStyle = 'None'
     $g.EnableHeadersVisualStyles = $false
     $g.ColumnHeadersBorderStyle = 'None'
-    $g.ColumnHeadersDefaultCellStyle.BackColor = [Drawing.Color]::FromArgb(22, 32, 46)
+    $g.ColumnHeadersDefaultCellStyle.BackColor = (TC 22 32 46)
     $g.ColumnHeadersDefaultCellStyle.ForeColor = $script:C_SUB
     $g.ColumnHeadersDefaultCellStyle.Font = F 8.5 $true
     $g.ColumnHeadersDefaultCellStyle.Padding = New-Object System.Windows.Forms.Padding -ArgumentList @(6, 0, 6, 0)
     $g.ColumnHeadersHeight = 34
     $g.DefaultCellStyle.BackColor = $script:C_PANEL
     $g.DefaultCellStyle.ForeColor = $script:C_TEXT
-    $g.DefaultCellStyle.SelectionBackColor = [Drawing.Color]::FromArgb(30, 42, 58)
+    $g.DefaultCellStyle.SelectionBackColor = (TC 30 42 58)
     $g.DefaultCellStyle.SelectionForeColor = $script:C_TEXT
     $g.DefaultCellStyle.Font = F 9
     $g.DefaultCellStyle.Padding = New-Object System.Windows.Forms.Padding -ArgumentList @(6, 0, 6, 0)
-    $g.AlternatingRowsDefaultCellStyle.BackColor = [Drawing.Color]::FromArgb(16, 21, 31)
-    $g.GridColor = [Drawing.Color]::FromArgb(28, 38, 54)
+    $g.AlternatingRowsDefaultCellStyle.BackColor = (TC 16 21 31)
+    $g.GridColor = (TC 28 38 54)
     $g.RowHeadersVisible = $false
     $g.AllowUserToAddRows = $false
     $g.AllowUserToDeleteRows = $false
@@ -4671,6 +4898,361 @@ function Invoke-CreatePoint {
 }
 
 # ══════════════════════════════════════════════════════════
+# 游戏库页
+# ══════════════════════════════════════════════════════════
+$gamePage = New-Page 'game'
+$script:UI.GamePage = $gamePage
+$gamePage.AutoScrollMinSize = New-Object Drawing.Size -ArgumentList @(0, 710)
+$gameHero = New-PageHero $gamePage 'GAME LIBRARY · LOCAL FIRST' '游戏库' '自动识别 Steam / Epic 游戏，为单个游戏保存独立的优先级、核心与显卡偏好 · 只写本机，不联网' @(
+    @{ V = '0'; T = '已识别'; C = $script:C_CYAN },
+    @{ V = '0'; T = '已配置'; C = $script:C_GREEN },
+    @{ V = '0'; T = '路径缺失'; C = $script:C_RED }
+)
+$script:UI.GameStatAll = $gameHero.Values[0]
+$script:UI.GameStatCfg = $gameHero.Values[1]
+$script:UI.GameStatBad = $gameHero.Values[2]
+
+$btnGameScan = New-Btn $gameHero.Card '重新扫描' 24 84 96 32 $heroBtnBg2 $script:C_TEXT 9
+$btnGameAdd = New-Btn $gameHero.Card '手动添加' 128 84 96 32 $heroBtnBg2 $script:C_TEXT 9
+$btnGameFolder = New-Btn $gameHero.Card '打开游戏目录' 232 84 112 32 $heroBtnBg2 $script:C_SUB 9
+$btnGameScan.Add_Click({ Refresh-GamePage $true })
+$btnGameFolder.Add_Click({
+    if (-not $script:GameSel) { return }
+    try { Start-Process explorer.exe -ArgumentList ('/select,"' + [string]$script:GameSel.Exe + '"') } catch {}
+})
+
+$script:GameData = @()
+$script:GameSel = $null
+$script:GameSuppress = $false
+$script:GameRefreshing = $false
+$script:UI.GameDirty = $true
+$script:GameCoreCount = 0
+
+function Get-GameConfigText($gd) {
+    if (-not $gd -or -not $gd.Profile -or -not $gd.Profile.HasSaved) { return '默认' }
+    $a = New-Object System.Collections.ArrayList
+    try {
+        if ($gd.Profile.Priority -eq 'High') { [void]$a.Add('高优先') }
+        elseif ($gd.Profile.Priority -eq 'AboveNormal') { [void]$a.Add('较高优先') }
+        if ($gd.Profile.Affinity -eq 'Physical') { [void]$a.Add('限核') }
+        if ($gd.Profile.FsOff) { [void]$a.Add('关全屏') }
+        if ($gd.Profile.GpuHigh) { [void]$a.Add('独显') }
+        if ($gd.Profile.RunAsAdmin) { [void]$a.Add('管理员') }
+    } catch {}
+    if ($a.Count -eq 0) { return '已记录' }
+    return ($a -join ' · ')
+}
+
+function Set-GameMsg([string]$text, $color) {
+    try {
+        $lbl = $script:UI.GameMsg
+        $lbl.Text = [string]$text
+        if ($null -eq $color) { $color = $script:C_DIM }
+        $lbl.ForeColor = $color
+    } catch {}
+}
+
+function Get-GameProfileFromUi {
+    $p = [PSCustomObject]@{
+        Priority = 'Normal'; Affinity = 'All'; FsOff = $false; GpuHigh = $false
+        RunAsAdmin = $false; Args = ''; HasSaved = $false
+    }
+    try {
+        $pi = $script:UI.GamePrio.SelectedIndex
+        if ($pi -eq 1) { $p.Priority = 'AboveNormal' }
+        elseif ($pi -eq 2) { $p.Priority = 'High' }
+        if ($script:UI.GameAff.SelectedIndex -eq 1) { $p.Affinity = 'Physical' }
+        $p.FsOff = [bool]$script:UI.GameFs.Checked
+        $p.GpuHigh = [bool]$script:UI.GameGpu.Checked
+        $p.RunAsAdmin = [bool]$script:UI.GameAdmin.Checked
+        $tb = $script:UI.GameArgs
+        if ($tb -and $tb.Tag -and $tb.Tag.Active) { $p.Args = [string]$tb.Text }
+    } catch {}
+    return $p
+}
+
+function Show-GameEmpty {
+    try {
+        $script:UI.GameSel = $null
+        foreach ($c in @($script:UI.GameDetailCtrls)) { try { $c.Visible = $false } catch {} }
+        $script:UI.GameEmpty.Visible = $true
+        $script:UI.GameEmpty.Text = "左侧选择一个游戏`r`n或点击「重新扫描」识别本机游戏库"
+        $script:UI.GameEmpty.ForeColor = $script:C_DIM
+    } catch {}
+}
+
+function Show-GameDetail($gd) {
+    if (-not $gd) { Show-GameEmpty; return }
+    $script:GameSel = $gd
+    try {
+        $script:UI.GameEmpty.Visible = $false
+        foreach ($c in @($script:UI.GameDetailCtrls)) { $c.Visible = $true }
+        $script:UI.GameName.Text = [string]$gd.Name
+        $script:UI.GamePath.Text = [string]$gd.Exe
+        $meta = "来源 $($gd.Source)"
+        if ($gd.AppId) { $meta += " · AppId $($gd.AppId)" }
+        if (-not $gd.Exists) {
+            $meta += ' · 文件不存在'
+            $script:UI.GameMeta.ForeColor = $script:C_RED
+        } else {
+            $script:UI.GameMeta.ForeColor = $script:C_SUB
+        }
+        if ([string]$gd.Source -eq '手动') { $meta += ' · 手动添加' }
+        $script:UI.GameMeta.Text = $meta
+
+        $pr = $gd.Profile
+        $pi = 0
+        if ($pr.Priority -eq 'AboveNormal') { $pi = 1 }
+        elseif ($pr.Priority -eq 'High') { $pi = 2 }
+        $script:UI.GamePrio.SelectedIndex = $pi
+        $script:UI.GameAff.SelectedIndex = $(if ($pr.Affinity -eq 'Physical') { 1 } else { 0 })
+        $script:UI.GameFs.Checked = [bool]$pr.FsOff
+        $script:UI.GameGpu.Checked = [bool]$pr.GpuHigh
+        $script:UI.GameAdmin.Checked = [bool]$pr.RunAsAdmin
+
+        $tb = $script:UI.GameArgs
+        $ph = [string]$tb.Tag.Placeholder
+        if ([string]$pr.Args) {
+            $tb.Tag.Active = $true
+            $tb.Text = [string]$pr.Args
+            $tb.ForeColor = $script:C_TEXT
+        } else {
+            $tb.Tag.Active = $false
+            $tb.Text = $ph
+            $tb.ForeColor = $script:C_DIM
+        }
+
+        $script:UI.GameBtnRemove.Visible = [bool]$gd.Manual
+        $script:UI.GameBtnLaunch.Enabled = [bool]$gd.Exists
+        $script:UI.GameBtnApply.Enabled = [bool]$gd.Exists
+        Set-GameMsg '' $script:C_DIM
+    } catch {}
+}
+
+function Refresh-GamePage([bool]$force) {
+    if ($script:GameRefreshing) { return }
+    $script:GameRefreshing = $true
+    $oldExe = ''
+    if ($script:GameSel) { $oldExe = [string]$script:GameSel.Exe }
+    try {
+        Set-Status '正在扫描本地游戏库...'
+        [System.Windows.Forms.Application]::DoEvents()
+        $games = @(Get-TxGames -Force:$force)
+        $script:GameData = $games
+        $script:GameSuppress = $true
+        $g = $script:UI.GameGrid
+        $g.Rows.Clear()
+        foreach ($gd in $games) {
+            $cfg = Get-GameConfigText $gd
+            if (-not $gd.Exists) { $cfg = '路径缺失' }
+            $idx = $g.Rows.Add([string]$gd.Name, [string]$gd.Source, $cfg)
+            $g.Rows[$idx].Tag = [string]$gd.Exe
+            if (-not $gd.Exists) { $g.Rows[$idx].DefaultCellStyle.ForeColor = $script:C_RED }
+        }
+        $script:GameSuppress = $false
+
+        $cfgCount = 0; $badCount = 0
+        foreach ($gd in $games) {
+            if ($gd.Profile.HasSaved) { $cfgCount++ }
+            if (-not $gd.Exists) { $badCount++ }
+        }
+        $script:UI.GameStatAll.Text = [string]$games.Count
+        $script:UI.GameStatCfg.Text = [string]$cfgCount
+        $script:UI.GameStatBad.Text = [string]$badCount
+
+        if ($script:GameCoreCount -le 0) {
+            try {
+                $n = 0
+                foreach ($cpu in @(Get-CimInstance -ClassName Win32_Processor -ErrorAction SilentlyContinue)) { $n += [int]$cpu.NumberOfCores }
+                $script:GameCoreCount = $n
+            } catch {}
+        }
+        try { $script:UI.GameAff.Items[1] = ("仅前 $($script:GameCoreCount) 个逻辑处理器") } catch {}
+
+        $hit = $null
+        if ($oldExe) {
+            $hit = @($games | Where-Object { ([string]$_.Exe).ToLowerInvariant() -eq $oldExe.ToLowerInvariant() } | Select-Object -First 1)
+        }
+        if ($hit -and $hit.Count -gt 0) {
+            Show-GameDetail $hit[0]
+            for ($i = 0; $i -lt $g.Rows.Count; $i++) {
+                if (([string]$g.Rows[$i].Tag).ToLowerInvariant() -eq $oldExe.ToLowerInvariant()) {
+                    $g.Rows[$i].Selected = $true
+                    $g.FirstDisplayedScrollingRowIndex = $i
+                    break
+                }
+            }
+        } elseif ($games.Count -gt 0) {
+            Show-GameDetail $games[0]
+            $g.Rows[0].Selected = $true
+        } else {
+            Show-GameEmpty
+        }
+        $script:UI.GameDirty = $false
+        if ($games.Count -eq 0) { Set-Status '未识别到游戏，可手动添加可执行文件' }
+        else { Set-Status "游戏库已刷新 · $($games.Count) 个游戏" }
+    } catch {
+        Set-Status "游戏库扫描失败: $($_.Exception.Message)"
+        if ($Preview) { Write-Output "game_refresh_error=$($_.Exception.Message) at $($_.InvocationInfo.ScriptLineNumber)" }
+    } finally {
+        $script:GameSuppress = $false
+        $script:GameRefreshing = $false
+    }
+}
+
+$gameListCard = New-Card $gamePage 20 150 320 540 14 $script:C_PANEL $script:C_BORDER
+$gameListCard.Anchor = 'Top, Bottom, Left'
+$gameListTitle = New-SectionTitle $gameListCard '本地游戏' 16 14 300 10
+$lblGameListSub = New-Label $gameListCard 'Steam · Epic · 手动添加' 16 34 300 18 8 $false $script:C_DIM
+
+$gameGrid = New-Object System.Windows.Forms.DataGridView
+$gameGrid.Location = New-Object Drawing.Point -ArgumentList @(16, 62)
+$gameGrid.Size = New-Object Drawing.Size -ArgumentList @(288, 460)
+$gameGrid.Anchor = 'Top, Bottom, Left, Right'
+$gameListCard.Controls.Add($gameGrid)
+$script:UI.GameGrid = $gameGrid
+Style-Grid $gameGrid
+$null = Add-GridCol $gameGrid 'name' '游戏' 2.2 120
+$null = Add-GridCol $gameGrid 'src' '来源' 0.7 56 'MiddleCenter'
+$null = Add-GridCol $gameGrid 'cfg' '配置' 1.1 70 'MiddleCenter'
+
+$gameGrid.Add_SelectionChanged({
+    if ($script:GameSuppress) { return }
+    try {
+        $g = $script:UI.GameGrid
+        if ($g.SelectedRows.Count -eq 0) { Show-GameEmpty; return }
+        $exe = [string]$g.SelectedRows[0].Tag
+        $hit = @($script:GameData | Where-Object { ([string]$_.Exe) -eq $exe } | Select-Object -First 1)
+        if ($hit.Count -gt 0) { Show-GameDetail $hit[0] }
+    } catch {}
+})
+
+$gameDetailCard = New-Card $gamePage 352 150 ($cw - 372) 540 14 $script:C_PANEL $script:C_BORDER
+$gameDetailCard.Anchor = 'Top, Bottom, Left, Right'
+$script:UI.GameDetailCard = $gameDetailCard
+
+$script:UI.GameEmpty = New-Label $gameDetailCard '' 30 150 ($cw - 432) 80 11 $false $script:C_DIM 'MiddleCenter'
+$script:UI.GameEmpty.Anchor = 'Top, Left, Right'
+
+$script:UI.GameName = New-Label $gameDetailCard '' 24 16 ($cw - 420) 32 15 $true $script:C_TEXT
+$script:UI.GameName.Anchor = 'Top, Left, Right'
+$script:UI.GamePath = New-Label $gameDetailCard '' 24 50 ($cw - 420) 18 8 $false $script:C_DIM
+$script:UI.GamePath.Anchor = 'Top, Left, Right'
+$script:UI.GameMeta = New-Label $gameDetailCard '' 24 70 ($cw - 420) 18 8 $false $script:C_SUB
+$script:UI.GameMeta.Anchor = 'Top, Left, Right'
+
+$gameComboW = [Math]::Max(140, [Math]::Min(360, ($cw - 550)))
+$gameArgsW = [Math]::Max(120, ($cw - 504))
+$gameSecRun = New-SectionTitle $gameDetailCard '运行设置' 24 100 200 10
+$lblGamePrio = New-Label $gameDetailCard '进程优先级' 24 138 90 26 9 $false $script:C_SUB
+$script:UI.GamePrio = New-Combo $gameDetailCard 118 134 $gameComboW
+$script:UI.GamePrio.Items.AddRange([string[]]@('正常', '高于正常', '高'))
+$script:UI.GamePrio.SelectedIndex = 0
+$lblGameAff = New-Label $gameDetailCard '核心亲和性' 24 174 90 26 9 $false $script:C_SUB
+$script:UI.GameAff = New-Combo $gameDetailCard 118 170 $gameComboW
+$script:UI.GameAff.Items.AddRange([string[]]@('全部核心', '仅前 N 个逻辑处理器'))
+$script:UI.GameAff.SelectedIndex = 0
+
+$script:UI.GameFs = New-Check $gameDetailCard '关闭全屏优化（写入 AppCompatFlags）' 24 208 320 26
+$script:UI.GameGpu = New-Check $gameDetailCard '优先使用高性能显卡（独显）' 24 238 320 26
+$script:UI.GameAdmin = New-Check $gameDetailCard '以管理员身份启动' 24 268 320 26
+$lblGameArgs = New-Label $gameDetailCard '启动参数' 24 304 80 22 9 $false $script:C_SUB
+$script:UI.GameArgs = New-TextBox $gameDetailCard 108 300 $gameArgsW 30 '可选，例如 -dx11 -novid'
+$script:UI.GameArgs.Anchor = 'Top, Left, Right'
+
+$script:UI.GameBtnApply = New-Btn $gameDetailCard '保存并应用' 24 348 104 34 $script:C_CYAN ((TC 4 20 26)) 9
+$script:UI.GameBtnLaunch = New-Btn $gameDetailCard '启动游戏' 134 348 88 34 ((TC 24 35 50)) $script:C_GREEN 9
+$script:UI.GameBtnRestore = New-Btn $gameDetailCard '恢复原值' 228 348 88 34 ((TC 24 35 50)) $script:C_SUB 9
+$script:UI.GameBtnRemove = New-Btn $gameDetailCard '移除手动添加' 322 348 100 34 ((TC 46 25 30)) $script:C_RED 9
+
+$script:UI.GameMsg = New-Label $gameDetailCard '' 24 392 ($cw - 420) 40 8.5 $false $script:C_DIM
+$script:UI.GameMsg.Anchor = 'Top, Left, Right'
+$lblGameNote = New-Label $gameDetailCard '说明：全屏优化与显卡偏好写入当前用户注册表，点击「恢复原值」会写回首次配置前的状态；优先级与核心亲和性仅在本次启动时生效，不常驻。' 24 436 ($cw - 440) 56 8 $false $script:C_DIM
+$lblGameNote.Anchor = 'Top, Left, Right'
+
+$script:UI.GameDetailCtrls = @(
+    $script:UI.GameName, $script:UI.GamePath, $script:UI.GameMeta,
+    $gameSecRun, $lblGamePrio, $script:UI.GamePrio, $lblGameAff, $script:UI.GameAff,
+    $script:UI.GameFs, $script:UI.GameGpu, $script:UI.GameAdmin,
+    $lblGameArgs, $script:UI.GameArgs,
+    $script:UI.GameBtnApply, $script:UI.GameBtnLaunch, $script:UI.GameBtnRestore, $script:UI.GameBtnRemove,
+    $script:UI.GameMsg, $lblGameNote
+)
+foreach ($c in @($script:UI.GameDetailCtrls)) { try { $c.Visible = $false } catch {} }
+
+$script:UI.GameBtnApply.Add_Click({
+    if (-not $script:GameSel) { return }
+    try {
+        $p = Get-GameProfileFromUi
+        $null = Save-TxGameProfile ([string]$script:GameSel.Exe) $p
+        $r = Apply-TxGameProfile ([string]$script:GameSel.Exe) $p
+        if ($r.Ok) {
+            Set-GameMsg ("$($script:GameSel.Name) 的配置已保存并应用 · $(Get-GameConfigText $p)") $script:C_GREEN
+            Refresh-GamePage $false
+        } else {
+            Set-GameMsg "应用失败: $($r.Msg)" $script:C_RED
+        }
+    } catch { Set-GameMsg "保存失败: $($_.Exception.Message)" $script:C_RED }
+})
+
+$script:UI.GameBtnLaunch.Add_Click({
+    if (-not $script:GameSel) { return }
+    try {
+        $p = Get-GameProfileFromUi
+        $r = Start-TxGame ([string]$script:GameSel.Exe) $p
+        if ($r.Ok) { Set-GameMsg "已启动: $($r.Msg)" $script:C_GREEN }
+        else { Set-GameMsg "启动失败: $($r.Msg)" $script:C_RED }
+    } catch { Set-GameMsg "启动失败: $($_.Exception.Message)" $script:C_RED }
+})
+
+$script:UI.GameBtnRestore.Add_Click({
+    if (-not $script:GameSel) { return }
+    $ans = [System.Windows.Forms.MessageBox]::Show($form, "将把 $($script:GameSel.Name) 的全屏优化与显卡偏好恢复为首次配置前的值，并删除保存的配置。是否继续？", '恢复原值', 'YesNo', 'Warning')
+    if ($ans -ne 'Yes') { return }
+    try {
+        $r = Remove-TxGameProfile ([string]$script:GameSel.Exe)
+        if ($r.Ok) {
+            Set-GameMsg "已恢复: $($r.Msg)" $script:C_GREEN
+            Refresh-GamePage $false
+        } else { Set-GameMsg "恢复失败: $($r.Msg)" $script:C_RED }
+    } catch { Set-GameMsg "恢复失败: $($_.Exception.Message)" $script:C_RED }
+})
+
+$script:UI.GameBtnRemove.Add_Click({
+    if (-not $script:GameSel -or -not $script:GameSel.Manual) { return }
+    $ans = [System.Windows.Forms.MessageBox]::Show($form, "将从游戏库移除手动添加的 $($script:GameSel.Name)，并恢复它已应用的注册表项。是否继续？", '移除游戏', 'YesNo', 'Warning')
+    if ($ans -ne 'Yes') { return }
+    try {
+        $null = Remove-TxGameProfile ([string]$script:GameSel.Exe)
+        Remove-TxManualGame ([string]$script:GameSel.Exe)
+        Set-GameMsg '已从游戏库移除' $script:C_SUB
+        $script:GameSel = $null
+        Refresh-GamePage $false
+    } catch { Set-GameMsg "移除失败: $($_.Exception.Message)" $script:C_RED }
+})
+
+$btnGameAdd.Add_Click({
+    try {
+        $dlg = New-Object System.Windows.Forms.OpenFileDialog
+        $dlg.Title = '选择游戏可执行文件'
+        $dlg.Filter = '可执行文件 (*.exe)|*.exe|所有文件 (*.*)|*.*'
+        $dlg.CheckFileExists = $true
+        if ($dlg.ShowDialog($form) -ne 'OK') { return }
+        $exe = [string]$dlg.FileName
+        $def = [IO.Path]::GetFileNameWithoutExtension($exe)
+        $name = Show-InputDialog '添加到游戏库' '显示名称' $def
+        if (-not $name) { $name = $def }
+        $null = Add-TxManualGame ([string]$name) $exe
+        Refresh-GamePage $true
+        Set-Status "已添加游戏: $name"
+    } catch {
+        [System.Windows.Forms.MessageBox]::Show($form, "添加失败:`n$($_.Exception.Message)", '游戏库', 'OK', 'Error') | Out-Null
+    }
+})
+
+Show-GameEmpty
+
+# ══════════════════════════════════════════════════════════
 # 诊断报告页
 # ══════════════════════════════════════════════════════════
 $diagPage = New-Page 'diag'
@@ -4681,10 +5263,51 @@ $diagHero = New-PageHero $diagPage 'SYSTEM DIAGNOSTICS · READ ONLY' '诊断报�
     @{ V = '0'; T = '风险'; C = $script:C_RED }
 )
 $script:UI.DiagHero = $diagHero.Card
-$btnDiagRefresh = New-Btn $diagHero.Card '刷新诊断' 24 84 104 32 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_TEXT 9
-$btnDiagExport = New-Btn $diagHero.Card '导出报告' 136 84 104 32 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_CYAN 9
-$btnDiagCopy = New-Btn $diagHero.Card '复制全部' 248 84 104 32 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_SUB 9
+$btnDiagRefresh = New-Btn $diagHero.Card '刷新诊断' 24 84 104 32 $heroBtnBg2 $script:C_TEXT 9
+$btnDiagExport = New-Btn $diagHero.Card '导出报告' 136 84 104 32 $heroBtnBg2 $script:C_CYAN 9
+$btnDiagCopy = New-Btn $diagHero.Card '复制全部' 248 84 104 32 $heroBtnBg2 $script:C_SUB 9
+$btnDiagBundle = New-Btn $diagHero.Card '导出诊断包' 360 84 118 32 $heroBtnBg2 $script:C_CYAN 9
 $btnDiagRefresh.Add_Click({ Refresh-Diag $true })
+$btnDiagBundle.Add_Click({
+    if ($script:UI.Busy) {
+        [System.Windows.Forms.MessageBox]::Show($form, '正在应用或还原，请等待当前操作完成。', '导出诊断包', 'OK', 'Information') | Out-Null
+        return
+    }
+    try {
+        $dlg = New-Object System.Windows.Forms.SaveFileDialog
+        $dlg.Title = '导出诊断包'
+        $dlg.Filter = 'ZIP 压缩包 (*.zip)|*.zip'
+        $dlg.DefaultExt = 'zip'
+        $dlg.AddExtension = $true
+        $dlg.FileName = '诊断包_' + (Get-Date).ToString('yyyyMMdd_HHmmss') + '.zip'
+        try { if (Test-Path -LiteralPath $TX_DIAG) { $dlg.InitialDirectory = $TX_DIAG } } catch {}
+        if ($dlg.ShowDialog($form) -ne [System.Windows.Forms.DialogResult]::OK) { return }
+        $script:UI.Busy = $true
+        Set-Status '正在生成诊断包（dxdiag 可能需要 10-30 秒）...'
+        [System.Windows.Forms.Cursor]::Current = [System.Windows.Forms.Cursors]::WaitCursor
+        [System.Windows.Forms.Application]::DoEvents()
+        $tmp = Join-Path $env:TEMP ('txdiagui_' + [guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $tmp -Force | Out-Null
+        try {
+            $zip = Export-TxDiagnosticBundle -OutDir $tmp
+            if (-not $zip -or -not (Test-Path -LiteralPath $zip)) { throw '诊断包生成失败' }
+            Move-Item -LiteralPath $zip -Destination $dlg.FileName -Force
+            Set-Status "诊断包已导出: $($dlg.FileName)"
+            $ans = [System.Windows.Forms.MessageBox]::Show($form, "诊断包已导出：`n$($dlg.FileName)`n`n内容包含系统信息、dxdiag、驱动列表、最近 24 小时错误事件、优化状态与本机配置。`n`n是否打开所在文件夹？", '导出诊断包 - 完成', 'YesNo', 'Information')
+            if ($ans -eq 'Yes') { try { Start-Process explorer.exe -ArgumentList ('/select,"' + $dlg.FileName + '"') } catch {} }
+        } finally {
+            try { if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue } } catch {}
+            [System.Windows.Forms.Cursor]::Current = [System.Windows.Forms.Cursors]::Default
+            $script:UI.Busy = $false
+        }
+    } catch {
+        [System.Windows.Forms.MessageBox]::Show($form, "导出诊断包失败:`n$($_.Exception.Message)", '导出诊断包', 'OK', 'Warning') | Out-Null
+        Set-Status '诊断包导出失败'
+    } finally {
+        [System.Windows.Forms.Cursor]::Current = [System.Windows.Forms.Cursors]::Default
+        $script:UI.Busy = $false
+    }
+})
 $btnDiagExport.Add_Click({
     try {
         Set-Status '正在导出报告...'
@@ -4753,6 +5376,101 @@ function Refresh-Diag([bool]$manual = $false) {
 }
 
 # ══════════════════════════════════════════════════════════
+# 启动项页 (只读)
+# ══════════════════════════════════════════════════════════
+$startupPage = New-Page 'startup'
+$script:UI.StartupPage = $startupPage
+$startupPage.AutoScrollMinSize = New-Object Drawing.Size -ArgumentList @(0, 980)
+$startupHero = New-PageHero $startupPage 'STARTUP & BACKGROUND · READ ONLY' '启动项与后台程序' '查看开机自启项和当前占用内存较多的后台进程 · 只读，不提供一键禁用' @(
+    @{ V = '0'; T = '启动项'; C = $script:C_CYAN },
+    @{ V = '0'; T = '后台进程'; C = $script:C_SUB },
+    @{ V = '0'; T = '占用内存 MB'; C = $script:C_ORANGE }
+)
+$script:UI.StartupStatItems = $startupHero.Values[0]
+$script:UI.StartupStatProcs = $startupHero.Values[1]
+$script:UI.StartupStatMem = $startupHero.Values[2]
+$btnStartupRefresh = New-Btn $startupHero.Card '刷新列表' 24 84 104 32 $script:C_CYAN ((TC 4 20 26)) 9
+$btnStartupTask = New-Btn $startupHero.Card '任务管理器' 136 84 104 32 $heroBtnBg2 $script:C_TEXT 9
+$btnStartupSettings = New-Btn $startupHero.Card '启动应用设置' 248 84 112 32 $heroBtnBg2 $script:C_SUB 9
+$btnStartupRefresh.Add_Click({ Refresh-StartupPage })
+$btnStartupTask.Add_Click({ try { Start-Process 'taskmgr.exe' } catch {} })
+$btnStartupSettings.Add_Click({ try { Start-Process 'ms-settings:startupapps' } catch {} })
+
+$startupCard = New-Card $startupPage 20 150 ($cw - 40) 320 14 $script:C_PANEL $script:C_BORDER
+$startupCard.Anchor = 'Top, Left, Right'
+$null = New-SectionTitle $startupCard '开机启动项' 16 14 260 10
+$null = New-Label $startupCard '注册表 Run / RunOnce 与启动文件夹 · 只读展示' 16 34 520 18 8 $false $script:C_DIM
+$startupGrid = New-Object System.Windows.Forms.DataGridView
+$startupGrid.Location = New-Object Drawing.Point -ArgumentList @(16, 58)
+$startupGrid.Size = New-Object Drawing.Size -ArgumentList @(($cw - 72), 242)
+$startupGrid.Anchor = 'Top, Left, Right'
+$startupCard.Controls.Add($startupGrid)
+$script:UI.StartupGrid = $startupGrid
+Style-Grid $startupGrid
+$null = Add-GridCol $startupGrid 'name' '名称' 1.2 140
+$null = Add-GridCol $startupGrid 'src' '来源' 0.8 110
+$null = Add-GridCol $startupGrid 'cmd' '命令 / 路径' 3.4 320
+
+$backCard = New-Card $startupPage 20 486 ($cw - 40) 360 14 $script:C_PANEL $script:C_BORDER
+$backCard.Anchor = 'Top, Left, Right'
+$null = New-SectionTitle $backCard '后台进程（按内存排序）' 16 14 300 10
+$null = New-Label $backCard '只展示占用内存较高的前 40 个进程 · 结束进程请使用任务管理器' 16 34 560 18 8 $false $script:C_DIM
+$backGrid = New-Object System.Windows.Forms.DataGridView
+$backGrid.Location = New-Object Drawing.Point -ArgumentList @(16, 58)
+$backGrid.Size = New-Object Drawing.Size -ArgumentList @(($cw - 72), 282)
+$backGrid.Anchor = 'Top, Left, Right'
+$backCard.Controls.Add($backGrid)
+$script:UI.BackGrid = $backGrid
+Style-Grid $backGrid
+$null = Add-GridCol $backGrid 'name' '进程' 1.2 140
+$null = Add-GridCol $backGrid 'title' '窗口标题' 2.6 240
+$null = Add-GridCol $backGrid 'pid' 'PID' 0.5 64 'MiddleCenter'
+$null = Add-GridCol $backGrid 'mem' '内存' 0.6 84 'MiddleRight'
+
+$startupNoteCard = New-Card $startupPage 20 862 ($cw - 40) 86 14 $script:C_PANEL $script:C_BORDER
+$startupNoteCard.Anchor = 'Top, Left, Right'
+$null = New-SectionTitle $startupNoteCard '为什么不做一键禁用' 16 13 280 10
+$null = New-Label $startupNoteCard '· 启动项属于系统配置，不同厂商的启动器与安全软件行为差异很大，误禁用可能导致驱动面板、输入法或同步工具失效。' 16 38 ($cw - 72) 18 8.5 $false $script:C_DIM
+$null = New-Label $startupNoteCard '· 需要调整时，请使用 Windows 设置 → 应用 → 启动，或任务管理器 → 启动应用；本页只负责帮你看清现状。' 16 58 ($cw - 72) 18 8.5 $false $script:C_DIM
+
+$script:UI.StartupDirty = $true
+
+function Refresh-StartupPage {
+    try {
+        Set-Status '正在读取启动项与后台进程...'
+        [System.Windows.Forms.Application]::DoEvents()
+        $items = @(Get-TxStartupEntries)
+        $procs = @(Get-TxBackgroundProcesses -Top 40 | Sort-Object MemMB -Descending)
+
+        $sg = $script:UI.StartupGrid
+        $sg.Rows.Clear()
+        foreach ($it in $items) {
+            $idx = $sg.Rows.Add([string]$it.Name, [string]$it.Source, [string]$it.Command)
+            $sg.Rows[$idx].Tag = [string]$it.Location
+        }
+
+        $bg = $script:UI.BackGrid
+        $bg.Rows.Clear()
+        $memSum = 0.0
+        foreach ($p in $procs) {
+            $memSum += [double]$p.MemMB
+            $idx = $bg.Rows.Add([string]$p.Name, [string]$p.Title, [string]$p.Id, ("{0:N0} MB" -f [double]$p.MemMB))
+            $bg.Rows[$idx].Tag = [int]$p.Id
+            if ($p.Foreground) { $bg.Rows[$idx].Cells[1].Style.ForeColor = $script:C_TEXT }
+            else { $bg.Rows[$idx].Cells[1].Style.ForeColor = $script:C_DIM }
+        }
+
+        $script:UI.StartupStatItems.Text = [string]$items.Count
+        $script:UI.StartupStatProcs.Text = [string]$procs.Count
+        $script:UI.StartupStatMem.Text = ("{0:N0}" -f $memSum)
+        $script:UI.StartupDirty = $false
+        Set-Status "启动项 $($items.Count) 个 · 后台进程 $($procs.Count) 个"
+    } catch {
+        Set-Status "读取启动项失败: $($_.Exception.Message)"
+    }
+}
+
+# ══════════════════════════════════════════════════════════
 # 运行日志页
 # ══════════════════════════════════════════════════════════
 $logPage = New-Page 'log'
@@ -4763,10 +5481,10 @@ $logHero = New-PageHero $logPage 'RUNTIME LOG · LOCAL ONLY' '运行日志' '仅
 $script:UI.LogHero = $logHero.Card
 $script:UI.LogTool = $logHero.Card
 $script:UI.LogCount = $logHero.Values[0]
-$btnLogClear = New-Btn $logHero.Card '清空界面' 24 84 96 32 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_TEXT 9
-$btnLogOpen = New-Btn $logHero.Card '打开日志文件' 128 84 116 32 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_CYAN 9
-$btnLogDir = New-Btn $logHero.Card '打开脚本目录' 252 84 116 32 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_SUB 9
-$btnLogCopy = New-Btn $logHero.Card '复制日志' 376 84 96 32 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_SUB 9
+$btnLogClear = New-Btn $logHero.Card '清空界面' 24 84 96 32 $heroBtnBg2 $script:C_TEXT 9
+$btnLogOpen = New-Btn $logHero.Card '打开日志文件' 128 84 116 32 $heroBtnBg2 $script:C_CYAN 9
+$btnLogDir = New-Btn $logHero.Card '打开脚本目录' 252 84 116 32 $heroBtnBg2 $script:C_SUB 9
+$btnLogCopy = New-Btn $logHero.Card '复制日志' 376 84 96 32 $heroBtnBg2 $script:C_SUB 9
 $chkLogAuto = New-Check $logHero.Card '自动滚动' 484 88 96 24 $true
 $script:UI.LogAuto = $chkLogAuto
 $btnLogClear.Add_Click({ try { $script:UI.LogBox.Items.Clear(); $script:UI.LogCount.Text = '0' } catch {} })
@@ -4803,8 +5521,8 @@ $logBox.Add_DrawItem({
     try {
         $it = $s.Items[$e.Index]
         $bg = $script:C_PANEL
-        if (($e.Index % 2) -eq 1) { $bg = [Drawing.Color]::FromArgb(15, 20, 30) }
-        if (($e.State -band [System.Windows.Forms.DrawItemState]::Selected) -ne 0) { $bg = [Drawing.Color]::FromArgb(24, 35, 50) }
+        if (($e.Index % 2) -eq 1) { $bg = (TC 15 20 30) }
+        if (($e.State -band [System.Windows.Forms.DrawItemState]::Selected) -ne 0) { $bg = (TC 24 35 50) }
         $br = New-Object Drawing.SolidBrush -ArgumentList @($bg)
         $e.Graphics.FillRectangle($br, $e.Bounds)
         $br.Dispose()
@@ -4866,6 +5584,10 @@ $script:UI.AboutPage = $aboutPage
 $aboutPage.AutoScroll = $false
 $aboutHero = New-PageHero $aboutPage 'ABOUT · V5.0' '关于' '核显 / 独显 / 混合显卡 · 本地运行 · 不上传数据'
 $script:UI.AboutHero = $aboutHero.Card
+$btnAboutUpdate = New-Btn $aboutHero.Card '检查更新' 24 84 110 32 $heroBtnBg2 $script:C_CYAN 9
+$script:UI.BtnAboutUpdate = $btnAboutUpdate
+$lblAboutVer = New-Label $aboutHero.Card "当前版本 v$($script:AppVersion) · 发布源 GitHub Releases" 146 88 460 24 8.5 $false $script:C_SUB
+$btnAboutUpdate.Add_Click({ Invoke-CheckUpdate })
 $aboutBadges = @(
     @{ T='核显兼容'; C=$script:C_CYAN },
     @{ T='独显优化'; C=$script:C_PURPLE },
@@ -4899,7 +5621,7 @@ $aboutBox.Add_DrawItem({
     try {
         $it = $s.Items[$e.Index]
         $bg = $script:C_PANEL
-        if (($e.Index % 2) -eq 1) { $bg = [Drawing.Color]::FromArgb(15, 20, 30) }
+        if (($e.Index % 2) -eq 1) { $bg = (TC 15 20 30) }
         $br = New-Object Drawing.SolidBrush -ArgumentList @($bg)
         $e.Graphics.FillRectangle($br, $e.Bounds)
         $br.Dispose()
@@ -4999,6 +5721,41 @@ function Fill-About {
         Add-RtLine $rt '请先保存工作，再应用需要重启的项。' $script:C_DIM 8.5
         if ($rt -is [System.Windows.Forms.ListBox]) { $rt.TopIndex = 0 } else { $rt.SelectionStart = 0; $rt.ScrollToCaret() }
     } catch {}
+}
+
+function Invoke-CheckUpdate {
+    try {
+        Set-Status '正在检查更新...'
+        [System.Windows.Forms.Application]::DoEvents()
+        try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
+        $url = "https://api.github.com/repos/$($script:RepoSlug)/releases/latest"
+        $headers = @{
+            'User-Agent' = "TianxiGameOptimizer/$($script:AppVersion)"
+            'Accept'     = 'application/vnd.github+json'
+        }
+        $j = Invoke-RestMethod -Uri $url -Headers $headers -TimeoutSec 12 -ErrorAction Stop
+        $tag = [string]$j.tag_name
+        if (-not $tag) { throw '发布信息缺少版本号' }
+        $latest = $tag.TrimStart('v', 'V')
+        $cmp = Compare-TxEngineVersion $latest $script:AppVersion
+        if ($cmp -gt 0) {
+            $body = [string]$j.body
+            try { $body = ($body -replace "`r?`n", "`n").Trim() } catch {}
+            if ($body.Length -gt 600) { $body = $body.Substring(0, 600) + '...' }
+            $msg = "发现新版本：$tag`n当前版本：v$($script:AppVersion)`n发布时间：$([string]$j.published_at)`n`n$body`n`n是否打开下载页面？"
+            $ans = [System.Windows.Forms.MessageBox]::Show($form, $msg, '检查更新', 'YesNo', 'Information')
+            if ($ans -eq 'Yes') {
+                try { Start-Process ([string]$j.html_url) } catch {}
+            }
+            Set-Status "发现新版本 $tag"
+        } else {
+            [System.Windows.Forms.MessageBox]::Show($form, "当前已是最新版本。`n`n当前版本：v$($script:AppVersion)`n最新发布：$tag", '检查更新', 'OK', 'Information') | Out-Null
+            Set-Status "已是最新版本 v$($script:AppVersion)"
+        }
+    } catch {
+        [System.Windows.Forms.MessageBox]::Show($form, "检查更新失败:`n$($_.Exception.Message)`n`n请检查网络连接，或稍后重试。", '检查更新', 'OK', 'Warning') | Out-Null
+        Set-Status '检查更新失败'
+    }
 }
 
 # ══════════════════════════════════════════════════════════
@@ -5117,17 +5874,40 @@ function Export-SharePackage([string]$zipPath, [switch]$Quiet) {
 # ══════════════════════════════════════════════════════════
 $setPage = New-Page 'settings'
 $script:UI.SettingsPage = $setPage
-$setPage.AutoScrollMinSize = New-Object Drawing.Size -ArgumentList @(0, 1000)
-$setHero = New-PageHero $setPage 'PREFERENCES · LOCAL CONFIG' '设置' '实验性渲染、分享与配置文件 · 所有设置只保存在本机' @(
+$setPage.AutoScrollMinSize = New-Object Drawing.Size -ArgumentList @(0, 1220)
+$setHero = New-PageHero $setPage 'PREFERENCES · LOCAL CONFIG' '设置' '外观、托盘通知、实验性渲染与配置文件 · 所有设置只保存在本机' @(
+    @{ V = '深色'; T = '主题'; C = $script:C_CYAN },
     @{ V = '关闭'; T = '高 DPI 渲染'; C = $script:C_DIM },
     @{ V = '关闭'; T = '状态栏渲染信息'; C = $script:C_DIM }
 )
 $script:UI.SetHero = $setHero.Card
-$script:UI.SetStatDpi = $setHero.Values[0]
-$script:UI.SetStatRender = $setHero.Values[1]
+$script:UI.SetStatTheme = $setHero.Values[0]
+$script:UI.SetStatDpi = $setHero.Values[1]
+$script:UI.SetStatRender = $setHero.Values[2]
 
 $setW = $cw - 40
-$expCard = New-Card $setPage 20 150 $setW 350 16 $script:C_PANEL $script:C_BORDER
+$appCard = New-Card $setPage 20 150 $setW 196 16 $script:C_PANEL $script:C_BORDER
+$appCard.Anchor = 'Top, Left, Right'
+$script:UI.AppCard = $appCard
+$null = New-SectionTitle $appCard '外观与通知' 20 16 220 12
+$null = New-Label $appCard '主题切换需要重启界面；托盘与通知选项立即生效' 20 42 ($setW - 40) 18 8.5 $false $script:C_DIM
+
+$lblTheme = New-Label $appCard '界面主题' 20 76 80 26 9.5 $true $script:C_TEXT
+$script:UI.SetThemeCombo = New-Combo $appCard 108 72 170
+$script:UI.SetThemeCombo.Items.AddRange([string[]]@('深色', '浅色'))
+$script:UI.SetThemeCombo.SelectedIndex = $(if ([string]$script:GuiCfg.Theme -eq 'light') { 1 } else { 0 })
+$lblThemeState = New-Label $appCard '' 292 76 360 24 8.5 $false $script:C_DIM
+$script:UI.SetThemeState = $lblThemeState
+
+$script:UI.SetTrayCheck = New-Check $appCard '关闭窗口时最小化到托盘，而不是退出' 20 112 380 26 ([bool]$script:GuiCfg.MinimizeToTray)
+$null = New-Label $appCard '托盘图标双击可恢复主界面；右键菜单可显示或退出' 44 138 460 18 8 $false $script:C_DIM
+$script:UI.SetNotifyCheck = New-Check $appCard '驱动版本变化时发送托盘通知' 20 158 360 26 ([bool]$script:GuiCfg.NotifyDriver)
+
+$btnAppRestart = New-Btn $appCard '重启界面' ($setW - 150) 72 130 34 ((TC 24 35 50)) $script:C_CYAN 9
+$btnAppRestart.Anchor = 'Top, Right'
+$btnAppRestart.Add_Click({ Restart-Gui })
+
+$expCard = New-Card $setPage 20 362 $setW 350 16 $script:C_PANEL $script:C_BORDER
 $expCard.Anchor = 'Top, Left, Right'
 $script:UI.ExpCard = $expCard
 $null = New-SectionTitle $expCard '实验性功能' 20 16 220 12
@@ -5140,7 +5920,7 @@ $script:UI.SetDpiState = $lblDpiState
 $chkDpi = New-Check $expCard '启用（重启界面生效）' ($setW - 380) 78 210 26 ([bool]$script:GuiCfg.ExperimentalDpi)
 $chkDpi.Anchor = 'Top, Right'
 $script:UI.SetDpiCheck = $chkDpi
-$btnRestart = New-Btn $expCard '重启界面' ($setW - 150) 74 130 34 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_CYAN 9
+$btnRestart = New-Btn $expCard '重启界面' ($setW - 150) 74 130 34 ((TC 24 35 50)) $script:C_CYAN 9
 $btnRestart.Anchor = 'Top, Right'
 $script:UI.SetRestart = $btnRestart
 $div1 = New-Label $expCard '' 20 168 ($setW - 40) 1 8 $false $script:C_BORDER
@@ -5151,7 +5931,7 @@ $null = New-Label $expCard '当前使用 WinForms + GDI+ 绘制，由 DWM 在 GP
 $null = New-Label $expCard '评估结论：改造成本高于收益，暂不启用，保留为实验记录' 20 236 660 20 8 $false $script:C_DIM
 $badgeWpf = New-Badge $expCard '已评估 · 未启用' ($setW - 270) 192 160 26 $script:C_GRAY_BG $script:C_GRAY_BD $script:C_SUB 8
 $badgeWpf.Anchor = 'Top, Right'
-$btnWpf = New-Btn $expCard '查看说明' ($setW - 100) 190 80 32 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_TEXT 8.5
+$btnWpf = New-Btn $expCard '查看说明' ($setW - 100) 190 80 32 ((TC 24 35 50)) $script:C_TEXT 8.5
 $btnWpf.Anchor = 'Top, Right'
 $div2 = New-Label $expCard '' 20 266 ($setW - 40) 1 8 $false $script:C_BORDER
 $div2.BackColor = $script:C_BORDER
@@ -5161,7 +5941,7 @@ $script:UI.SetRenderCheck = $chkRender
 $null = New-Label $expCard '立即生效，仅新增一段状态文字，便于验证实验性 DPI 是否生效' 44 304 640 18 8 $false $script:C_DIM
 
 $script:LastSharePath = ''
-$shareCard = New-Card $setPage 20 516 $setW 172 16 $script:C_PANEL $script:C_BORDER
+$shareCard = New-Card $setPage 20 728 $setW 172 16 $script:C_PANEL $script:C_BORDER
 $shareCard.Anchor = 'Top, Left, Right'
 $script:UI.ShareCard = $shareCard
 $null = New-SectionTitle $shareCard '分享 / 便携包' 20 16 260 12
@@ -5169,22 +5949,22 @@ $null = New-Label $shareCard '一键打包给同学：GUI、引擎、启动器�
 $null = New-Label $shareCard '自动排除本机设置、备份与日志；对方解压后双击“启动优化脚本.bat”即可' 20 64 720 18 8 $false $script:C_DIM
 $null = New-Label $shareCard 'GUI · 引擎 · 启动器 · 控制台备用入口 · 使用说明 · SHA256' 20 86 700 18 8 $false $script:C_DIM
 
-$btnShare = New-Btn $shareCard '导出便携包' 20 112 150 36 ([Drawing.Color]::FromArgb(16, 40, 46)) $script:C_CYAN 9
+$btnShare = New-Btn $shareCard '导出便携包' 20 112 150 36 ((TC 16 40 46)) $script:C_CYAN 9
 $script:UI.ShareBtn = $btnShare
-$btnShareTip = New-Btn $shareCard '复制分享话术' 182 112 150 36 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_TEXT 9
+$btnShareTip = New-Btn $shareCard '复制分享话术' 182 112 150 36 ((TC 24 35 50)) $script:C_TEXT 9
 $script:UI.ShareTipBtn = $btnShareTip
 $lblSharePath = New-Label $shareCard '尚未导出便携包' 350 118 ($setW - 370) 20 8 $false $script:C_DIM
 $script:UI.SharePath = $lblSharePath
 
-$cfgCard = New-Card $setPage 20 702 $setW 150 16 $script:C_PANEL $script:C_BORDER
+$cfgCard = New-Card $setPage 20 916 $setW 150 16 $script:C_PANEL $script:C_BORDER
 $cfgCard.Anchor = 'Top, Left, Right'
 $null = New-SectionTitle $cfgCard '配置文件' 20 16 220 12
 $lblCfgPath = New-Label $cfgCard $script:GuiSettingsFile 20 48 ($setW - 40) 20 8.5 $false $script:C_SUB
-$btnOpenDir = New-Btn $cfgCard '打开脚本目录' 20 96 140 32 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_CYAN 9
-$btnReset = New-Btn $cfgCard '恢复默认设置' 172 96 140 32 ([Drawing.Color]::FromArgb(46, 32, 24)) $script:C_ORANGE 9
+$btnOpenDir = New-Btn $cfgCard '打开脚本目录' 20 96 140 32 ((TC 24 35 50)) $script:C_CYAN 9
+$btnReset = New-Btn $cfgCard '恢复默认设置' 172 96 140 32 ((TC 46 32 24)) $script:C_ORANGE 9
 $null = New-Label $cfgCard '设置只保存在本机；删除该文件即恢复默认。' 330 100 ($setW - 350) 20 8 $false $script:C_DIM
 
-$noteCard = New-Card $setPage 20 868 $setW 110 16 $script:C_PANEL $script:C_BORDER
+$noteCard = New-Card $setPage 20 1082 $setW 110 16 $script:C_PANEL $script:C_BORDER
 $noteCard.Anchor = 'Top, Left, Right'
 $null = New-SectionTitle $noteCard '实验性功能说明' 20 14 240 11
 $null = New-Label $noteCard '· 实验性选项可能随系统 / 驱动差异表现不同，默认关闭；关闭后重启即可回到原渲染方式。' 20 42 ($setW - 40) 18 8.5 $false $script:C_DIM
@@ -5209,8 +5989,36 @@ function Update-SettingsUi {
         }
         $script:UI.SetDpiState.Text = $state
         $script:UI.SetDpiState.ForeColor = $stateColor
-        $script:UI.SetDpiCheck.Checked = $want
-        $script:UI.SetRenderCheck.Checked = [bool]$script:GuiCfg.ShowRenderInfo
+        $sup0 = $script:SetUiSuppress
+        $script:SetUiSuppress = $true
+        try {
+            $script:UI.SetDpiCheck.Checked = $want
+            $script:UI.SetRenderCheck.Checked = [bool]$script:GuiCfg.ShowRenderInfo
+            if ($script:UI.SetTrayCheck) { $script:UI.SetTrayCheck.Checked = [bool]$script:GuiCfg.MinimizeToTray }
+            if ($script:UI.SetNotifyCheck) { $script:UI.SetNotifyCheck.Checked = [bool]$script:GuiCfg.NotifyDriver }
+            if ($script:UI.SetThemeCombo) {
+                $script:UI.SetThemeCombo.SelectedIndex = $(if ([string]$script:GuiCfg.Theme -eq 'light') { 1 } else { 0 })
+            }
+        } finally { $script:SetUiSuppress = $sup0 }
+        if ($script:UI.SetThemeState) {
+            $cur = [string]$script:ThemeName
+            $wantTheme = [string]$script:GuiCfg.Theme
+            if ($cur -ne $wantTheme) {
+                $curName = $(if ($cur -eq 'light') { '浅色' } else { '深色' })
+                $wantName = $(if ($wantTheme -eq 'light') { '浅色' } else { '深色' })
+                $script:UI.SetThemeState.Text = "当前: $curName · 重启后切换为 $wantName"
+                $script:UI.SetThemeState.ForeColor = $script:C_ORANGE
+            } else {
+                $curName = $(if ($cur -eq 'light') { '浅色' } else { '深色' })
+                $script:UI.SetThemeState.Text = "当前: $curName"
+                $script:UI.SetThemeState.ForeColor = $script:C_DIM
+            }
+        }
+        if ($script:UI.SetStatTheme) {
+            $isLight = ([string]$script:GuiCfg.Theme -eq 'light')
+            $script:UI.SetStatTheme.Text = $(if ($isLight) { '浅色' } else { '深色' })
+            $script:UI.SetStatTheme.ForeColor = $(if ($isLight) { $script:C_CYAN } else { $script:C_SUB })
+        }
         if ($script:UI.SetStatDpi) {
             $dpiTxt = '关闭'; $dpiColor = $script:C_DIM
             if ($actual) { $dpiTxt = '已启用'; $dpiColor = $script:C_GREEN }
@@ -5261,6 +6069,31 @@ $chkRender.Add_CheckedChanged({
     $null = Save-GuiSettings
     Update-RenderInfo
     Set-Status '状态栏渲染信息已更新'
+})
+$script:UI.SetThemeCombo.Add_SelectedIndexChanged({
+    if ($script:SetUiSuppress) { return }
+    $want = 'dark'
+    if ($script:UI.SetThemeCombo.SelectedIndex -eq 1) { $want = 'light' }
+    if ([string]$script:GuiCfg.Theme -eq $want) { return }
+    $script:GuiCfg.Theme = $want
+    $ok = Save-GuiSettings
+    Update-SettingsUi
+    if ($ok) { Set-Status '主题设置已保存 · 点击「重启界面」后生效' }
+    else { Set-Status '主题设置保存失败，目录可能只读' }
+})
+$script:UI.SetTrayCheck.Add_CheckedChanged({
+    if ($script:SetUiSuppress) { return }
+    $script:GuiCfg.MinimizeToTray = [bool]$script:UI.SetTrayCheck.Checked
+    $ok = Save-GuiSettings
+    if ($ok) { Set-Status '托盘设置已保存' }
+    else { Set-Status '托盘设置保存失败，目录可能只读' }
+})
+$script:UI.SetNotifyCheck.Add_CheckedChanged({
+    if ($script:SetUiSuppress) { return }
+    $script:GuiCfg.NotifyDriver = [bool]$script:UI.SetNotifyCheck.Checked
+    $ok = Save-GuiSettings
+    if ($ok) { Set-Status '驱动通知设置已保存' }
+    else { Set-Status '驱动通知设置保存失败，目录可能只读' }
 })
 $btnRestart.Add_Click({ Restart-Gui })
 $btnWpf.Add_Click({
@@ -5318,10 +6151,13 @@ $btnOpenDir.Add_Click({
     try { Start-Process explorer.exe -ArgumentList ('"' + $PSScriptRoot + '"') } catch {}
 })
 $btnReset.Add_Click({
-    $ans = [System.Windows.Forms.MessageBox]::Show($form, "恢复默认设置？`n`n将关闭高 DPI 渲染和状态栏渲染信息；高 DPI 的关闭需要重启界面。", '恢复默认设置', 'YesNo', 'Question')
+    $ans = [System.Windows.Forms.MessageBox]::Show($form, "恢复默认设置？`n`n将恢复深色主题、关闭高 DPI 渲染与状态栏渲染信息、关闭最小化到托盘，并开启驱动通知。`n主题与高 DPI 的变更需要重启界面。", '恢复默认设置', 'YesNo', 'Question')
     if ($ans -ne 'Yes') { return }
     $script:GuiCfg.ExperimentalDpi = $false
     $script:GuiCfg.ShowRenderInfo = $false
+    $script:GuiCfg.Theme = 'dark'
+    $script:GuiCfg.MinimizeToTray = $false
+    $script:GuiCfg.NotifyDriver = $true
     $null = Save-GuiSettings
     $script:SetUiSuppress = $true
     try {
@@ -5599,7 +6435,9 @@ function Apply-UiScale {
             Scale-ControlTree $form $sc
             $script:InitialCw = $content.ClientSize.Width
             $script:UI.Ov.AutoScrollMinSize = New-Object Drawing.Size -ArgumentList @(0, [int][Math]::Round(720 * $sc))
-            $script:UI.SettingsPage.AutoScrollMinSize = New-Object Drawing.Size -ArgumentList @(0, [int][Math]::Round(1000 * $sc))
+            $script:UI.SettingsPage.AutoScrollMinSize = New-Object Drawing.Size -ArgumentList @(0, [int][Math]::Round(1220 * $sc))
+            if ($script:UI.GamePage) { $script:UI.GamePage.AutoScrollMinSize = New-Object Drawing.Size -ArgumentList @(0, [int][Math]::Round(710 * $sc)) }
+            if ($script:UI.StartupPage) { $script:UI.StartupPage.AutoScrollMinSize = New-Object Drawing.Size -ArgumentList @(0, [int][Math]::Round(980 * $sc)) }
         } finally {
             $script:UiScaling = $false
             $form.ResumeLayout($true)
@@ -5641,7 +6479,7 @@ function Show-Page([string]$key) {
             $active = ($k -eq $key)
             try { $b.Tag.Bar.Visible = $active } catch {}
             if ($active) {
-                $b.BackColor = [Drawing.Color]::FromArgb(22, 32, 46)
+                $b.BackColor = (TC 22 32 46)
                 $b.ForeColor = $script:C_CYAN
                 $b.Font = F 10 $true
             } else {
@@ -5653,15 +6491,19 @@ function Show-Page([string]$key) {
         $script:UI.CurrentPage = $key
         switch ($key) {
             'backup' { if ($script:UI.BackupDirty) { Refresh-BackupList } }
+            'game'   { if ($script:UI.GameDirty) { Refresh-GamePage $false } }
             'driver' { if ($script:UI.DriverDirty) { Refresh-DriverPage $false } }
             'diag'   { if ($script:UI.DiagDirty) { Refresh-Diag $false } }
+            'startup' { if ($script:UI.StartupDirty) { Refresh-StartupPage } }
             'about'  { Fill-About }
             'settings' { Update-SettingsUi }
             'overview' { Update-Overview }
             'items'  { Update-ItemSummary }
         }
         Layout-Overview
-    } catch {}
+    } catch {
+        if ($Preview) { Write-Output "show_page_error=$key : $($_.Exception.Message)" }
+    }
 }
 
 function Show-InputDialog([string]$title, [string]$prompt, [string]$default) {
@@ -5685,8 +6527,8 @@ function Show-InputDialog([string]$title, [string]$prompt, [string]$default) {
     $tb.Font = F 10
     $tb.Text = $default
     $dlg.Controls.Add($tb)
-    $btnCancel = New-Btn $dlg '取消' 232 112 88 34 ([Drawing.Color]::FromArgb(24, 35, 50)) $script:C_SUB 9
-    $btnOk = New-Btn $dlg '确定' 328 112 88 34 $script:C_CYAN ([Drawing.Color]::FromArgb(4, 20, 26)) 9
+    $btnCancel = New-Btn $dlg '取消' 232 112 88 34 ((TC 24 35 50)) $script:C_SUB 9
+    $btnOk = New-Btn $dlg '确定' 328 112 88 34 $script:C_CYAN ((TC 4 20 26)) 9
     $script:DlgInput = $tb
     $script:DlgInputForm = $dlg
     $script:DlgInputResult = $null
@@ -5812,7 +6654,7 @@ function Get-MixColor($from, $to, [double]$t) {
     $r = [int][Math]::Round([double]$from.R + ([double]$to.R - [double]$from.R) * $t)
     $g = [int][Math]::Round([double]$from.G + ([double]$to.G - [double]$from.G) * $t)
     $b = [int][Math]::Round([double]$from.B + ([double]$to.B - [double]$from.B) * $t)
-    return [Drawing.Color]::FromArgb($r, $g, $b)
+    return (TC $r $g $b)
 }
 
 function Show-HardwareDetails([string]$key) {
@@ -5981,7 +6823,7 @@ function Show-HardwareDetails([string]$key) {
         $box.AutoScroll = $true
         $dlg.Controls.Add($box)
 
-        $sepColor = [Drawing.Color]::FromArgb(31, 41, 56)
+        $sepColor = (TC 31 41 56)
         $yOff = 0
         foreach ($g in $groupOrder) {
             $secHt = [int]$secHeights[$g]
@@ -6039,7 +6881,7 @@ function Show-HardwareDetails([string]$key) {
         $null = New-Label $dlg '数据来源 · 本机 WMI / 性能计数器 · 只读' $pad ($footY + (UiPx 9)) $footTextW (UiPx 18) 8 $false $script:C_DIM
 
         $lum = (0.299 * $accent.R + 0.587 * $accent.G + 0.114 * $accent.B) / 255.0
-        $onAccent = [Drawing.Color]::FromArgb(10, 14, 20)
+        $onAccent = (TC 10 14 20)
         if ($lum -lt 0.62) { $onAccent = [Drawing.Color]::White }
         $btnCopy = New-Btn $dlg '复制详情' $btnCopyX $footY $btnCopyW $footBtnH $accent $onAccent 9
         try {
@@ -6329,8 +7171,83 @@ $liveTimer.Add_Tick({ Update-Meters })
 $script:LiveTimer = $liveTimer
 
 # ══════════════════════════════════════════════════════════
-# 关闭处理 / 预览 / 自检
+# 托盘 / 关闭处理 / 预览 / 自检
 # ══════════════════════════════════════════════════════════
+$script:Tray = $null
+$script:TrayIcon = $null
+$script:TrayExit = $false
+$script:TrayTipShown = $false
+
+function Restore-FromTray {
+    try {
+        $f = $script:UI.Form
+        if (-not $f) { return }
+        $f.Show()
+        $f.ShowInTaskbar = $true
+        if ($f.WindowState -eq [System.Windows.Forms.FormWindowState]::Minimized) {
+            $f.WindowState = [System.Windows.Forms.FormWindowState]::Normal
+        }
+        $f.Activate()
+        $f.BringToFront()
+    } catch {}
+}
+
+function Show-TrayBalloon([string]$title, [string]$text, [string]$kind = 'Info') {
+    try {
+        if (-not $script:Tray) { return }
+        $ti = [System.Windows.Forms.ToolTipIcon]::Info
+        if ($kind -eq 'Warning') { $ti = [System.Windows.Forms.ToolTipIcon]::Warning }
+        elseif ($kind -eq 'Error') { $ti = [System.Windows.Forms.ToolTipIcon]::Error }
+        $script:Tray.BalloonTipTitle = [string]$title
+        $script:Tray.BalloonTipText = [string]$text
+        $script:Tray.BalloonTipIcon = $ti
+        $script:Tray.ShowBalloonTip(6000)
+    } catch {}
+}
+
+if (-not $Preview -and -not $SelfTest) {
+    try {
+        $trayBmp = New-Object Drawing.Bitmap -ArgumentList @(32, 32)
+        $trayG = [Drawing.Graphics]::FromImage($trayBmp)
+        $trayG.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $trayG.Clear([Drawing.Color]::Transparent)
+        $trayBr = New-Object Drawing.SolidBrush -ArgumentList @([Drawing.Color]::FromArgb(0, 132, 158))
+        $trayG.FillEllipse($trayBr, 1, 1, 30, 30)
+        $trayBr.Dispose()
+        $trayFont = New-Object Drawing.Font -ArgumentList @('Segoe UI', [single]13, [Drawing.FontStyle]::Bold, [Drawing.GraphicsUnit]::Pixel)
+        $trayTb = New-Object Drawing.SolidBrush -ArgumentList @([Drawing.Color]::White)
+        $traySf = New-Object Drawing.StringFormat
+        $traySf.Alignment = [Drawing.StringAlignment]::Center
+        $traySf.LineAlignment = [Drawing.StringAlignment]::Center
+        $trayG.DrawString('TX', $trayFont, $trayTb, (New-Object Drawing.RectangleF -ArgumentList @(0, 0, 32, 32)), $traySf)
+        $trayTb.Dispose(); $trayFont.Dispose(); $traySf.Dispose(); $trayG.Dispose()
+        $trayH = $trayBmp.GetHicon()
+        $script:TrayIcon = [Drawing.Icon]::FromHandle($trayH)
+        $trayBmp.Dispose()
+    } catch { $script:TrayIcon = [Drawing.SystemIcons]::Application }
+
+    try {
+        $tray = New-Object System.Windows.Forms.NotifyIcon
+        $tray.Icon = $script:TrayIcon
+        $tray.Text = '游戏性能优化中心'
+        $tray.Visible = $true
+        $menu = New-Object System.Windows.Forms.ContextMenuStrip
+        $miShow = $menu.Items.Add('显示主界面')
+        $miExit = $menu.Items.Add('退出')
+        $miShow.Add_Click({ Restore-FromTray })
+        $miExit.Add_Click({
+            $script:TrayExit = $true
+            try { $script:Tray.Visible = $false } catch {}
+            try { $script:UI.Form.Close() } catch {}
+            try { [System.Windows.Forms.Application]::Exit() } catch {}
+        })
+        $tray.ContextMenuStrip = $menu
+        $tray.Add_MouseDoubleClick({ Restore-FromTray })
+        $tray.Add_BalloonTipClicked({ Restore-FromTray })
+        $script:Tray = $tray
+    } catch {}
+}
+
 $form.Add_FormClosing({
     param($s, $e)
     if ($script:UI.Busy) {
@@ -6338,8 +7255,18 @@ $form.Add_FormClosing({
         [System.Windows.Forms.MessageBox]::Show($script:UI.Form, '正在应用或还原，请等待当前操作完成。', '请稍候', 'OK', 'Information') | Out-Null
         return
     }
+    if ([bool]$script:GuiCfg.MinimizeToTray -and -not $script:TrayExit -and -not $Preview -and -not $SelfTest) {
+        $e.Cancel = $true
+        try { $script:UI.Form.Hide(); $script:UI.Form.ShowInTaskbar = $false } catch {}
+        if (-not $script:TrayTipShown) {
+            $script:TrayTipShown = $true
+            Show-TrayBalloon '仍在后台运行' '已最小化到托盘，双击图标可恢复主界面。' 'Info'
+        }
+        return
+    }
     try { $script:ClockTimer.Stop() } catch {}
     try { $script:LiveTimer.Stop() } catch {}
+    try { if ($script:Tray) { $script:Tray.Visible = $false } } catch {}
     Stop-Sampler
 })
 
@@ -6389,7 +7316,7 @@ if ($Preview) {
     Start-Sleep -Milliseconds 200
     $null = Wait-Live 9000
     Refresh-Snapshot
-    $pageList = @('overview', 'driver', 'items', 'backup', 'diag', 'log', 'settings', 'about')
+    $pageList = @('overview', 'driver', 'game', 'items', 'backup', 'diag', 'startup', 'log', 'settings', 'about')
     if ($PreviewPage -and $PreviewPage -ne 'all') {
         if ($pageList -contains $PreviewPage) { $pageList = @($PreviewPage) }
     }

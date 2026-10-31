@@ -3110,6 +3110,644 @@ function RST {
     Read-Host "按回车返回"
 }
 
+# ══════════════════════════════════════════════════════════
+# v5.2 扩展: 驱动历史 / 游戏库 / 诊断包 / 启动项
+# 全部数据留在本机脚本目录, 不联网、不上传
+# ══════════════════════════════════════════════════════════
+$TX_DATA = Join-Path $SD 'data'
+if (-not (Test-Path -LiteralPath $TX_DATA)) { try { New-Item -ItemType Directory -Path $TX_DATA -Force | Out-Null } catch {} }
+$TX_HIST  = Join-Path $TX_DATA 'driver-history.json'
+$TX_GAMES = Join-Path $TX_DATA 'games.json'
+$TX_DIAG  = Join-Path $SD 'diagnostics'
+
+# ── 版本比较 (引擎侧, 不依赖 GUI) ─────────────────────────
+function Compare-TxEngineVersion([string]$a, [string]$b) {
+    if (-not $a -and -not $b) { return 0 }
+    if (-not $a) { return -1 }
+    if (-not $b) { return 1 }
+    $pa = @([regex]::Matches($a, '\d+') | ForEach-Object { [int]$_.Value })
+    $pb = @([regex]::Matches($b, '\d+') | ForEach-Object { [int]$_.Value })
+    $n = [Math]::Max($pa.Count, $pb.Count)
+    for ($i = 0; $i -lt $n; $i++) {
+        $x = 0; $y = 0
+        if ($i -lt $pa.Count) { $x = $pa[$i] }
+        if ($i -lt $pb.Count) { $y = $pb[$i] }
+        if ($x -lt $y) { return -1 }
+        if ($x -gt $y) { return 1 }
+    }
+    return 0
+}
+
+# ── 驱动版本历史 / 回退检测 ───────────────────────────────
+function Read-TxDriverHistory {
+    $empty = @{ Devices = @{}; LastChanges = @() }
+    if (-not (Test-Path -LiteralPath $TX_HIST)) { return $empty }
+    try {
+        $j = Get-Content -Raw -LiteralPath $TX_HIST | ConvertFrom-Json
+        $map = @{}
+        if ($j -and $j.Devices) {
+            foreach ($p in $j.Devices.PSObject.Properties) { $map[$p.Name] = $p.Value }
+        }
+        $last = @()
+        if ($j -and $j.LastChanges) { $last = @($j.LastChanges) }
+        return @{ Devices = $map; LastChanges = $last }
+    } catch { return $empty }
+}
+
+function Save-TxDriverHistory($hist) {
+    try {
+        $obj = [ordered]@{
+            Version     = 1
+            Updated     = (Get-Date).ToString('s')
+            Devices     = $hist.Devices
+            LastChanges = @($hist.LastChanges)
+        }
+        ($obj | ConvertTo-Json -Depth 8) | Out-File -LiteralPath $TX_HIST -Encoding UTF8
+        return $true
+    } catch { return $false }
+}
+
+# 比对本次扫描与上次记录, 返回变化列表并更新历史
+function Update-TxDriverHistory {
+    param($Devices, [switch]$NoSave)
+    $hist = Read-TxDriverHistory
+    $map = $hist.Devices
+    $changes = New-Object System.Collections.ArrayList
+    $now = (Get-Date).ToString('s')
+    foreach ($d in @($Devices)) {
+        if (-not $d) { continue }
+        $id = [string]$d.DeviceId
+        $ver = [string]$d.Version
+        if (-not $id -or -not $ver) { continue }
+        $inf = [string]$d.InfName
+        $old = $null
+        if ($map.ContainsKey($id)) { $old = $map[$id] }
+        if ($old -and $old.Version) {
+            $fromVer = [string]$old.Version
+            $fromInf = ''
+            try { $fromInf = [string]$old.Inf } catch {}
+            $cmp = Compare-TxEngineVersion $ver $fromVer
+            if ($cmp -lt 0) {
+                [void]$changes.Add([PSCustomObject]@{
+                    Type = 'RolledBack'; DeviceId = $id; Name = [string]$d.Name
+                    From = $fromVer; To = $ver; FromInf = $fromInf; ToInf = $inf; At = $now
+                })
+            } elseif ($cmp -gt 0) {
+                [void]$changes.Add([PSCustomObject]@{
+                    Type = 'Updated'; DeviceId = $id; Name = [string]$d.Name
+                    From = $fromVer; To = $ver; FromInf = $fromInf; ToInf = $inf; At = $now
+                })
+            } elseif ($inf -and $fromInf -and $inf -ne $fromInf) {
+                [void]$changes.Add([PSCustomObject]@{
+                    Type = 'Rebound'; DeviceId = $id; Name = [string]$d.Name
+                    From = $fromVer; To = $ver; FromInf = $fromInf; ToInf = $inf; At = $now
+                })
+            }
+        }
+        $map[$id] = [PSCustomObject]@{
+            Name = [string]$d.Name; Class = [string]$d.Class; Inf = $inf
+            Version = $ver; Date = [string]$d.Date; At = $now
+        }
+    }
+    $last = @($hist.LastChanges)
+    if ($changes.Count -gt 0) { $last = @(@($last) + @($changes.ToArray()) | Select-Object -Last 20) }
+    $hist.LastChanges = @($last)
+    if (-not $NoSave) { $null = Save-TxDriverHistory $hist }
+    return [PSCustomObject]@{ Changes = @($changes.ToArray()); Hist = $hist }
+}
+
+# ── 游戏库: Steam / Epic 扫描 ─────────────────────────────
+function Get-TxSteamRoots {
+    $roots = New-Object System.Collections.ArrayList
+    $cands = New-Object System.Collections.ArrayList
+    try {
+        $p = (Get-ItemProperty -Path 'HKCU:\Software\Valve\Steam' -Name SteamPath -ErrorAction SilentlyContinue).SteamPath
+        if ($p) { [void]$cands.Add([string]$p) }
+    } catch {}
+    foreach ($k in @('HKLM:\SOFTWARE\WOW6432Node\Valve\Steam', 'HKLM:\SOFTWARE\Valve\Steam')) {
+        try {
+            $p = (Get-ItemProperty -Path $k -Name InstallPath -ErrorAction SilentlyContinue).InstallPath
+            if ($p) { [void]$cands.Add([string]$p) }
+        } catch {}
+    }
+    foreach ($c in @($cands.ToArray())) {
+        if (-not $c -or -not (Test-Path -LiteralPath $c)) { continue }
+        try { $c = [IO.Path]::GetFullPath($c) } catch { continue }
+        $have = $false
+        foreach ($x in $roots) { if ($x -eq $c) { $have = $true; break } }
+        if (-not $have) { [void]$roots.Add($c) }
+        foreach ($vdf in @((Join-Path $c 'steamapps\libraryfolders.vdf'), (Join-Path $c 'config\libraryfolders.vdf'))) {
+            if (-not (Test-Path -LiteralPath $vdf)) { continue }
+            try {
+                $txt = Get-Content -Raw -LiteralPath $vdf
+                foreach ($m in [regex]::Matches($txt, '"path"\s+"([^"]+)"')) {
+                    $lp = $m.Groups[1].Value -replace '\\\\', '\'
+                    if (-not (Test-Path -LiteralPath $lp)) { continue }
+                    try { $lp = [IO.Path]::GetFullPath($lp) } catch { continue }
+                    $have = $false
+                    foreach ($x in $roots) { if ($x -eq $lp) { $have = $true; break } }
+                    if (-not $have) { [void]$roots.Add($lp) }
+                }
+            } catch {}
+        }
+    }
+    return @($roots.ToArray())
+}
+
+function Find-TxGameExe([string]$dir, [string]$name) {
+    if (-not $dir -or -not (Test-Path -LiteralPath $dir)) { return '' }
+    $best = ''
+    try {
+        $exes = @(Get-ChildItem -LiteralPath $dir -Filter *.exe -File -Recurse -Depth 2 -ErrorAction SilentlyContinue)
+        if ($exes.Count -eq 0) { return '' }
+        $bad = '(?i)unins|setup|install|vcredist|redist|dxsetup|dxwebsetup|crash|report|update|dotnet|benchmark'
+        $key = ($name -replace '[^0-9A-Za-z\u4e00-\u9fa5]', '').ToLowerInvariant()
+        $max = 0
+        foreach ($e in $exes) {
+            if ($e.Name -match $bad) { continue }
+            $n = [IO.Path]::GetFileNameWithoutExtension($e.Name).ToLowerInvariant()
+            if ($n -match 'launcher' -and $exes.Count -gt 1) { continue }
+            $k = ($n -replace '[^0-9A-Za-z\u4e00-\u9fa5]', '')
+            if ($key.Length -ge 3 -and $k.Length -ge 3 -and ($key.Contains($k) -or $k.Contains($key))) { return $e.FullName }
+            if ($e.Length -gt $max) { $max = $e.Length; $best = $e.FullName }
+        }
+    } catch {}
+    return $best
+}
+
+function Get-TxSteamGames {
+    $out = New-Object System.Collections.ArrayList
+    foreach ($root in @(Get-TxSteamRoots)) {
+        $apps = Join-Path $root 'steamapps'
+        if (-not (Test-Path -LiteralPath $apps)) { continue }
+        foreach ($acf in @(Get-ChildItem -LiteralPath $apps -Filter 'appmanifest_*.acf' -File -ErrorAction SilentlyContinue)) {
+            try {
+                $txt = Get-Content -Raw -LiteralPath $acf.FullName
+                $mn = [regex]::Match($txt, '"name"\s+"([^"]*)"')
+                $mi = [regex]::Match($txt, '"installdir"\s+"([^"]*)"')
+                if (-not $mn.Success -or -not $mi.Success) { continue }
+                $name = $mn.Groups[1].Value
+                $inst = $mi.Groups[1].Value
+                $dir = Join-Path (Join-Path $apps 'common') $inst
+                if (-not (Test-Path -LiteralPath $dir)) { continue }
+                $exe = Find-TxGameExe $dir $name
+                if (-not $exe) { continue }
+                $ma = [regex]::Match($txt, '"appid"\s+"([^"]*)"')
+                [void]$out.Add([PSCustomObject]@{
+                    Name = $name; Exe = $exe; Dir = $dir; Source = 'Steam'
+                    AppId = $(if ($ma.Success) { $ma.Groups[1].Value } else { '' })
+                })
+            } catch {}
+        }
+    }
+    return @($out.ToArray())
+}
+
+function Get-TxEpicGames {
+    $out = New-Object System.Collections.ArrayList
+    $dir = Join-Path $env:ProgramData 'Epic\EpicGamesLauncher\Data\Manifests'
+    if (-not (Test-Path -LiteralPath $dir)) { return @() }
+    foreach ($f in @(Get-ChildItem -LiteralPath $dir -Filter *.item -File -ErrorAction SilentlyContinue)) {
+        try {
+            $j = Get-Content -Raw -LiteralPath $f.FullName | ConvertFrom-Json
+            $loc = [string]$j.InstallLocation
+            if (-not $loc -or -not (Test-Path -LiteralPath $loc)) { continue }
+            $exe = ''
+            $le = [string]$j.LaunchExecutable
+            if ($le) {
+                $p = $le
+                if (-not [IO.Path]::IsPathRooted($p)) { $p = Join-Path $loc $le }
+                if (Test-Path -LiteralPath $p) { $exe = $p }
+            }
+            if (-not $exe) { $exe = Find-TxGameExe $loc ([string]$j.DisplayName) }
+            if (-not $exe) { continue }
+            [void]$out.Add([PSCustomObject]@{
+                Name = [string]$j.DisplayName; Exe = $exe; Dir = $loc; Source = 'Epic'; AppId = [string]$j.AppName
+            })
+        } catch {}
+    }
+    return @($out.ToArray())
+}
+
+# ── 游戏配置文档 ──────────────────────────────────────────
+function Read-TxGameDoc {
+    $empty = @{ Version = 1; Manual = @(); Profiles = @{} }
+    if (-not (Test-Path -LiteralPath $TX_GAMES)) { return $empty }
+    try {
+        $j = Get-Content -Raw -LiteralPath $TX_GAMES | ConvertFrom-Json
+        $manual = @()
+        if ($j -and $j.Manual) {
+            $manual = @($j.Manual | ForEach-Object {
+                [PSCustomObject]@{ Name = [string]$_.Name; Exe = [string]$_.Exe; Dir = [string]$_.Dir }
+            })
+        }
+        $prof = @{}
+        if ($j -and $j.Profiles) {
+            foreach ($p in $j.Profiles.PSObject.Properties) { $prof[$p.Name.ToLowerInvariant()] = $p.Value }
+        }
+        return @{ Version = 1; Manual = $manual; Profiles = $prof }
+    } catch { return $empty }
+}
+
+function Save-TxGameDoc($doc) {
+    try {
+        $obj = [ordered]@{
+            Version = 1
+            Updated = (Get-Date).ToString('s')
+            Manual  = @($doc.Manual)
+            Profiles = $doc.Profiles
+        }
+        ($obj | ConvertTo-Json -Depth 10) | Out-File -LiteralPath $TX_GAMES -Encoding UTF8
+        return $true
+    } catch { return $false }
+}
+
+function Convert-TxGameProfile($raw) {
+    $p = [PSCustomObject]@{
+        Priority = 'Normal'; Affinity = 'All'; FsOff = $false; GpuHigh = $false
+        RunAsAdmin = $false; Args = ''; HasSaved = $false
+    }
+    if ($raw) {
+        $p.HasSaved = $true
+        try { if ($raw.Priority) { $p.Priority = [string]$raw.Priority } } catch {}
+        try { if ($raw.Affinity) { $p.Affinity = [string]$raw.Affinity } } catch {}
+        try { if ($null -ne $raw.FsOff) { $p.FsOff = [bool]$raw.FsOff } } catch {}
+        try { if ($null -ne $raw.GpuHigh) { $p.GpuHigh = [bool]$raw.GpuHigh } } catch {}
+        try { if ($null -ne $raw.RunAsAdmin) { $p.RunAsAdmin = [bool]$raw.RunAsAdmin } } catch {}
+        try { if ($raw.Args) { $p.Args = [string]$raw.Args } } catch {}
+    }
+    return $p
+}
+
+function Get-TxGames {
+    param([switch]$Force)
+    if (-not $Force -and $script:TxGameCache -and ((Get-Date) - $script:TxGameAt).TotalSeconds -lt 60) {
+        return @($script:TxGameCache)
+    }
+    $doc = Read-TxGameDoc
+    $list = New-Object System.Collections.ArrayList
+    $seen = @{}
+    $all = @()
+    $all += @(Get-TxSteamGames)
+    $all += @(Get-TxEpicGames)
+    $all += @($doc.Manual | ForEach-Object {
+        [PSCustomObject]@{ Name = $_.Name; Exe = $_.Exe; Dir = $_.Dir; Source = '手动'; AppId = '' }
+    })
+    foreach ($g in $all) {
+        if (-not $g -or -not $g.Exe) { continue }
+        $k = ([string]$g.Exe).ToLowerInvariant()
+        if ($seen.ContainsKey($k)) { continue }
+        $seen[$k] = $true
+        $prof = $null
+        if ($doc.Profiles.ContainsKey($k)) { $prof = $doc.Profiles[$k] }
+        [void]$list.Add([PSCustomObject]@{
+            Name    = [string]$g.Name
+            Exe     = [string]$g.Exe
+            Dir     = [string]$g.Dir
+            Source  = [string]$g.Source
+            AppId   = [string]$g.AppId
+            Exists  = (Test-Path -LiteralPath ([string]$g.Exe))
+            Manual  = ([string]$g.Source -eq '手动')
+            Profile = (Convert-TxGameProfile $prof)
+        })
+    }
+    $sorted = @($list.ToArray() | Sort-Object Name)
+    $script:TxGameCache = $sorted
+    $script:TxGameAt = Get-Date
+    return @($sorted)
+}
+
+function Add-TxManualGame([string]$name, [string]$exe) {
+    if (-not $exe -or -not (Test-Path -LiteralPath $exe)) { throw '程序文件不存在' }
+    if (-not $name) { $name = [IO.Path]::GetFileNameWithoutExtension($exe) }
+    $doc = Read-TxGameDoc
+    $exists = @($doc.Manual | Where-Object { ([string]$_.Exe).ToLowerInvariant() -eq $exe.ToLowerInvariant() })
+    if ($exists.Count -eq 0) {
+        $doc.Manual = @(@($doc.Manual) + @([PSCustomObject]@{ Name = $name; Exe = $exe; Dir = (Split-Path -Parent $exe) }))
+        $null = Save-TxGameDoc $doc
+    }
+    $script:TxGameAt = [DateTime]::MinValue
+    return $name
+}
+
+function Remove-TxManualGame([string]$exe) {
+    $doc = Read-TxGameDoc
+    $doc.Manual = @($doc.Manual | Where-Object { ([string]$_.Exe).ToLowerInvariant() -ne $exe.ToLowerInvariant() })
+    $null = Save-TxGameDoc $doc
+    $script:TxGameAt = [DateTime]::MinValue
+}
+
+# ── 单游戏配置: 应用的注册表项都可还原 ────────────────────
+function Get-TxRegValueAt([string]$path, [string]$name) {
+    try {
+        $k = Get-Item -LiteralPath $path -ErrorAction Stop
+        $v = $k.GetValue($name)
+        if ($null -eq $v) { return [PSCustomObject]@{ Exists = $false; Value = '' } }
+        return [PSCustomObject]@{ Exists = $true; Value = [string]$v }
+    } catch { return [PSCustomObject]@{ Exists = $false; Value = '' } }
+}
+
+function Set-TxRegValueAt([string]$path, [string]$name, $value) {
+    if (-not (Test-Path -LiteralPath $path)) { New-Item -Path $path -Force | Out-Null }
+    if ($null -eq $value -or [string]$value -eq '') {
+        Remove-ItemProperty -Path $path -Name $name -ErrorAction SilentlyContinue
+    } else {
+        New-ItemProperty -Path $path -Name $name -Value ([string]$value) -PropertyType String -Force | Out-Null
+    }
+}
+
+function Get-TxGameRegistryPaths {
+    return [PSCustomObject]@{
+        Layers = "$HKU_BASE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
+        Gpu    = "$HKU_BASE\SOFTWARE\Microsoft\DirectX\UserGpuPreferences"
+    }
+}
+
+function Save-TxGameProfile([string]$exe, $profile) {
+    if (-not $exe) { throw '缺少程序路径' }
+    $doc = Read-TxGameDoc
+    $key = $exe.ToLowerInvariant()
+    $p = [ordered]@{
+        Priority = [string]$profile.Priority
+        Affinity = [string]$profile.Affinity
+        FsOff = [bool]$profile.FsOff
+        GpuHigh = [bool]$profile.GpuHigh
+        RunAsAdmin = [bool]$profile.RunAsAdmin
+        Args = [string]$profile.Args
+        Updated = (Get-Date).ToString('s')
+    }
+    $old = $null
+    if ($doc.Profiles.ContainsKey($key)) { $old = $doc.Profiles[$key] }
+    $rp = Get-TxGameRegistryPaths
+    if ($old) {
+        try {
+            if ($null -ne $old.PSObject.Properties['OrigLayerExists']) {
+                $p.OrigLayerExists = [bool]$old.OrigLayerExists
+                $p.OrigLayer = [string]$old.OrigLayer
+                $p.OrigGpuExists = [bool]$old.OrigGpuExists
+                $p.OrigGpu = [string]$old.OrigGpu
+            }
+        } catch {}
+    }
+    if (-not $p.Contains('OrigLayerExists')) {
+        $cur = Get-TxRegValueAt $rp.Layers $exe
+        $p.OrigLayerExists = [bool]$cur.Exists
+        $p.OrigLayer = [string]$cur.Value
+        $curG = Get-TxRegValueAt $rp.Gpu $exe
+        $p.OrigGpuExists = [bool]$curG.Exists
+        $p.OrigGpu = [string]$curG.Value
+    }
+    $doc.Profiles[$key] = [PSCustomObject]$p
+    $null = Save-TxGameDoc $doc
+    $script:TxGameAt = [DateTime]::MinValue
+    return $true
+}
+
+function Apply-TxGameProfile([string]$exe, $profile) {
+    $res = [PSCustomObject]@{ Ok = $false; Msg = '' }
+    if (-not $exe -or -not (Test-Path -LiteralPath $exe)) { $res.Msg = '程序文件不存在'; return $res }
+    try {
+        $rp = Get-TxGameRegistryPaths
+        $flags = @()
+        if ($profile.FsOff) { $flags += 'DISABLEDXMAXIMIZEDWINDOWEDMODE' }
+        if ($profile.RunAsAdmin) { $flags += 'RUNASADMIN' }
+        $layerVal = ''
+        if ($flags.Count -gt 0) { $layerVal = '~ ' + ($flags -join ' ') }
+        Set-TxRegValueAt $rp.Layers $exe $layerVal
+        if ($profile.GpuHigh) { Set-TxRegValueAt $rp.Gpu $exe 'GpuPreference=2;' }
+        else { Set-TxRegValueAt $rp.Gpu $exe $null }
+        $res.Ok = $true
+        $res.Msg = '单游戏配置已写入'
+    } catch {
+        $res.Msg = $_.Exception.Message
+    }
+    return $res
+}
+
+function Remove-TxGameProfile([string]$exe) {
+    $res = [PSCustomObject]@{ Ok = $false; Msg = '' }
+    try {
+        $doc = Read-TxGameDoc
+        $key = $exe.ToLowerInvariant()
+        $old = $null
+        if ($doc.Profiles.ContainsKey($key)) { $old = $doc.Profiles[$key] }
+        $rp = Get-TxGameRegistryPaths
+        if ($old) {
+            $le = $true; $lv = ''; $ge = $true; $gv = ''
+            try {
+                if ($null -ne $old.PSObject.Properties['OrigLayerExists']) {
+                    $le = [bool]$old.OrigLayerExists; $lv = [string]$old.OrigLayer
+                    $ge = [bool]$old.OrigGpuExists; $gv = [string]$old.OrigGpu
+                }
+            } catch {}
+            if ($le) { Set-TxRegValueAt $rp.Layers $exe $lv } else { Set-TxRegValueAt $rp.Layers $exe $null }
+            if ($ge) { Set-TxRegValueAt $rp.Gpu $exe $gv } else { Set-TxRegValueAt $rp.Gpu $exe $null }
+            $doc.Profiles.Remove($key)
+            $null = Save-TxGameDoc $doc
+            $script:TxGameAt = [DateTime]::MinValue
+            $res.Ok = $true
+            $res.Msg = '已还原到配置前的状态'
+        } else {
+            $res.Ok = $true
+            $res.Msg = '没有保存过配置'
+        }
+    } catch { $res.Msg = $_.Exception.Message }
+    return $res
+}
+
+function Start-TxGame([string]$exe, $profile) {
+    $r = [PSCustomObject]@{ Ok = $false; Pid = 0; Msg = '' }
+    try {
+        $wd = Split-Path -Parent $exe
+        $p = Start-Process -FilePath $exe -WorkingDirectory $wd -PassThru -ErrorAction Stop
+        $r.Pid = [int]$p.Id
+        $prio = 'Normal'
+        $aff = '全部核心'
+        try {
+            if ($profile.Priority -eq 'High') { $p.PriorityClass = [Diagnostics.ProcessPriorityClass]::High; $prio = '高' }
+            elseif ($profile.Priority -eq 'AboveNormal') { $p.PriorityClass = [Diagnostics.ProcessPriorityClass]::AboveNormal; $prio = '高于正常' }
+        } catch { $prio = '默认(设置失败)' }
+        if ($profile.Affinity -eq 'Physical') {
+            try {
+                $n = 0
+                foreach ($cpu in @(Get-CimInstance -ClassName Win32_Processor -ErrorAction SilentlyContinue)) { $n += [int]$cpu.NumberOfCores }
+                if ($n -ge 1 -and $n -lt 63) {
+                    $mask = [long](([long]1 -shl $n) - 1)
+                    $p.ProcessorAffinity = [IntPtr]$mask
+                    $aff = "前 $n 个逻辑处理器"
+                }
+            } catch { $aff = '全部核心(设置失败)' }
+        }
+        $r.Ok = $true
+        $r.Msg = "已启动 · 优先级 $prio · 亲和性 $aff"
+    } catch { $r.Msg = $_.Exception.Message }
+    return $r
+}
+
+# ── 启动项 / 后台进程 (只读) ──────────────────────────────
+function Get-TxStartupEntries {
+    $list = New-Object System.Collections.ArrayList
+    $seen = @{}
+    $add = {
+        param($name, $cmd, $src, $loc)
+        if (-not $name -and -not $cmd) { return }
+        $key = ([string]$name + '|' + [string]$cmd).ToLowerInvariant()
+        if ($seen.ContainsKey($key)) { return }
+        $seen[$key] = $true
+        [void]$list.Add([PSCustomObject]@{
+            Name = [string]$name; Command = [string]$cmd; Source = [string]$src; Location = [string]$loc
+        })
+    }
+    $keys = @(
+        @{ P = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run'; S = '注册表 · 本机' },
+        @{ P = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run'; S = '注册表 · 本机(32位)' },
+        @{ P = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run'; S = '注册表 · 当前用户' },
+        @{ P = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce'; S = '注册表 · 仅一次' },
+        @{ P = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce'; S = '注册表 · 仅一次' }
+    )
+    foreach ($k in $keys) {
+        try {
+            $item = Get-ItemProperty -Path $k.P -ErrorAction SilentlyContinue
+            if (-not $item) { continue }
+            foreach ($p in $item.PSObject.Properties) {
+                if ($p.Name -like 'PS*') { continue }
+                & $add $p.Name ([string]$p.Value) $k.S $k.P
+            }
+        } catch {}
+    }
+    $folders = @()
+    try { $folders += [Environment]::GetFolderPath('Startup') } catch {}
+    try { $folders += [Environment]::GetFolderPath('CommonStartup') } catch {}
+    foreach ($f in $folders) {
+        if (-not $f -or -not (Test-Path -LiteralPath $f)) { continue }
+        foreach ($file in @(Get-ChildItem -LiteralPath $f -File -ErrorAction SilentlyContinue)) {
+            & $add $file.BaseName $file.FullName '启动文件夹' $f
+        }
+    }
+    return @($list.ToArray() | Sort-Object Name)
+}
+
+function Get-TxBackgroundProcesses([int]$Top = 12) {
+    $list = @()
+    try {
+        $list = @(Get-Process -ErrorAction SilentlyContinue | Where-Object {
+            $_.Id -ne 0 -and $_.ProcessName -notin @('System', 'Idle', 'Registry')
+        } | ForEach-Object {
+            $mem = 0.0
+            try { $mem = [double]$_.WorkingSet64 / 1MB } catch {}
+            [PSCustomObject]@{
+                Name = [string]$_.ProcessName
+                Title = [string]$_.MainWindowTitle
+                Id = [int]$_.Id
+                MemMB = [Math]::Round($mem, 1)
+                Foreground = [bool]($_.MainWindowHandle -ne 0)
+            }
+        } | Sort-Object MemMB -Descending | Select-Object -First $Top)
+    } catch {}
+    return @($list)
+}
+
+# ── 诊断包导出 ────────────────────────────────────────────
+function Export-TxDiagnosticBundle {
+    param([string]$OutDir)
+    if (-not $OutDir) { $OutDir = $TX_DIAG }
+    if (-not (Test-Path -LiteralPath $OutDir)) { New-Item -ItemType Directory -Path $OutDir -Force | Out-Null }
+    $stamp = (Get-Date).ToString('yyyyMMdd_HHmmss')
+    $tmp = Join-Path $env:TEMP ('txdiag_' + $stamp)
+    if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }
+    New-Item -ItemType Directory -Path $tmp -Force | Out-Null
+    $utf8 = New-Object System.Text.UTF8Encoding($true)
+    $write = {
+        param($name, $lines)
+        $p = Join-Path $tmp $name
+        [IO.File]::WriteAllLines($p, [string[]]@($lines), $utf8)
+    }
+    try {
+        # 系统信息
+        $sys = New-Object System.Collections.ArrayList
+        [void]$sys.Add("时间: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')")
+        [void]$sys.Add("计算机: $env:COMPUTERNAME · 用户: $env:USERNAME")
+        [void]$sys.Add("管理员: $isAdmin · PowerShell: $($PSVersionTable.PSVersion)")
+        try {
+            $si = Get-TxSystemInfo
+            if ($si.OS) { [void]$sys.Add("系统: $($si.OS.Caption) build $($si.OS.BuildNumber)") }
+            if ($si.CPU) { [void]$sys.Add("CPU: $([string]$si.CPU.Name) · $($si.CPU.NumberOfCores) 核 / $($si.CPU.NumberOfLogicalProcessors) 线程") }
+            $mods = @($si.Memory)
+            if ($mods.Count) {
+                $total = ($mods | Measure-Object Capacity -Sum).Sum / 1GB
+                [void]$sys.Add(("内存: {0:N1} GB · {1} 根" -f $total, $mods.Count))
+            }
+            if ($si.Computer) { [void]$sys.Add("机型: $($si.Computer.Manufacturer) $($si.Computer.Model)") }
+        } catch {}
+        try { [void]$sys.Add("电源: $(if ($null -ne (PWRST)) { (PWRST).OnAC } else { '未知' })") } catch {}
+        try { [void]$sys.Add("脚本目录: $SD") } catch {}
+        & $write 'system.txt' $sys
+
+        # dxdiag
+        try {
+            $dx = Join-Path $tmp 'dxdiag.txt'
+            $p = Start-Process -FilePath 'dxdiag.exe' -ArgumentList @('/t', $dx) -PassThru -WindowStyle Hidden -ErrorAction Stop
+            if ($p) { $null = $p.WaitForExit(30000) }
+        } catch {}
+
+        # 驱动清单
+        try {
+            $lines = @(& pnputil.exe /enum-drivers 2>&1 | ForEach-Object { [string]$_ })
+            & $write 'drivers.txt' $lines
+        } catch {}
+        try {
+            $lines = @(& pnputil.exe /enum-devices /connected 2>&1 | ForEach-Object { [string]$_ })
+            & $write 'devices.txt' $lines
+        } catch {}
+
+        # 最近 24 小时错误事件
+        $ev = New-Object System.Collections.ArrayList
+        foreach ($log in @('System', 'Application')) {
+            try {
+                $rows = @(Get-WinEvent -FilterHashtable @{ LogName = $log; Level = @(1, 2, 3); StartTime = (Get-Date).AddHours(-24) } -MaxEvents 120 -ErrorAction SilentlyContinue)
+                foreach ($e in $rows) {
+                    $msg = [string]$e.Message
+                    try { $msg = ($msg -replace "`r?`n", ' ') } catch {}
+                    if ($msg.Length -gt 300) { $msg = $msg.Substring(0, 300) + '...' }
+                    [void]$ev.Add(("{0} | {1} | {2} | {3}" -f $e.TimeCreated, $e.LevelDisplayName, $e.ProviderName, $msg))
+                }
+            } catch {}
+        }
+        & $write 'events.txt' $ev
+
+        # 当前优化状态
+        try {
+            $snap = Get-TxSnapshot
+            $json = $snap | ConvertTo-Json -Depth 5
+            [IO.File]::WriteAllText((Join-Path $tmp 'optimization-state.json'), $json, $utf8)
+        } catch {}
+
+        # 本机配置与日志
+        $copies = @(
+            @{ Src = (Join-Path $SD 'gui-settings.json'); Name = 'gui-settings.json' },
+            @{ Src = (Join-Path $SD 'profiles.json'); Name = 'profiles.json' },
+            @{ Src = (Join-Path $TX_DATA 'driver-history.json'); Name = 'driver-history.json' },
+            @{ Src = (Join-Path $TX_DATA 'games.json'); Name = 'games.json' }
+        )
+        foreach ($c in $copies) {
+            try { if (Test-Path -LiteralPath $c.Src) { Copy-Item -LiteralPath $c.Src -Destination (Join-Path $tmp $c.Name) -Force } } catch {}
+        }
+        try {
+            $logs = @(Get-ChildItem -LiteralPath $SD -Filter 'optimize_*.log' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 3)
+            foreach ($lg in $logs) {
+                try { Copy-Item -LiteralPath $lg.FullName -Destination (Join-Path $tmp $lg.Name) -Force } catch {}
+            }
+        } catch {}
+
+        $zip = Join-Path $OutDir ("诊断包_$stamp.zip")
+        if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue }
+        Compress-Archive -Path (Join-Path $tmp '*') -DestinationPath $zip -CompressionLevel Optimal -ErrorAction Stop
+        return $zip
+    } finally {
+        try { if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue } } catch {}
+    }
+}
+
 # ── 命令行 / GUI 入口 ─────────────────────────────────────
 if ($EngineOnly) { return }
 
