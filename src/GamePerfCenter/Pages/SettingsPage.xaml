@@ -20,7 +20,7 @@
                 <TextBlock Text="外观与行为设置 · 修改后立即保存到 gui-settings.json"
                            Style="{StaticResource SecondaryTextStyle}" />
             </StackPanel>
-            <Button Content="打开配置目录" Style="{StaticResource SubtleButtonStyle}"
+            <Button Content="打开程序目录" Style="{StaticResource SubtleButtonStyle}"
                     HorizontalAlignment="Right" VerticalAlignment="Center" Click="OpenConfig_Click" />
         </Grid>
 
@@ -127,9 +127,26 @@
                             </StackPanel>
 
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <Button Content="打开数据目录" Style="{StaticResource SubtleButtonStyle}" Click="OpenData_Click" />
+                                <Button Content="打开程序目录" Style="{StaticResource SubtleButtonStyle}" Click="OpenConfig_Click" />
+                                <Button Content="打开数据目录" Style="{StaticResource GhostButtonStyle}" Click="OpenData_Click" />
                                 <Button Content="打开备份目录" Style="{StaticResource GhostButtonStyle}" Click="OpenBackup_Click" />
                             </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <StackPanel Spacing="11">
+                            <TextBlock Text="分享与便携包" Style="{StaticResource SectionTitleStyle}" />
+                            <TextBlock Text="一键导出当前程序为便携 ZIP，自动排除本机设置、备份、诊断与日志。"
+                                       Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="ExportButton" Content="导出便携包"
+                                        Style="{StaticResource AccentButtonStyle}" Click="Export_Click" />
+                                <Button x:Name="OpenExportButton" Content="打开导出位置" IsEnabled="False"
+                                        Style="{StaticResource GhostButtonStyle}" Click="OpenExport_Click" />
+                            </StackPanel>
+                            <TextBlock x:Name="ExportStatus" Text="尚未导出便携包"
+                                       Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
 

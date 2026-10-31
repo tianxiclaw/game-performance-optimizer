@@ -2,12 +2,15 @@ using System.Diagnostics;
 using GamePerfCenter.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Windows.Storage.Pickers;
 
 namespace GamePerfCenter.Pages;
 
 public sealed partial class SettingsPage : Page, IThemeAware
 {
     private bool _loading;
+    private bool _exporting;
+    private string? _lastExportPath;
 
     public SettingsPage()
     {
@@ -69,6 +72,68 @@ public sealed partial class SettingsPage : Page, IThemeAware
     }
 
     private void OpenConfig_Click(object sender, RoutedEventArgs e) => OpenFolder(AppPaths.BaseDir);
+
+    private async void Export_Click(object sender, RoutedEventArgs e)
+    {
+        if (_exporting) return;
+
+        var picker = new FileSavePicker
+        {
+            SuggestedStartLocation = PickerLocationId.Desktop,
+            SuggestedFileName = $"游戏性能优化中心_v{AppPaths.Version}_便携版"
+        };
+        picker.FileTypeChoices.Add("ZIP 压缩包", new List<string> { ".zip" });
+        if (App.MainWindow is not null)
+            WinRT.Interop.InitializeWithWindow.Initialize(picker,
+                WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow));
+
+        Windows.Storage.StorageFile? file;
+        try
+        {
+            file = await picker.PickSaveFileAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowInfo("无法选择保存位置", ex.Message, InfoBarSeverity.Error);
+            return;
+        }
+        if (file is null) return;
+        if (string.IsNullOrWhiteSpace(file.Path))
+        {
+            ShowInfo("无法导出", "请选择一个本地文件夹作为保存位置。", InfoBarSeverity.Warning);
+            return;
+        }
+
+        _exporting = true;
+        ExportButton.IsEnabled = false;
+        OpenExportButton.IsEnabled = false;
+        ExportStatus.Text = "正在导出，请稍候…";
+        try
+        {
+            var (count, bytes) = await PortableExportService.ExportAsync(file.Path);
+            _lastExportPath = file.Path;
+            ExportStatus.Text = $"已导出 {count} 个文件（{bytes / 1024.0 / 1024.0:0.0} MB）：{file.Path}";
+            OpenExportButton.IsEnabled = true;
+            ShowInfo("导出完成", "便携包已生成，可以直接发送给他人。", InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ExportStatus.Text = "导出失败：" + ex.Message;
+            ShowInfo("导出失败", ex.Message, InfoBarSeverity.Error);
+        }
+        finally
+        {
+            _exporting = false;
+            ExportButton.IsEnabled = true;
+        }
+    }
+
+    private void OpenExport_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_lastExportPath)) return;
+        var folder = Path.GetDirectoryName(_lastExportPath);
+        if (!string.IsNullOrEmpty(folder)) OpenFolder(folder);
+    }
 
     private void OpenData_Click(object sender, RoutedEventArgs e) => OpenFolder(AppPaths.DataDir);
 
