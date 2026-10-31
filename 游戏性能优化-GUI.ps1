@@ -22,7 +22,7 @@ try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 # 设置文件默认放在脚本目录; TX_GUI_SETTINGS 仅用于测试时指向临时文件
 $script:GuiSettingsFile = Join-Path $PSScriptRoot 'gui-settings.json'
 if ($env:TX_GUI_SETTINGS) { $script:GuiSettingsFile = [string]$env:TX_GUI_SETTINGS }
-$script:AppVersion = '5.0.10'
+$script:AppVersion = '5.0.11'
 $script:RepoSlug   = 'tianxiclaw/game-performance-optimizer'
 $script:GuiCfg = [ordered]@{
     ExperimentalDpi = $false
@@ -272,6 +272,156 @@ function F([double]$size, [bool]$bold = $false) {
     return New-Object Drawing.Font -ArgumentList @([string]$script:FF, [single]$size, $st)
 }
 
+$script:NavNumF = F 8 $false
+
+# 按钮图标 / 悬停说明：按文案统一映射，避免每个调用点重复传参
+$script:BtnIconMap = @{
+    '一键优化' = 'bolt'
+    '预览变更' = 'eye'
+    '撤销上次优化' = 'undo'
+    '查看全部' = 'arrow-right'
+    '扫描本机驱动' = 'scan'
+    '检测更新' = 'download'
+    '设备管理器' = 'device'
+    '变化记录' = 'history'
+    '还原选中' = 'undo'
+    '还原最近' = 'undo'
+    '全部还原' = 'undo'
+    '创建还原点' = 'shield'
+    '打开备份目录' = 'folder'
+    '刷新' = 'refresh'
+    '重新扫描' = 'scan'
+    '手动添加' = 'plus'
+    '打开游戏目录' = 'folder'
+    '保存并应用' = 'save'
+    '启动游戏' = 'play'
+    '恢复原值' = 'undo'
+    '移除手动添加' = 'trash'
+    '刷新诊断' = 'refresh'
+    '导出报告' = 'download'
+    '复制全部' = 'copy'
+    '导出诊断包' = 'download'
+    '刷新列表' = 'refresh'
+    '任务管理器' = 'activity'
+    '启动应用设置' = 'settings'
+    '清空界面' = 'trash'
+    '打开日志文件' = 'log'
+    '打开脚本目录' = 'folder'
+    '复制日志' = 'copy'
+    '检查更新' = 'download'
+    '支持作者' = 'heart'
+    '查看说明' = 'info'
+    '导出便携包' = 'package'
+    '复制分享话术' = 'copy'
+    '重启界面' = 'refresh'
+    '载入方案' = 'folder'
+    '保存方案' = 'save'
+    '应用选中项' = 'check'
+    '全选推荐' = 'check'
+    '重新绑定驱动' = 'refresh'
+    '清理所选旧包' = 'trash'
+    '安装所选更新' = 'download'
+    '隐藏所选更新' = 'eye'
+    '切换所选驱动' = 'refresh'
+    '复制预览' = 'copy'
+    '关闭' = 'close'
+    '管理' = 'settings'
+}
+
+$script:BtnTipMap = @{
+    '一键优化' = '按推荐方案应用全部可优化项，应用前会自动备份原值'
+    '预览变更' = '只展示将要修改的项目，不会写入系统'
+    '撤销上次优化' = '按最近一次应用的备份恢复原值'
+    '查看全部' = '跳转到优化项页面查看全部待应用项'
+    '扫描本机驱动' = '读取本机驱动与设备信息，全程不联网'
+    '检测更新' = '使用厂商官方工具检测可用驱动更新'
+    '设备管理器' = '打开 Windows 设备管理器'
+    '变化记录' = '查看每次扫描的驱动版本变化与回退记录'
+    '还原选中' = '恢复选中备份里的原值'
+    '还原最近' = '恢复最近一次应用前的状态'
+    '全部还原' = '按全部备份回放原值，执行前会再次确认'
+    '创建还原点' = '创建一份新的系统还原点'
+    '打开备份目录' = '在资源管理器中打开 backups 文件夹'
+    '刷新' = '重新读取当前页面的数据'
+    '重新扫描' = '重新识别本机游戏库'
+    '手动添加' = '手动选择游戏可执行文件加入游戏库'
+    '打开游戏目录' = '打开所选游戏所在的文件夹'
+    '保存并应用' = '保存该游戏配置并立即写入当前用户设置'
+    '启动游戏' = '按当前配置启动所选游戏'
+    '恢复原值' = '撤销该游戏的优先级、亲和性与显卡偏好'
+    '移除手动添加' = '从游戏库移除手动添加的条目，不改动游戏文件'
+    '刷新诊断' = '重新执行只读诊断检查'
+    '导出报告' = '把诊断结果导出为文本报告'
+    '复制全部' = '复制全部诊断结果到剪贴板'
+    '导出诊断包' = '打包日志、系统信息、dxdiag 与驱动列表为 ZIP'
+    '刷新列表' = '重新读取启动项与后台进程'
+    '任务管理器' = '打开 Windows 任务管理器'
+    '启动应用设置' = '打开 Windows 启动应用设置页'
+    '清空界面' = '只清空界面显示，不删除日志文件'
+    '打开日志文件' = '用默认编辑器打开当前日志'
+    '打开脚本目录' = '在资源管理器中打开程序目录'
+    '复制日志' = '复制界面中的日志到剪贴板'
+    '检查更新' = '访问 GitHub Releases 查询最新版本，仅点击时联网'
+    '支持作者' = '查看作者赞赏码'
+    '查看说明' = '查看 GPU 渲染与 WPF 后端的评估说明'
+    '导出便携包' = '重新打包当前程序为便携 ZIP，便于分享'
+    '复制分享话术' = '复制一段可直接发给朋友的分享文案'
+    '重启界面' = '保存设置并重启图形界面'
+    '载入方案' = '从本地文件载入自定义优化方案'
+    '保存方案' = '把当前勾选保存为自定义方案'
+    '应用选中项' = '应用当前勾选的优化项，应用前自动备份'
+    '全选推荐' = '勾选全部推荐项'
+    '重新绑定驱动' = '把驱动重新绑定到本机 INF'
+    '清理所选旧包' = '删除选中的旧驱动安装包'
+    '安装所选更新' = '调用厂商官方工具安装所选更新'
+    '隐藏所选更新' = '在列表中隐藏所选更新，不卸载驱动'
+    '切换所选驱动' = '切换到所选的历史驱动版本'
+    '复制预览' = '复制预览变更清单'
+    '关闭' = '关闭当前窗口'
+    '管理' = '查看该设备的驱动详情与操作'
+}
+
+$script:NavTips = @{
+    overview = '硬件概览、实时监控与系统状态'
+    driver   = '驱动扫描、更新检测与版本变化记录'
+    game     = '为单个游戏配置优先级、亲和性与启动参数'
+    items    = '按分类和风险筛选，勾选后统一应用'
+    backup   = '原值备份、单项还原与全部回放'
+    diag     = '只读诊断：系统、显卡、存储与驱动'
+    startup  = '查看开机启动项与后台进程，不提供一键禁用'
+    log      = '运行日志与错误信息'
+    settings = '主题、高 DPI、托盘与通知设置'
+    about    = '版本信息、能力说明与检查更新'
+}
+
+function Get-Tip {
+    if ($null -eq $script:Tip) {
+        $t = New-Object System.Windows.Forms.ToolTip
+        $t.AutoPopDelay = 9000
+        $t.InitialDelay = 400
+        $t.ReshowDelay = 100
+        $t.BackColor = $script:C_PANEL2
+        $t.ForeColor = $script:C_TEXT
+        $script:Tip = $t
+    }
+    return $script:Tip
+}
+
+function New-IconBitmap([string]$name, [int]$px, $color) {
+    if ($px -lt 8) { $px = 8 }
+    $bmp = New-Object Drawing.Bitmap -ArgumentList @($px, $px)
+    $g = [Drawing.Graphics]::FromImage($bmp)
+    try {
+        $g.Clear([Drawing.Color]::Transparent)
+        $g.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::AntiAlias
+        $r = New-Object Drawing.RectangleF -ArgumentList @(0, 0, [single]$px, [single]$px)
+        [TxUi.Icons]::Draw($g, $name, $r, $color, [single]1.7)
+    } finally {
+        $g.Dispose()
+    }
+    return $bmp
+}
+
 function UiPx([double]$v) {
     return [int][Math]::Round($v * [double]$script:UI_SCALE)
 }
@@ -319,6 +469,23 @@ function New-Btn($parent, $text, [int]$x, [int]$y, [int]$w, [int]$h, $bg, $fg, [
     $b.Font = F $size $bold
     $b.Cursor = [System.Windows.Forms.Cursors]::Hand
     $b.UseVisualStyleBackColor = $false
+    try {
+        $iconName = ''
+        if ($script:BtnIconMap.ContainsKey([string]$text)) { $iconName = $script:BtnIconMap[[string]$text] }
+        if ($iconName -ne '' -and $w -ge 88 -and $h -ge 28) {
+            $px = [int][Math]::Round(15 * [double]$script:UI_SCALE)
+            $b.Image = New-IconBitmap $iconName $px $fg
+            $b.ImageAlign = 'MiddleLeft'
+            $b.TextAlign = 'MiddleLeft'
+            $b.TextImageRelation = 'ImageBeforeText'
+            $b.Padding = New-Object System.Windows.Forms.Padding -ArgumentList @(8, 0, 0, 0)
+        }
+    } catch {}
+    try {
+        if ($script:BtnTipMap.ContainsKey([string]$text)) {
+            (Get-Tip).SetToolTip($b, $script:BtnTipMap[[string]$text])
+        }
+    } catch {}
     $b.Add_MouseEnter({ param($s, $e) $s.FlatAppearance.BorderSize = 1; $s.FlatAppearance.BorderColor = $s.ForeColor })
     $b.Add_MouseLeave({ param($s, $e) $s.FlatAppearance.BorderSize = 0 })
     $parent.Controls.Add($b)
@@ -569,6 +736,311 @@ namespace TxUi
                 }, IntPtr.Zero);
             }
             catch { }
+        }
+    }
+
+    // 线性图标：24x24 视口，按目标矩形等比缩放；只描边或少量实心，避免视觉噪声
+    public static class Icons
+    {
+        private static void RR(GraphicsPath p, float x, float y, float w, float h, float r)
+        {
+            if (r < 0.1f) { p.AddRectangle(new RectangleF(x, y, w, h)); return; }
+            float d = r * 2f;
+            p.AddArc(x, y, d, d, 180, 90);
+            p.AddArc(x + w - d, y, d, d, 270, 90);
+            p.AddArc(x + w - d, y + h - d, d, d, 0, 90);
+            p.AddArc(x, y + h - d, d, d, 90, 90);
+            p.CloseFigure();
+        }
+
+        public static void Draw(Graphics g, string name, RectangleF r, Color color, float width)
+        {
+            if (g == null || string.IsNullOrEmpty(name)) return;
+            if (r.Width <= 1f || r.Height <= 1f) return;
+            SmoothingMode old = g.SmoothingMode;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            float s = Math.Min(r.Width, r.Height);
+            GraphicsState st = g.Save();
+            g.TranslateTransform(r.X + (r.Width - s) / 2f, r.Y + (r.Height - s) / 2f);
+            g.ScaleTransform(s / 24f, s / 24f);
+            using (Pen p = new Pen(color, width))
+            {
+                p.StartCap = LineCap.Round;
+                p.EndCap = LineCap.Round;
+                p.LineJoin = LineJoin.Round;
+                using (SolidBrush b = new SolidBrush(color))
+                {
+                    string n = name.ToLowerInvariant();
+                    switch (n)
+                    {
+                        case "overview":
+                            using (GraphicsPath path = new GraphicsPath())
+                            {
+                                RR(path, 3, 3, 7.5f, 7.5f, 1.8f);
+                                RR(path, 13.5f, 3, 7.5f, 7.5f, 1.8f);
+                                RR(path, 3, 13.5f, 7.5f, 7.5f, 1.8f);
+                                RR(path, 13.5f, 13.5f, 7.5f, 7.5f, 1.8f);
+                                g.DrawPath(p, path);
+                            }
+                            break;
+                        case "driver":
+                        case "device":
+                            using (GraphicsPath path = new GraphicsPath())
+                            {
+                                RR(path, 6, 6, 12, 12, 2.2f);
+                                g.DrawPath(p, path);
+                            }
+                            using (GraphicsPath path = new GraphicsPath())
+                            {
+                                RR(path, 9.2f, 9.2f, 5.6f, 5.6f, 1.2f);
+                                g.DrawPath(p, path);
+                            }
+                            g.DrawLine(p, 9.5f, 2, 9.5f, 6);
+                            g.DrawLine(p, 14.5f, 2, 14.5f, 6);
+                            g.DrawLine(p, 9.5f, 18, 9.5f, 22);
+                            g.DrawLine(p, 14.5f, 18, 14.5f, 22);
+                            g.DrawLine(p, 2, 9.5f, 6, 9.5f);
+                            g.DrawLine(p, 2, 14.5f, 6, 14.5f);
+                            g.DrawLine(p, 18, 9.5f, 22, 9.5f);
+                            g.DrawLine(p, 18, 14.5f, 22, 14.5f);
+                            break;
+                        case "game":
+                            using (GraphicsPath path = new GraphicsPath())
+                            {
+                                RR(path, 3, 7.5f, 18, 10, 4.5f);
+                                g.DrawPath(p, path);
+                            }
+                            g.DrawLine(p, 7.4f, 12.5f, 10.6f, 12.5f);
+                            g.DrawLine(p, 9, 10.9f, 9, 14.1f);
+                            g.FillEllipse(b, 16.1f, 10.7f, 1.8f, 1.8f);
+                            g.FillEllipse(b, 13.7f, 12.9f, 1.8f, 1.8f);
+                            break;
+                        case "items":
+                        case "tune":
+                        {
+                            float[] ys = new float[] { 7f, 12f, 17f };
+                            float[] xs = new float[] { 9f, 15f, 7f };
+                            for (int i = 0; i < 3; i++)
+                            {
+                                g.DrawLine(p, 3, ys[i], 21, ys[i]);
+                                g.FillEllipse(b, xs[i] - 2f, ys[i] - 2f, 4f, 4f);
+                            }
+                            break;
+                        }
+                        case "backup":
+                            using (GraphicsPath path = new GraphicsPath())
+                            {
+                                RR(path, 3.5f, 4, 17, 4.5f, 1.2f);
+                                g.DrawPath(p, path);
+                            }
+                            using (GraphicsPath path = new GraphicsPath())
+                            {
+                                RR(path, 5, 9.5f, 14, 10.5f, 1.6f);
+                                g.DrawPath(p, path);
+                            }
+                            g.DrawLine(p, 9, 13.5f, 15, 13.5f);
+                            break;
+                        case "diag":
+                        case "activity":
+                            using (GraphicsPath path = new GraphicsPath())
+                            {
+                                RR(path, 3, 4.5f, 18, 15, 3);
+                                g.DrawPath(p, path);
+                            }
+                            g.DrawLines(p, new PointF[] { new PointF(6, 12), new PointF(9, 12), new PointF(11, 8), new PointF(13, 16), new PointF(15, 12), new PointF(18, 12) });
+                            break;
+                        case "startup":
+                        case "power":
+                            g.DrawArc(p, 5, 5, 14, 14, -55, 290);
+                            g.DrawLine(p, 12, 3.5f, 12, 11.5f);
+                            break;
+                        case "log":
+                            using (GraphicsPath path = new GraphicsPath())
+                            {
+                                RR(path, 5, 3, 14, 18, 2);
+                                g.DrawPath(p, path);
+                            }
+                            g.DrawLine(p, 8.5f, 8, 15.5f, 8);
+                            g.DrawLine(p, 8.5f, 12, 15.5f, 12);
+                            g.DrawLine(p, 8.5f, 16, 13, 16);
+                            break;
+                        case "settings":
+                        case "gear":
+                            g.DrawEllipse(p, 5.5f, 5.5f, 13, 13);
+                            g.DrawEllipse(p, 9, 9, 6, 6);
+                            for (int i = 0; i < 8; i++)
+                            {
+                                double a = i * Math.PI / 4.0;
+                                float x1 = (float)(12 + Math.Cos(a) * 6.5);
+                                float y1 = (float)(12 + Math.Sin(a) * 6.5);
+                                float x2 = (float)(12 + Math.Cos(a) * 8.8);
+                                float y2 = (float)(12 + Math.Sin(a) * 8.8);
+                                g.DrawLine(p, x1, y1, x2, y2);
+                            }
+                            break;
+                        case "about":
+                        case "info":
+                            g.DrawEllipse(p, 3, 3, 18, 18);
+                            g.DrawLine(p, 12, 10.5f, 12, 17);
+                            g.FillEllipse(b, 10.9f, 6.7f, 2.2f, 2.2f);
+                            break;
+                        case "bolt":
+                            g.FillPolygon(b, new PointF[] { new PointF(13, 2), new PointF(5, 13.5f), new PointF(11, 13.5f), new PointF(10, 22), new PointF(19, 10), new PointF(13, 10) });
+                            break;
+                        case "eye":
+                            using (GraphicsPath path = new GraphicsPath())
+                            {
+                                path.AddBezier(2, 12, 6, 5.5f, 18, 5.5f, 22, 12);
+                                path.AddBezier(22, 12, 18, 18.5f, 6, 18.5f, 2, 12);
+                                g.DrawPath(p, path);
+                            }
+                            g.DrawEllipse(p, 9.2f, 9.2f, 5.6f, 5.6f);
+                            break;
+                        case "undo":
+                            g.DrawLine(p, 5, 12, 20, 12);
+                            g.DrawLine(p, 5, 12, 9.5f, 7.5f);
+                            g.DrawLine(p, 5, 12, 9.5f, 16.5f);
+                            break;
+                        case "arrow-right":
+                            g.DrawLine(p, 4, 12, 19, 12);
+                            g.DrawLine(p, 19, 12, 14.5f, 7.5f);
+                            g.DrawLine(p, 19, 12, 14.5f, 16.5f);
+                            break;
+                        case "scan":
+                            g.DrawLine(p, 3, 8, 3, 3);
+                            g.DrawLine(p, 3, 3, 8, 3);
+                            g.DrawLine(p, 16, 3, 21, 3);
+                            g.DrawLine(p, 21, 3, 21, 8);
+                            g.DrawLine(p, 21, 16, 21, 21);
+                            g.DrawLine(p, 21, 21, 16, 21);
+                            g.DrawLine(p, 8, 21, 3, 21);
+                            g.DrawLine(p, 3, 21, 3, 16);
+                            g.DrawEllipse(p, 9, 9, 6, 6);
+                            break;
+                        case "refresh":
+                            g.DrawArc(p, 4.5f, 4.5f, 15, 15, -50, 280);
+                            g.DrawLine(p, 7.1f, 6.6f, 7.4f, 10.5f);
+                            g.DrawLine(p, 7.1f, 6.6f, 11, 7.4f);
+                            break;
+                        case "download":
+                            g.DrawLine(p, 12, 3, 12, 15);
+                            g.DrawLine(p, 7, 10, 12, 15);
+                            g.DrawLine(p, 17, 10, 12, 15);
+                            g.DrawLine(p, 4, 20, 20, 20);
+                            break;
+                        case "folder":
+                            using (GraphicsPath path = new GraphicsPath())
+                            {
+                                path.AddLine(3, 19, 3, 6.5f);
+                                path.AddLine(3, 6.5f, 9, 6.5f);
+                                path.AddLine(9, 6.5f, 11.2f, 9);
+                                path.AddLine(11.2f, 9, 21, 9);
+                                path.AddLine(21, 9, 21, 19);
+                                path.CloseFigure();
+                                g.DrawPath(p, path);
+                            }
+                            break;
+                        case "save":
+                            using (GraphicsPath path = new GraphicsPath())
+                            {
+                                RR(path, 4, 4, 16, 16, 2);
+                                g.DrawPath(p, path);
+                            }
+                            g.DrawLine(p, 8, 4, 8, 9);
+                            g.DrawLine(p, 8, 9, 16, 9);
+                            g.DrawLine(p, 16, 9, 16, 4);
+                            g.DrawLine(p, 8, 14, 16, 14);
+                            g.DrawLine(p, 16, 14, 16, 19);
+                            g.DrawLine(p, 16, 19, 8, 19);
+                            g.DrawLine(p, 8, 19, 8, 14);
+                            break;
+                        case "play":
+                            g.FillPolygon(b, new PointF[] { new PointF(8, 5), new PointF(19, 12), new PointF(8, 19) });
+                            break;
+                        case "trash":
+                            g.DrawLine(p, 4, 7, 20, 7);
+                            g.DrawLine(p, 9, 4, 15, 4);
+                            using (GraphicsPath path = new GraphicsPath())
+                            {
+                                RR(path, 6, 7, 12, 14, 2);
+                                g.DrawPath(p, path);
+                            }
+                            g.DrawLine(p, 10, 11, 10, 17);
+                            g.DrawLine(p, 14, 11, 14, 17);
+                            break;
+                        case "copy":
+                            using (GraphicsPath path = new GraphicsPath())
+                            {
+                                RR(path, 8, 8, 12, 12, 1.6f);
+                                g.DrawPath(p, path);
+                            }
+                            using (GraphicsPath path = new GraphicsPath())
+                            {
+                                RR(path, 4, 4, 12, 12, 1.6f);
+                                g.DrawPath(p, path);
+                            }
+                            break;
+                        case "plus":
+                            g.DrawLine(p, 12, 5, 12, 19);
+                            g.DrawLine(p, 5, 12, 19, 12);
+                            break;
+                        case "history":
+                        case "clock":
+                            g.DrawEllipse(p, 4, 4, 16, 16);
+                            g.DrawLine(p, 12, 7.5f, 12, 12);
+                            g.DrawLine(p, 12, 12, 15.5f, 14);
+                            break;
+                        case "check":
+                            g.DrawLines(p, new PointF[] { new PointF(5, 12), new PointF(10, 17), new PointF(19, 7) });
+                            break;
+                        case "close":
+                            g.DrawLine(p, 6, 6, 18, 18);
+                            g.DrawLine(p, 18, 6, 6, 18);
+                            break;
+                        case "shield":
+                            using (GraphicsPath path = new GraphicsPath())
+                            {
+                                path.AddLine(12, 3, 20, 6.5f);
+                                path.AddLine(20, 6.5f, 19, 13.5f);
+                                path.AddLine(19, 13.5f, 12, 21);
+                                path.AddLine(12, 21, 5, 13.5f);
+                                path.AddLine(5, 13.5f, 4, 6.5f);
+                                path.CloseFigure();
+                                g.DrawPath(p, path);
+                            }
+                            g.DrawLines(p, new PointF[] { new PointF(8.5f, 12), new PointF(11, 14.5f), new PointF(15.5f, 9.5f) });
+                            break;
+                        case "heart":
+                            using (GraphicsPath path = new GraphicsPath())
+                            {
+                                path.AddBezier(12, 20, 8, 17, 3, 13.5f, 3, 8.5f);
+                                path.AddBezier(3, 8.5f, 3, 5, 7, 4, 9.5f, 6.5f);
+                                path.AddBezier(9.5f, 6.5f, 11, 8, 12, 9.5f, 12, 9.5f);
+                                path.AddBezier(12, 9.5f, 13, 8, 14.5f, 6.5f, 14.5f, 6.5f);
+                                path.AddBezier(14.5f, 6.5f, 17, 4, 21, 5, 21, 8.5f);
+                                path.AddBezier(21, 8.5f, 21, 13.5f, 16, 17, 12, 20);
+                                g.DrawPath(p, path);
+                            }
+                            break;
+                        case "package":
+                            g.DrawLine(p, 3, 8, 12, 3);
+                            g.DrawLine(p, 12, 3, 21, 8);
+                            g.DrawLine(p, 21, 8, 21, 16);
+                            g.DrawLine(p, 21, 16, 12, 21);
+                            g.DrawLine(p, 12, 21, 3, 16);
+                            g.DrawLine(p, 3, 16, 3, 8);
+                            g.DrawLine(p, 3, 8, 12, 13);
+                            g.DrawLine(p, 12, 13, 21, 8);
+                            g.DrawLine(p, 12, 13, 12, 21);
+                            break;
+                        default:
+                            g.DrawEllipse(p, 8, 8, 8, 8);
+                            break;
+                    }
+                }
+            }
+            g.Restore(st);
+            g.SmoothingMode = old;
         }
     }
 
@@ -1659,7 +2131,15 @@ Set-Splash '正在构建可视化界面...'
 $form = New-Object TxUi.MainForm
 # 启动期间用户已切到别的程序时, 界面安静出现并闪任务栏, 不抢焦点
 $form.QuietShow = $false
-try { if (-not $Preview -and -not $SelfTest) { $form.QuietShow = -not [TxUi.Boot]::ShouldActivate() } } catch {}
+try {
+    if ($Preview -or $SelfTest) {
+        # 预览/自检在后台渲染, 绝不抢前台焦点
+        $form.QuietShow = $true
+        $form.ShowInTaskbar = $false
+    } else {
+        $form.QuietShow = -not [TxUi.Boot]::ShouldActivate()
+    }
+} catch {}
 $form.Text = "游戏性能优化中心 v$($script:AppVersion)"
 $form.BackColor = $script:C_BG
 $form.ForeColor = $script:C_TEXT
@@ -1668,7 +2148,22 @@ $form.FormBorderStyle = 'Sizable'
 $form.MaximizeBox = $true
 $form.MinimizeBox = $true
 $form.StartPosition = 'CenterScreen'
-$form.ShowIcon = $false
+try {
+    $script:AppIconBmp = New-Object Drawing.Bitmap -ArgumentList @(64, 64)
+    $ig = [Drawing.Graphics]::FromImage($script:AppIconBmp)
+    $ig.SmoothingMode = [Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $ig.Clear([Drawing.Color]::Transparent)
+    $bgBrush = New-Object Drawing.SolidBrush $script:C_CYAN
+    $ig.FillEllipse($bgBrush, 2, 2, 60, 60)
+    [TxUi.Icons]::Draw($ig, 'bolt', (New-Object Drawing.RectangleF -ArgumentList @(14, 12, 36, 40)), (TC 6 18 24), [single]2.6)
+    $bgBrush.Dispose()
+    $ig.Dispose()
+    $script:AppIcon = [Drawing.Icon]::FromHandle($script:AppIconBmp.GetHicon())
+    $form.Icon = $script:AppIcon
+    $form.ShowIcon = $true
+} catch {
+    $form.ShowIcon = $false
+}
 $form.AutoScaleMode = 'None'
 $wa = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
 # WorkingArea 在 PerMonitorV2 下是物理像素, 先换算回 96-DPI 逻辑尺寸
@@ -1747,29 +2242,43 @@ $nav.Dock = 'Left'
 $nav.Width = 200
 $nav.BackColor = $script:C_PANEL2
 $form.Controls.Add($nav)
-$null = New-Label $nav '功能导航' 20 16 160 20 8 $true $script:C_DIM
+$null = New-Label $nav '功能导航' 20 16 130 20 8 $true $script:C_DIM
+$navHint = New-Label $nav '?' 168 15 18 20 8.5 $true $script:C_DIM 'MiddleRight'
+$navHint.Cursor = [System.Windows.Forms.Cursors]::Help
+try { (Get-Tip).SetToolTip($navHint, '悬停导航项、按钮或硬件卡片可查看说明') } catch {}
 $navDefs = @(
-    @{ Key='overview'; Text='概览';     Glyph='01' },
-    @{ Key='driver';   Text='驱动中心'; Glyph='02' },
-    @{ Key='game';     Text='游戏库';   Glyph='03' },
-    @{ Key='items';    Text='优化项';   Glyph='04' },
-    @{ Key='backup';   Text='备份还原'; Glyph='05' },
-    @{ Key='diag';     Text='诊断报告'; Glyph='06' },
-    @{ Key='startup';  Text='启动项';   Glyph='07' },
-    @{ Key='log';      Text='运行日志'; Glyph='08' },
-    @{ Key='settings'; Text='设置';     Glyph='09' },
-    @{ Key='about';    Text='关于';     Glyph='10' }
+    @{ Key='overview'; Text='概览';     Glyph='01'; Icon='overview' },
+    @{ Key='driver';   Text='驱动中心'; Glyph='02'; Icon='driver' },
+    @{ Key='game';     Text='游戏库';   Glyph='03'; Icon='game' },
+    @{ Key='items';    Text='优化项';   Glyph='04'; Icon='items' },
+    @{ Key='backup';   Text='备份还原'; Glyph='05'; Icon='backup' },
+    @{ Key='diag';     Text='诊断报告'; Glyph='06'; Icon='diag' },
+    @{ Key='startup';  Text='启动项';   Glyph='07'; Icon='startup' },
+    @{ Key='log';      Text='运行日志'; Glyph='08'; Icon='log' },
+    @{ Key='settings'; Text='设置';     Glyph='09'; Icon='settings' },
+    @{ Key='about';    Text='关于';     Glyph='10'; Icon='about' }
 )
+$script:UI.NavIcons = @{}
+$navIconPx = [int][Math]::Round(18 * [double]$script:UI_SCALE)
+foreach ($nd in $navDefs) {
+    $script:UI.NavIcons[$nd.Key] = @{
+        Off = New-IconBitmap $nd.Icon $navIconPx $script:C_SUB
+        On  = New-IconBitmap $nd.Icon $navIconPx $script:C_CYAN
+    }
+}
 $ny = 46
 foreach ($nd in $navDefs) {
     $nb = New-Object System.Windows.Forms.Button
-    $nb.Text = "  $($nd.Glyph)   $($nd.Text)"
+    $nb.Text = [string]$nd.Text
     $nb.Location = New-Object Drawing.Point -ArgumentList @(12, $ny)
     $nb.Size = New-Object Drawing.Size -ArgumentList @(176, 40)
     $nb.FlatStyle = 'Flat'
     $nb.FlatAppearance.BorderSize = 0
     $nb.TextAlign = 'MiddleLeft'
-    $nb.Padding = New-Object System.Windows.Forms.Padding -ArgumentList @(8, 0, 0, 0)
+    $nb.ImageAlign = 'MiddleLeft'
+    $nb.TextImageRelation = 'ImageBeforeText'
+    $nb.Image = $script:UI.NavIcons[$nd.Key].Off
+    $nb.Padding = New-Object System.Windows.Forms.Padding -ArgumentList @(12, 0, 0, 0)
     $nb.BackColor = $script:C_PANEL2
     $nb.ForeColor = $script:C_SUB
     $nb.Font = F 10
@@ -1781,7 +2290,23 @@ foreach ($nd in $navDefs) {
     $bar.BackColor = $script:C_CYAN
     $bar.Visible = $false
     $nb.Controls.Add($bar)
-    $nb.Tag = @{ Page = $nd.Key; Bar = $bar }
+    $nb.Tag = @{ Page = $nd.Key; Bar = $bar; Glyph = $nd.Glyph }
+    try { (Get-Tip).SetToolTip($nb, $script:NavTips[$nd.Key]) } catch {}
+    $nb.Add_Paint({
+        param($s, $e)
+        try {
+            $sc = [double]$script:UI_SCALE
+            $g = $e.Graphics
+            $fmt = New-Object Drawing.StringFormat
+            $fmt.Alignment = [Drawing.StringAlignment]::Far
+            $fmt.LineAlignment = [Drawing.StringAlignment]::Center
+            $r = New-Object Drawing.RectangleF -ArgumentList @(0, 0, [single]($s.Width - (12 * $sc)), [single]$s.Height)
+            $br = New-Object Drawing.SolidBrush $script:C_DIM
+            $g.DrawString([string]$s.Tag.Glyph, $script:NavNumF, $br, $r, $fmt)
+            $br.Dispose()
+            $fmt.Dispose()
+        } catch {}
+    })
     $nb.Add_Click({
         param($s, $e)
         Show-Page $s.Tag.Page
@@ -2025,12 +2550,7 @@ $hwDefs = @(
 )
 $script:UI.HwCards = @()
 $script:UI.Hw = @{}
-$script:Tip = New-Object System.Windows.Forms.ToolTip
-$script:Tip.AutoPopDelay = 9000
-$script:Tip.InitialDelay = 400
-$script:Tip.ReshowDelay = 100
-$script:Tip.BackColor = $script:C_PANEL2
-$script:Tip.ForeColor = $script:C_TEXT
+$null = Get-Tip
 $hx = 20
 foreach ($hd in $hwDefs) {
     $card = New-Card $ov $hx 160 $hwW 112 12 $script:C_PANEL $script:C_BORDER
@@ -2058,9 +2578,9 @@ $null = New-Label $mon '每 0.25 秒刷新 · 仅本机读取' 124 15 260 18 8 $
 $script:UI.Meters = @{}
 $meterDefs = @(
     @{ Key='cpu'; Caption='CPU 使用率'; Accent=$script:C_CYAN },
-    @{ Key='gpu'; Caption='GPU 3D 负载'; Accent=$script:C_PURPLE },
-    @{ Key='ram'; Caption='内存占用';   Accent=$script:C_GREEN },
-    @{ Key='net'; Caption='网络'; Accent=$script:C_ORANGE }
+    @{ Key='gpu'; Caption='GPU 3D 负载'; Accent=$script:C_CYAN },
+    @{ Key='ram'; Caption='内存占用';   Accent=$script:C_CYAN },
+    @{ Key='net'; Caption='网络'; Accent=$script:C_CYAN }
 )
 $script:UI.MeterCtrls = @()
 foreach ($md in $meterDefs) {
@@ -6856,6 +7376,10 @@ function Show-Page([string]$key) {
             $b = $script:UI.NavBtns[$k]
             $active = ($k -eq $key)
             try { $b.Tag.Bar.Visible = $active } catch {}
+            try {
+                $ic = $script:UI.NavIcons[$k]
+                if ($null -ne $ic) { $b.Image = $(if ($active) { $ic.On } else { $ic.Off }) }
+            } catch {}
             if ($active) {
                 $b.BackColor = (TC 22 32 46)
                 $b.ForeColor = $script:C_CYAN
@@ -6885,6 +7409,14 @@ function Show-Page([string]$key) {
             'overview' { Update-Overview }
             'items'  { Update-ItemSummary }
         }
+        # 页面首次显示后才创建句柄，需在填充数据后重新给滚动条应用暗色主题
+        try {
+            $pg = $script:UI.Pages[$key]
+            if ($pg -and $pg.IsHandleCreated) {
+                [TxUi.Native]::DarkScroll($pg.Handle)
+                [TxUi.Native]::DarkChildren($pg.Handle)
+            }
+        } catch {}
         Layout-Overview
     } catch {
         if ($Preview) { Write-Output "show_page_error=$key : $($_.Exception.Message)" }
