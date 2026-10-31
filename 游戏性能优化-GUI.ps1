@@ -1129,14 +1129,14 @@ $null = New-Label $top '本地运行 · 所有改动可还原' 70 33 260 18 8 $f
 $machineTxt = '未知机型'
 if ($script:Snap.Machine) { $machineTxt = [string]$script:Snap.Machine }
 $script:MachineTxt = $machineTxt
-$lblTopMachine = New-Label $top $machineTxt ($fw - 640) 19 300 22 9 $false $script:C_SUB 'MiddleRight'
+$lblTopMachine = New-Label $top $machineTxt ($fw - 652) 19 300 22 9 $false $script:C_SUB 'MiddleRight'
 $lblTopMachine.Anchor = 'Top, Right'
 $adminTxt = '管理员'
 if (-not $isAdmin) { $adminTxt = '非管理员' }
-$badgeAdmin = New-Badge $top $adminTxt ($fw - 326) 18 72 24 $script:C_GREEN_BG $script:C_GREEN_BD $script:C_GREEN 8
+$badgeAdmin = New-Badge $top $adminTxt ($fw - 338) 18 72 24 $script:C_GREEN_BG $script:C_GREEN_BD $script:C_GREEN 8
 if (-not $isAdmin) { $badgeAdmin.Fill = $script:C_ORANGE_BG; $badgeAdmin.BorderColor = $script:C_ORANGE_BD; $badgeAdmin.ForeColor = $script:C_ORANGE }
 $badgeAdmin.Anchor = 'Top, Right'
-$lblClock = New-Label $top '' ($fw - 244) 19 224 22 9 $false $script:C_SUB 'MiddleRight'
+$lblClock = New-Label $top '' ($fw - 256) 19 224 22 9 $false $script:C_SUB 'MiddleRight'
 $lblClock.Anchor = 'Top, Right'
 $topLine = New-Object System.Windows.Forms.Panel
 $topLine.Dock = 'Bottom'
