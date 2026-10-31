@@ -5,6 +5,7 @@ using GamePerfCenter.Models;
 using GamePerfCenter.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.Windows.Storage.Pickers;
 
 namespace GamePerfCenter.Pages;
 
@@ -311,19 +312,21 @@ public sealed partial class GamesPage : Page, IThemeAware
 
     private async Task<string?> PickExeAsync()
     {
+        if (App.MainWindow is null) return null;
         try
         {
-            var picker = new Windows.Storage.Pickers.FileOpenPicker();
+            var picker = new FileOpenPicker(App.MainWindow.AppWindow.Id)
+            {
+                CommitButtonText = "选择"
+            };
             picker.FileTypeFilter.Add(".exe");
-            if (App.MainWindow is not null)
-                WinRT.Interop.InitializeWithWindow.Initialize(picker,
-                    WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow));
-            var file = await picker.PickSingleFileAsync();
-            return file?.Path;
+            var result = await picker.PickSingleFileAsync();
+            return result?.Path;
         }
         catch (Exception ex)
         {
             AppLog.Write("选择 exe 失败: " + ex.Message);
+            ShowInfo("无法打开文件对话框", ex.Message, InfoBarSeverity.Error);
             return null;
         }
     }

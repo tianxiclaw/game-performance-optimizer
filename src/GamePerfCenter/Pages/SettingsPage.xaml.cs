@@ -2,7 +2,7 @@ using System.Diagnostics;
 using GamePerfCenter.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Windows.Storage.Pickers;
+using Microsoft.Windows.Storage.Pickers;
 
 namespace GamePerfCenter.Pages;
 
@@ -77,32 +77,8 @@ public sealed partial class SettingsPage : Page, IThemeAware
     {
         if (_exporting) return;
 
-        var picker = new FileSavePicker
-        {
-            SuggestedStartLocation = PickerLocationId.Desktop,
-            SuggestedFileName = $"游戏性能优化中心_v{AppPaths.Version}_便携版"
-        };
-        picker.FileTypeChoices.Add("ZIP 压缩包", new List<string> { ".zip" });
-        if (App.MainWindow is not null)
-            WinRT.Interop.InitializeWithWindow.Initialize(picker,
-                WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow));
-
-        Windows.Storage.StorageFile? file;
-        try
-        {
-            file = await picker.PickSaveFileAsync();
-        }
-        catch (Exception ex)
-        {
-            ShowInfo("无法选择保存位置", ex.Message, InfoBarSeverity.Error);
-            return;
-        }
-        if (file is null) return;
-        if (string.IsNullOrWhiteSpace(file.Path))
-        {
-            ShowInfo("无法导出", "请选择一个本地文件夹作为保存位置。", InfoBarSeverity.Warning);
-            return;
-        }
+        var targetPath = await PickExportPathAsync();
+        if (string.IsNullOrWhiteSpace(targetPath)) return;
 
         _exporting = true;
         ExportButton.IsEnabled = false;
@@ -110,9 +86,9 @@ public sealed partial class SettingsPage : Page, IThemeAware
         ExportStatus.Text = "正在导出，请稍候…";
         try
         {
-            var (count, bytes) = await PortableExportService.ExportAsync(file.Path);
-            _lastExportPath = file.Path;
-            ExportStatus.Text = $"已导出 {count} 个文件（{bytes / 1024.0 / 1024.0:0.0} MB）：{file.Path}";
+            var (count, bytes) = await PortableExportService.ExportAsync(targetPath);
+            _lastExportPath = targetPath;
+            ExportStatus.Text = $"已导出 {count} 个文件（{bytes / 1024.0 / 1024.0:0.0} MB）：{targetPath}";
             OpenExportButton.IsEnabled = true;
             ShowInfo("导出完成", "便携包已生成，可以直接发送给他人。", InfoBarSeverity.Success);
         }
@@ -126,6 +102,42 @@ public sealed partial class SettingsPage : Page, IThemeAware
             _exporting = false;
             ExportButton.IsEnabled = true;
         }
+    }
+
+    // 程序以管理员权限运行，Windows.Storage.Pickers 在提权进程里不会弹出对话框，
+    // 必须使用 Windows App SDK 1.8 提供的 Microsoft.Windows.Storage.Pickers。
+    private async Task<string?> PickExportPathAsync()
+    {
+        var fileName = $"游戏性能优化中心_v{AppPaths.Version}_便携版";
+        if (App.MainWindow is null) return DesktopExportPath(fileName);
+
+        try
+        {
+            var picker = new FileSavePicker(App.MainWindow.AppWindow.Id)
+            {
+                SuggestedStartLocation = PickerLocationId.Desktop,
+                SuggestedFileName = fileName,
+                DefaultFileExtension = ".zip",
+                CommitButtonText = "保存"
+            };
+            picker.FileTypeChoices.Add("ZIP 压缩包", new List<string> { ".zip" });
+
+            var result = await picker.PickSaveFileAsync();
+            return string.IsNullOrWhiteSpace(result?.Path) ? null : result.Path;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("打开便携包保存对话框失败: " + ex.Message);
+            var fallback = DesktopExportPath(fileName);
+            ShowInfo("无法打开保存对话框", $"已改为导出到桌面：{fallback}", InfoBarSeverity.Warning);
+            return fallback;
+        }
+    }
+
+    private static string DesktopExportPath(string fileName)
+    {
+        var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+        return Path.Combine(desktop, fileName + ".zip");
     }
 
     private void OpenExport_Click(object sender, RoutedEventArgs e)
