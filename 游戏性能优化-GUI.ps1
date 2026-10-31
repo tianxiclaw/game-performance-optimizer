@@ -1646,6 +1646,9 @@ $script:DrvWuAt = [DateTime]::MinValue
 # Intel 驱动支持助手 (DSA) 本地数据
 $script:DrvDsa = $null
 $script:DrvDsaAt = [DateTime]::MinValue
+# 其他厂商官方工具 (NVIDIA App / AMD Software) 检测缓存
+$script:DrvTools = $null
+$script:DrvToolsAt = [DateTime]::MinValue
 $script:DrvFilter = '全部'
 $script:DrvQuery = ''
 $script:DrvNeedRefresh = $false
@@ -2165,9 +2168,9 @@ function Get-TxDriverDevices([switch]$Force) {
             OldCount    = 0
             Accent      = $accent
             Enriched    = $false
-            Dsa         = $null
-            DsaState    = ''
-            DsaNote     = ''
+            Vendor      = $null
+            VendorState = ''
+            VendorNote  = ''
         })
     }
     $order = @{ '显卡' = 0; '音频' = 1; '外设' = 2; '网络' = 3; '其他' = 4 }
@@ -2262,9 +2265,9 @@ function Get-TxDriverDevicesCim {
                 OldCount    = 0
                 Accent      = $accent
                 Enriched    = $false
-                Dsa         = $null
-                DsaState    = ''
-                DsaNote     = ''
+                Vendor      = $null
+                VendorState = ''
+                VendorNote  = ''
             })
         }
     } catch {}
@@ -2512,6 +2515,229 @@ function Get-TxDsaForDevice($dev) {
     }
 }
 
+# ── NVIDIA / AMD 官方工具检测 ─────────────────────────────
+# 只读本机安装信息, 不联网。检测到官方工具才显示对应卡片;
+# NVIDIA App / AMD Software 没有 DSA 那样的离线版本目录,
+# 因此状态为 Managed(由官方工具管理), 不猜测"有新版本"。
+function Get-TxUninstallEntries {
+    $list = New-Object System.Collections.ArrayList
+    foreach ($p in @(
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*'
+    )) {
+        try {
+            foreach ($e in @(Get-ItemProperty -Path $p -ErrorAction SilentlyContinue)) {
+                if ($e -and $e.DisplayName) { [void]$list.Add($e) }
+            }
+        } catch {}
+    }
+    return @($list.ToArray())
+}
+
+function Get-TxToolVersion($entry, [string]$exe) {
+    $v = ''
+    if ($entry) { $v = [string]$entry.DisplayVersion }
+    if (-not $v -and $exe -and (Test-Path -LiteralPath $exe)) {
+        try { $v = [string](Get-Item -LiteralPath $exe).VersionInfo.FileVersion } catch { $v = '' }
+    }
+    if ($v -match '\d+(?:\.\d+){1,3}') { return $Matches[0] }
+    return $v
+}
+
+function Get-TxToolExe($entry, $candidates, [string]$leaf) {
+    foreach ($c in @($candidates)) {
+        if ($c -and (Test-Path -LiteralPath $c)) { return $c }
+    }
+    if ($entry) {
+        $loc = [string]$entry.InstallLocation
+        if ($loc -and $leaf) {
+            $p = Join-Path $loc $leaf
+            if (Test-Path -LiteralPath $p) { return $p }
+        }
+    }
+    return ''
+}
+
+function Get-TxNvidiaTool($entries) {
+    $pf = [string]$env:ProgramFiles
+    $pf86 = [string]${env:ProgramFiles(x86)}
+    $app = @($entries | Where-Object { [string]$_.DisplayName -match '^NVIDIA\s+App' }) | Select-Object -First 1
+    $cands = @()
+    if ($pf) { $cands += (Join-Path $pf 'NVIDIA Corporation\NVIDIA App\NVIDIA App.exe') }
+    if ($pf86) { $cands += (Join-Path $pf86 'NVIDIA Corporation\NVIDIA App\NVIDIA App.exe') }
+    $exe = Get-TxToolExe $app $cands 'NVIDIA App.exe'
+    if ($app -or $exe) {
+        return [PSCustomObject]@{
+            Tool      = 'NVIDIA App'
+            Short     = 'NVIDIA'
+            Badge     = 'NVIDIA'
+            Version   = (Get-TxToolVersion $app $exe)
+            AppPath   = $exe
+            AppButton = '打开 NVIDIA App'
+            Link      = 'https://www.nvidia.com/en-us/drivers/'
+        }
+    }
+    # 旧版 GeForce Experience
+    $gfe = @($entries | Where-Object { [string]$_.DisplayName -match 'NVIDIA GeForce Experience' }) | Select-Object -First 1
+    $cands2 = @()
+    if ($pf) { $cands2 += (Join-Path $pf 'NVIDIA Corporation\NVIDIA GeForce Experience\NVIDIA GeForce Experience.exe') }
+    if ($pf86) { $cands2 += (Join-Path $pf86 'NVIDIA Corporation\NVIDIA GeForce Experience\NVIDIA GeForce Experience.exe') }
+    $exe2 = Get-TxToolExe $gfe $cands2 'NVIDIA GeForce Experience.exe'
+    if ($gfe -or $exe2) {
+        return [PSCustomObject]@{
+            Tool      = 'NVIDIA GeForce Experience'
+            Short     = 'NVIDIA'
+            Badge     = 'NVIDIA'
+            Version   = (Get-TxToolVersion $gfe $exe2)
+            AppPath   = $exe2
+            AppButton = '打开 GeForce Experience'
+            Link      = 'https://www.nvidia.com/en-us/drivers/'
+        }
+    }
+    return $null
+}
+
+function Get-TxAmdTool($entries) {
+    $amd = @($entries | Where-Object {
+        [string]$_.DisplayName -match '^AMD Software' -or
+        [string]$_.DisplayName -match '^AMD Radeon Software' -or
+        [string]$_.DisplayName -match 'Adrenalin'
+    }) | Select-Object -First 1
+    $pf = [string]$env:ProgramFiles
+    $cands = @()
+    if ($pf) {
+        $cands += (Join-Path $pf 'AMD\CNext\CNext\RadeonSoftware.exe')
+        $cands += (Join-Path $pf 'AMD\AMD Software\RadeonSoftware.exe')
+    }
+    $exe = Get-TxToolExe $amd $cands 'RadeonSoftware.exe'
+    if ($amd -or $exe) {
+        return [PSCustomObject]@{
+            Tool      = 'AMD Software: Adrenalin Edition'
+            Short     = 'AMD'
+            Badge     = 'AMD'
+            Version   = (Get-TxToolVersion $amd $exe)
+            AppPath   = $exe
+            AppButton = '打开 AMD 软件'
+            Link      = 'https://www.amd.com/zh-cn/support/download/drivers.html'
+        }
+    }
+    return $null
+}
+
+function Get-TxVendorTools([switch]$Force) {
+    if (-not $Force -and $null -ne $script:DrvTools -and ((Get-Date) - $script:DrvToolsAt).TotalSeconds -lt 120) { return $script:DrvTools }
+    $res = [PSCustomObject]@{ Intel = $null; NVIDIA = $null; AMD = $null }
+    $dsa = $null
+    try { $dsa = Get-TxDsaData -Force:$Force } catch {}
+    if ($dsa -and $dsa.Available) {
+        $res.Intel = [PSCustomObject]@{
+            Tool      = 'Intel 驱动支持助手'
+            Short     = 'Intel'
+            Badge     = 'DSA'
+            Version   = ''
+            AppPath   = ''
+            AppButton = ''
+            Link      = ''
+        }
+    }
+    $entries = @()
+    try { $entries = @(Get-TxUninstallEntries) } catch {}
+    try { $res.NVIDIA = Get-TxNvidiaTool $entries } catch {}
+    try { $res.AMD = Get-TxAmdTool $entries } catch {}
+    $script:DrvTools = $res
+    $script:DrvToolsAt = Get-Date
+    return $res
+}
+
+# AMD Software 在注册表里记录的驱动版本, 用于发现"软件与驱动不匹配"
+function Get-TxAmdCnDriverVersion {
+    foreach ($p in @('HKLM:\SOFTWARE\AMD\CN', 'HKLM:\SOFTWARE\WOW6432Node\AMD\CN')) {
+        try {
+            $e = Get-ItemProperty -Path $p -ErrorAction Stop
+            foreach ($n in @('DriverVersion', 'RadeonSoftwareVersion', 'CatalystVersion')) {
+                $v = [string]$e.$n
+                if ($v -match '\d+(?:\.\d+){2,3}') { return [PSCustomObject]@{ Name = $n; Version = $Matches[0] } }
+            }
+        } catch {}
+    }
+    return $null
+}
+
+# 只有同时检测到对应硬件和官方工具时才返回, 否则调用方不显示任何厂商卡片
+function Get-TxVendorForDevice($dev) {
+    if (-not $dev) { return $null }
+    $hw = Get-TxHwBase ([string]$dev.HardwareId)
+    if (-not $hw) { return $null }
+    $vendor = ''
+    if ($hw -match 'VEN_8086') { $vendor = 'Intel' }
+    elseif ($hw -match 'VEN_10DE') { $vendor = 'NVIDIA' }
+    elseif ($hw -match 'VEN_1002' -or $hw -match 'VEN_1022') { $vendor = 'AMD' }
+    if (-not $vendor) { return $null }
+    # NVIDIA / AMD 只对显示设备生效, 避免误挂到同厂商的音频等设备
+    if ($vendor -ne 'Intel' -and [string]$dev.Class -ne 'DISPLAY') { return $null }
+
+    $tools = Get-TxVendorTools
+    if (-not $tools) { return $null }
+    $tool = $tools.$vendor
+    if (-not $tool) { return $null }
+
+    if ($vendor -eq 'Intel') {
+        $d = $null
+        try { $d = Get-TxDsaForDevice $dev } catch { $d = $null }
+        if (-not $d) { return $null }
+        return [PSCustomObject]@{
+            Vendor         = 'Intel'
+            Tool           = 'Intel 驱动支持助手'
+            Short          = 'Intel'
+            Badge          = 'DSA'
+            ToolVersion    = ''
+            AppPath        = ''
+            AppButton      = ''
+            Link           = [string]$d.Link
+            State          = [string]$d.State
+            Latest         = [string]$d.Latest
+            Note           = [string]$d.Note
+            HistoryVersion = [string]$d.HistoryVersion
+            HistoryDate    = [string]$d.HistoryDate
+            Dsa            = $d
+        }
+    }
+
+    $actual = [string]$dev.Version
+    $state = 'Managed'
+    $note = ''
+    if ($vendor -eq 'AMD') {
+        $cn = Get-TxAmdCnDriverVersion
+        # 只有两边都是 Windows 驱动版本号(32.x)时才比较, 避免把不同编号体系误判为不一致
+        if ($cn -and $actual -and $cn.Version -match '^32\.' -and $actual -match '^32\.' -and $cn.Version -ne $actual) {
+            $state = 'Mismatch'
+            $note = "AMD 软件记录的驱动版本为 $($cn.Version)，系统当前为 $actual，建议打开 AMD 软件重新安装匹配的驱动。"
+        }
+    }
+    if (-not $note) {
+        $verTxt = ''
+        if ($tool.Version) { $verTxt = " $($tool.Version)" }
+        $note = "已检测到 $($tool.Tool)$verTxt，驱动更新由它负责；本工具只读取本机记录，不联网判定。"
+    }
+    return [PSCustomObject]@{
+        Vendor         = $vendor
+        Tool           = [string]$tool.Tool
+        Short          = [string]$tool.Short
+        Badge          = [string]$tool.Badge
+        ToolVersion    = [string]$tool.Version
+        AppPath        = [string]$tool.AppPath
+        AppButton      = [string]$tool.AppButton
+        Link           = [string]$tool.Link
+        State          = $state
+        Latest         = ''
+        Note           = $note
+        HistoryVersion = ''
+        HistoryDate    = ''
+        Dsa            = $null
+    }
+}
+
 function Complete-TxDriverDevice($dev, $pkgs) {
     if (-not $dev) { return $dev }
     $cls = [string]$dev.Class
@@ -2562,31 +2788,32 @@ function Complete-TxDriverDevice($dev, $pkgs) {
     $extDiff = @($dev.Packages | Where-Object { $_.ClassName -eq 'Extension' -and $_.Version -and $curVer -and (Compare-TxVersion $_.Version $curVer) -ne 0 })
     if ($extDiff.Count -gt 0) { [void]$flags.Add('扩展包版本与主驱动不一致') }
 
-    # Intel 设备: 更新判断以本机 Intel 驱动支持助手 (DSA) 为准
-    $dsa = $null
-    if ($base -match '^PCI\\VEN_8086') { try { $dsa = Get-TxDsaForDevice $dev } catch { $dsa = $null } }
-    $dev.Dsa = $dsa
-    $dev.DsaState = ''
-    $dev.DsaNote = ''
-    $dsaCount = 0
-    if ($dsa) {
-        $dev.DsaState = [string]$dsa.State
-        $dev.DsaNote = [string]$dsa.Note
-        if ($dsa.State -eq 'RolledBack') {
-            [void]$flags.Add([string]$dsa.Note)
-            $dsaCount = 1
-        } elseif ($dsa.State -eq 'UpdateAvailable') {
-            [void]$flags.Add("Intel 支持助手提供 $($dsa.Latest)")
-            $dsaCount = 1
+    # 官方工具: Intel DSA / NVIDIA App / AMD Software
+    # 只有同时检测到硬件和对应工具时才附加; 否则保持 Windows Update 原逻辑
+    $ven = $null
+    try { $ven = Get-TxVendorForDevice $dev } catch { $ven = $null }
+    $dev.Vendor = $ven
+    $dev.VendorState = ''
+    $dev.VendorNote = ''
+    $venCount = 0
+    if ($ven) {
+        $dev.VendorState = [string]$ven.State
+        $dev.VendorNote = [string]$ven.Note
+        if ($ven.State -eq 'RolledBack' -or $ven.State -eq 'Mismatch') {
+            [void]$flags.Add([string]$ven.Note)
+            $venCount = 1
+        } elseif ($ven.State -eq 'UpdateAvailable') {
+            [void]$flags.Add("$($ven.Tool)提供 $($ven.Latest)")
+            $venCount = 1
         }
     }
 
     $ups = @(Get-TxUpdatesForDevice $dev)
     $dev.Updates = @($ups)
     $wuCount = @($ups | Where-Object { -not $_.Hidden -and $_.Version -and ((Compare-TxVersion $_.Version $curVer) -gt 0) }).Count
-    # 有 DSA 数据时, Intel 设备的可用更新只看支持助手, 不再叠加 Windows Update 的旧包
-    if ($dsa) { $wuCount = 0 }
-    $dev.UpdateCount = $wuCount + $dsaCount
+    # 检测到官方工具时, 该设备的可用更新以工具为准, 不再叠加 Windows Update 的旧包
+    if ($ven) { $wuCount = 0 }
+    $dev.UpdateCount = $wuCount + $venCount
     if ($dev.UpdateCount -gt 0) { [void]$flags.Add("有 $($dev.UpdateCount) 个可用更新") }
     $dev.HasUpdate = ($dev.UpdateCount -gt 0)
     $dev.OldCount = $old.Count
@@ -2599,7 +2826,7 @@ function Get-TxDriverSnapshot([switch]$Force) {
     if (-not $Force -and $script:DrvData -and ((Get-Date) - $script:DrvAt).TotalSeconds -lt 30) { return $script:DrvData }
     $devs = @(Get-TxDriverDevices -Force:$Force)
     $pkgs = @(Get-TxDriverPackages -Force:$Force)
-    $null = Get-TxDsaData -Force:$Force
+    $null = Get-TxVendorTools -Force:$Force
     foreach ($dev in $devs) { $null = Complete-TxDriverDevice $dev $pkgs }
     $script:DrvData = [PSCustomObject]@{
         Devices   = $devs
@@ -2651,7 +2878,7 @@ $drvHero.Add_Paint({
         $g.DrawString('驱动中心', $script:DrvHF.Title, $b2, (22 * $sc), (28 * $sc))
         $b2.Dispose()
         $b3 = New-Object Drawing.SolidBrush -ArgumentList @([Drawing.Color]::FromArgb(168, 199, 216))
-        $g.DrawString('扫描本机驱动 · 核对版本 · Intel 更新以本机支持助手为准', $script:DrvHF.Sub, $b3, (24 * $sc), (60 * $sc))
+        $g.DrawString('扫描本机驱动 · 核对版本 · Intel / NVIDIA / AMD 更新以本机官方工具为准', $script:DrvHF.Sub, $b3, (24 * $sc), (60 * $sc))
         $b3.Dispose()
     } catch {}
 })
@@ -2760,8 +2987,11 @@ function Get-DriverCardInfo($dev) {
     if (-not $dev.Enriched) { return @{ Text = '正在核对本地驱动包...'; Color = $script:C_DIM } }
     $info = '已是最新'
     $color = $script:C_GREEN
-    if ([string]$dev.DsaState -eq 'RolledBack') { $info = 'Intel 驱动被回退'; $color = $script:C_RED }
-    elseif ([string]$dev.DsaState -eq 'UpdateAvailable') { $info = "Intel 支持助手可更新到 $($dev.Dsa.Latest)"; $color = $script:C_ORANGE }
+    $vs = [string]$dev.VendorState
+    if ($vs -eq 'RolledBack') { $info = "$($dev.Vendor.Short) 驱动被回退"; $color = $script:C_RED }
+    elseif ($vs -eq 'Mismatch') { $info = "$($dev.Vendor.Short) 驱动与软件版本不匹配"; $color = $script:C_RED }
+    elseif ($vs -eq 'UpdateAvailable') { $info = "$($dev.Vendor.Tool) 可更新到 $($dev.Vendor.Latest)"; $color = $script:C_ORANGE }
+    elseif ($vs -eq 'Managed') { $info = "由 $($dev.Vendor.Tool) 管理"; $color = $script:C_SUB }
     elseif ($dev.UpdateCount -gt 0) { $info = "发现 $($dev.UpdateCount) 个可用更新"; $color = $script:C_ORANGE }
     elseif ($dev.OldCount -gt 0) { $info = "本地有 $($dev.OldCount) 个旧版本包"; $color = $script:C_ORANGE }
     elseif (-not $dev.StatusOk) { $info = '设备状态异常'; $color = $script:C_RED }
@@ -2916,7 +3146,7 @@ function Update-DriverSummary {
     $issue = 0
     foreach ($d in $devs) {
         if ($d.UpdateCount -gt 0) { $upd++ }
-        if (-not $d.StatusOk -or $d.OldCount -gt 0 -or [string]$d.DsaState -eq 'RolledBack') { $issue++ }
+        if (-not $d.StatusOk -or $d.OldCount -gt 0 -or [string]$d.VendorState -eq 'RolledBack' -or [string]$d.VendorState -eq 'Mismatch') { $issue++ }
     }
     try { $script:UI.DrvStatDev.Text = [string]$devs.Count } catch {}
     try { $script:UI.DrvStatUpd.Text = [string]$upd } catch {}
@@ -3034,7 +3264,7 @@ function Refresh-DriverPage([bool]$force = $false) {
         # 第一段: 只枚举设备和当前驱动, 先把卡片显示出来
         $devs = @(Get-TxDriverDevices -Force:$force)
         $script:DrvPkgs = @(Get-TxDriverPackages -Force:$force)
-        $null = Get-TxDsaData -Force:$force
+        $null = Get-TxVendorTools -Force:$force
         $script:DrvData = [PSCustomObject]@{
             Devices   = $devs
             ScannedAt = (Get-Date)
@@ -3095,7 +3325,7 @@ function Invoke-DriverUpdateCheck {
         [System.Windows.Forms.Cursor]::Current = [System.Windows.Forms.Cursors]::WaitCursor
         [System.Windows.Forms.Application]::DoEvents()
         $null = Get-TxWuDriverUpdates -Force
-        $null = Get-TxDsaData -Force
+        $null = Get-TxVendorTools -Force
         # 只重新核对驱动包和更新, 不再重新枚举设备
         Update-TxDriverEnrichment
         Update-DriverFilterButtons
@@ -3103,7 +3333,7 @@ function Invoke-DriverUpdateCheck {
         Update-DriverCards
         $n = 0
         foreach ($d in @($script:DrvData.Devices)) { $n += [int]$d.UpdateCount }
-        Set-Status "更新检测完成 · 发现 $n 个可更新设备（Intel 设备以本机支持助手为准）"
+        Set-Status "更新检测完成 · 发现 $n 个可更新设备（Intel / NVIDIA / AMD 以本机官方工具为准）"
     } catch {
         Set-Status "更新检测失败: $($_.Exception.Message)"
         [System.Windows.Forms.MessageBox]::Show($script:UI.Form, ("无法完成驱动更新检测。`n`n" + $_.Exception.Message), '驱动更新', 'OK', 'Warning') | Out-Null
@@ -3367,30 +3597,42 @@ function Show-DriverDetails($dev) {
         if (-not $dev.StatusOk) { $stFill = $script:C_ORANGE_BG; $stBd = $script:C_ORANGE_BD; $stFg = $script:C_ORANGE }
         $null = New-Badge $hdr $dev.StatusText ($w - (UiPx 130)) (UiPx 14) (UiPx 112) (UiPx 26) $stFill $stBd $stFg 8
 
-        # Intel 设备: 单独一张支持助手卡片, 更新判断以它为准
+        # 官方工具卡片: 只有检测到对应硬件 + 官方工具时才显示
         $shift = 0
-        if ($dev.Dsa) {
+        if ($dev.Vendor) {
             $shift = UiPx 110
-            $dsaCard = New-Card $body (UiPx 20) (UiPx 110) $w (UiPx 98) 12 $script:C_PANEL $script:C_BORDER
-            $dsaFill = $script:C_GREEN_BG; $dsaBd = $script:C_GREEN_BD; $dsaFg = $script:C_GREEN
-            $dsaTxt = '已是最新'
-            if ([string]$dev.DsaState -eq 'RolledBack') {
-                $dsaFill = [Drawing.Color]::FromArgb(58, 22, 26); $dsaBd = [Drawing.Color]::FromArgb(120, 45, 45); $dsaFg = $script:C_RED
-                $dsaTxt = '版本被回退'
-            } elseif ([string]$dev.DsaState -eq 'UpdateAvailable') {
-                $dsaFill = $script:C_ORANGE_BG; $dsaBd = $script:C_ORANGE_BD; $dsaFg = $script:C_ORANGE
-                $dsaTxt = '可更新'
+            $ven = $dev.Vendor
+            $vCard = New-Card $body (UiPx 20) (UiPx 110) $w (UiPx 98) 12 $script:C_PANEL $script:C_BORDER
+            $vFill = $script:C_GREEN_BG; $vBd = $script:C_GREEN_BD; $vFg = $script:C_GREEN
+            $vTxt = '已是最新'
+            $vs = [string]$dev.VendorState
+            if ($vs -eq 'RolledBack') {
+                $vFill = [Drawing.Color]::FromArgb(58, 22, 26); $vBd = [Drawing.Color]::FromArgb(120, 45, 45); $vFg = $script:C_RED
+                $vTxt = '版本被回退'
+            } elseif ($vs -eq 'Mismatch') {
+                $vFill = [Drawing.Color]::FromArgb(58, 22, 26); $vBd = [Drawing.Color]::FromArgb(120, 45, 45); $vFg = $script:C_RED
+                $vTxt = '版本不匹配'
+            } elseif ($vs -eq 'UpdateAvailable') {
+                $vFill = $script:C_ORANGE_BG; $vBd = $script:C_ORANGE_BD; $vFg = $script:C_ORANGE
+                $vTxt = '可更新'
+            } elseif ($vs -eq 'Managed') {
+                $vFill = $script:C_GRAY_BG; $vBd = $script:C_GRAY_BD; $vFg = $script:C_CYAN
+                $vTxt = '官方工具管理'
             }
-            $null = New-Badge $dsaCard 'DSA' (UiPx 16) (UiPx 14) (UiPx 46) (UiPx 22) (Get-MixColor $script:C_PANEL $script:C_CYAN 0.14) (Get-MixColor $script:C_BORDER $script:C_CYAN 0.55) $script:C_CYAN 8
-            $null = New-Label $dsaCard 'Intel 驱动支持助手' (UiPx 70) (UiPx 15) ($w - (UiPx 230)) (UiPx 20) 9.5 $true $script:C_TEXT
-            $null = New-Badge $dsaCard $dsaTxt ($w - (UiPx 134)) (UiPx 14) (UiPx 116) (UiPx 24) $dsaFill $dsaBd $dsaFg 8
-            $noteLbl = New-Label $dsaCard ([string]$dev.Dsa.Note) (UiPx 16) (UiPx 42) ($w - (UiPx 172)) (UiPx 48) 8.2 $false $script:C_SUB
+            $null = New-Badge $vCard ([string]$ven.Badge) (UiPx 16) (UiPx 14) (UiPx 62) (UiPx 22) (Get-MixColor $script:C_PANEL $script:C_CYAN 0.14) (Get-MixColor $script:C_BORDER $script:C_CYAN 0.55) $script:C_CYAN 8
+            $vTitle = New-Label $vCard ([string]$ven.Tool) (UiPx 88) (UiPx 15) ($w - (UiPx 260)) (UiPx 20) 9.5 $true $script:C_TEXT
+            $vTitle.AutoEllipsis = $true
+            $null = New-Badge $vCard $vTxt ($w - (UiPx 154)) (UiPx 14) (UiPx 136) (UiPx 24) $vFill $vBd $vFg 8
+            $noteLbl = New-Label $vCard ([string]$ven.Note) (UiPx 16) (UiPx 42) ($w - (UiPx 212)) (UiPx 48) 8.2 $false $script:C_SUB
             $noteLbl.AutoEllipsis = $false
-            if ($dev.Dsa.Link) {
-                $btnDsa = New-Btn $dsaCard '打开下载页' ($w - (UiPx 142)) (UiPx 56) (UiPx 122) (UiPx 28) (Get-MixColor $script:C_PANEL $script:C_CYAN 0.12) $script:C_CYAN 8.3
-                $dsaUrl = [string]$dev.Dsa.Link
-                $btnDsa.Add_Click({ param($s, $e) try { Start-Process $s.Tag } catch {} })
-                $btnDsa.Tag = $dsaUrl
+            $btnText = ''
+            $btnTarget = ''
+            if ([string]$ven.AppPath) { $btnText = [string]$ven.AppButton; $btnTarget = [string]$ven.AppPath }
+            elseif ([string]$ven.Link) { $btnText = '打开下载页'; $btnTarget = [string]$ven.Link }
+            if ($btnText) {
+                $btnVen = New-Btn $vCard $btnText ($w - (UiPx 196)) (UiPx 56) (UiPx 176) (UiPx 28) (Get-MixColor $script:C_PANEL $script:C_CYAN 0.12) $script:C_CYAN 8.3
+                $btnVen.Add_Click({ param($s, $e) try { Start-Process $s.Tag } catch {} })
+                $btnVen.Tag = $btnTarget
             }
             $body.AutoScrollMinSize = New-Object Drawing.Size -ArgumentList @(0, [int]((UiPx 580) + $shift))
         }
