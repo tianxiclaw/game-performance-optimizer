@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: '要发布的标签，例如 v5.0.0'
+        description: '要发布的标签，例如 v6.0.0'
         required: true
-        default: 'v5.0.0'
+        default: 'v6.0.0'
 
 permissions:
   contents: write
@@ -21,15 +21,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
       - name: Build portable package
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $tag = if ('${{ github.event_name }}' -eq 'workflow_dispatch') { '${{ inputs.tag }}' } else { '${{ github.ref_name }}' }
-          $name = '游戏性能优化中心_v5.0'
+          $version = $tag -replace '^v', ''
+          $name = "游戏性能优化中心_v$version"
           $stage = Join-Path $env:RUNNER_TEMP $name
-          New-Item -ItemType Directory -Path $stage -Force | Out-Null
+          $publish = Join-Path $env:RUNNER_TEMP 'publish'
 
+          dotnet publish src/GamePerfCenter/GamePerfCenter.csproj `
+            -c Release -p:Platform=x64 -r win-x64 --self-contained true `
+            -p:PublishReadyToRun=false -o $publish -v:minimal
+          if ($LASTEXITCODE -ne 0) { throw "dotnet publish 失败" }
+
+          New-Item -ItemType Directory -Path $stage -Force | Out-Null
+          Copy-Item -Path (Join-Path $publish '*') -Destination $stage -Recurse -Force
+          Get-ChildItem -LiteralPath $stage -Filter *.pdb -Recurse | Remove-Item -Force
+
+          $fallback = Join-Path $stage '备用-WinForms'
+          New-Item -ItemType Directory -Path $fallback -Force | Out-Null
           $files = @(
             '游戏性能优化-GUI.ps1',
             '游戏性能优化.ps1',
@@ -40,19 +57,22 @@ jobs:
           )
           foreach ($f in $files) {
             if (-not (Test-Path -LiteralPath $f)) { throw "缺少文件: $f" }
-            Copy-Item -LiteralPath $f -Destination (Join-Path $stage $f) -Force
+            Copy-Item -LiteralPath $f -Destination $fallback -Force
           }
 
-          $lines = foreach ($f in (Get-ChildItem -LiteralPath $stage -File | Sort-Object Name)) {
-            '{0}  {1}' -f (Get-FileHash -Algorithm SHA256 -LiteralPath $f.FullName).Hash, $f.Name
+          $root = (Get-Item -LiteralPath $stage).FullName
+          $lines = foreach ($f in (Get-ChildItem -LiteralPath $stage -File -Recurse | Sort-Object FullName)) {
+            $rel = $f.FullName.Substring($root.Length + 1)
+            '{0}  {1}' -f (Get-FileHash -Algorithm SHA256 -LiteralPath $f.FullName).Hash, $rel
           }
           Set-Content -LiteralPath (Join-Path $stage 'SHA256.txt') -Value $lines -Encoding utf8NoBOM
 
-          $zip = Join-Path $env:RUNNER_TEMP 'game-performance-optimizer_v5.0_portable.zip'
+          $zip = Join-Path $env:RUNNER_TEMP "game-performance-optimizer_v$version_portable.zip"
           Compress-Archive -Path $stage -DestinationPath $zip -CompressionLevel Optimal
 
           "PKG=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Create release
         shell: pwsh
@@ -70,7 +90,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $asset = gh api "repos/${{ github.repository }}/releases/tags/$env:TAG" --jq '.assets[0].id'
-          $json = '{"label":"游戏性能优化中心_v5.0_便携版.zip"}'
+          $json = @{ label = "游戏性能优化中心_v$($env:VERSION)_便携版.zip" } | ConvertTo-Json -Compress
           $file = Join-Path $env:RUNNER_TEMP 'asset-label.json'
           [IO.File]::WriteAllText($file, $json, (New-Object System.Text.UTF8Encoding($false)))
           gh api -X PATCH "repos/${{ github.repository }}/releases/assets/$asset" --input $file

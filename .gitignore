@@ -1,11 +1,19 @@
 # 运行时生成，不纳入版本库
 backups/
+data/
 *.log
 optimize_*.log
 gui-settings.json
 profiles.json
 state_last_apply.json
 SHA256.txt
+
+# .NET / WinUI 构建输出
+src/**/bin/
+src/**/obj/
+dist/
+.vs/
+.tmp/
 
 # 打包产物（便携包通过 Release 发布）
 *.zip

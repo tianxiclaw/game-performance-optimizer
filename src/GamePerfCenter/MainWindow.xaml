@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="GamePerfCenter.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid x:Name="RootGrid" Background="{ThemeResource AppBgBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="30" />
+        </Grid.RowDefinitions>
+
+        <!-- 自定义标题栏 -->
+        <Grid x:Name="TitleBarDrag" Grid.Row="0" Background="Transparent">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0" Spacing="10">
+                <Image Source="Assets/AppIcon.png" Width="20" Height="20" />
+                <TextBlock Text="游戏性能优化中心" FontSize="13" FontWeight="SemiBold"
+                           Foreground="{ThemeResource TextBrush}" VerticalAlignment="Center" />
+                <Border Background="{ThemeResource AccentSoftBrush}" BorderBrush="{ThemeResource AccentBrush}"
+                        BorderThickness="1" CornerRadius="6" Padding="6,1" VerticalAlignment="Center">
+                    <TextBlock Text="WINUI 3" FontFamily="{StaticResource MonoFontFamily}" FontSize="9.5"
+                               CharacterSpacing="80" Foreground="{ThemeResource AccentBrush}" />
+                </Border>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
+                        Margin="0,0,148,0" Spacing="2">
+                <Button x:Name="ThemeButton" Style="{StaticResource IconButtonStyle}"
+                        ToolTipService.ToolTip="切换深浅色主题" Click="ThemeButton_Click">
+                    <FontIcon x:Name="ThemeIcon" Glyph="&#xE708;" FontSize="15" />
+                </Button>
+                <Button Style="{StaticResource IconButtonStyle}" ToolTipService.ToolTip="打开项目主页"
+                        Click="RepoButton_Click">
+                    <FontIcon Glyph="&#xE774;" FontSize="15" />
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- 主导航 -->
+        <NavigationView x:Name="Nav"
+                        Grid.Row="1"
+                        Background="Transparent"
+                        IsTitleBarAutoPaddingEnabled="False"
+                        IsBackButtonVisible="Collapsed"
+                        IsSettingsVisible="False"
+                        IsPaneToggleButtonVisible="True"
+                        PaneDisplayMode="Left"
+                        OpenPaneLength="238"
+                        CompactPaneLength="56"
+                        AlwaysShowHeader="False"
+                        SelectionFollowsFocus="Disabled"
+                        SelectionChanged="Nav_SelectionChanged">
+            <NavigationView.MenuItems>
+                <NavigationViewItem Content="概览" Tag="overview" ToolTipService.ToolTip="硬件概览、实时监控与快捷优化">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE80F;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="优化项" Tag="items" ToolTipService.ToolTip="按分类筛选并应用可还原的系统优化">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE9D9;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="驱动中心" Tag="driver" ToolTipService.ToolTip="显卡驱动版本、厂商工具与回退记录">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE7F8;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="备份还原" Tag="backup" ToolTipService.ToolTip="原值备份、单项还原与全部回放">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE777;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="游戏库" Tag="games" ToolTipService.ToolTip="识别本地游戏并保存独立运行配置">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE7FC;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="诊断报告" Tag="diagnostics" ToolTipService.ToolTip="只读检查 VBS、内存、PCIe、NVMe 与显示链路">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE9D9;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="启动项与后台" Tag="startup" ToolTipService.ToolTip="查看开机自启项与内存占用较高的后台进程">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE7C4;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="运行日志" Tag="log" ToolTipService.ToolTip="本机操作与引擎输出，不上传">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE8A5;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+            <NavigationView.FooterMenuItems>
+                <NavigationViewItem Content="设置" Tag="settings" ToolTipService.ToolTip="外观、托盘与配置文件">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE713;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="关于与支持" Tag="about" ToolTipService.ToolTip="版本信息、赞赏码与项目链接">
+                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE946;" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.FooterMenuItems>
+
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <InfoBar x:Name="EngineInfoBar" Grid.Row="0" IsOpen="False" Severity="Error"
+                         Margin="20,10,20,0" Title="引擎错误" IsClosable="True" />
+                <Frame x:Name="ContentFrame" Grid.Row="1" />
+            </Grid>
+        </NavigationView>
+
+        <!-- 底部状态栏 -->
+        <Border Grid.Row="2" Background="{ThemeResource SurfaceBrush}"
+                BorderBrush="{ThemeResource BorderBrush}" BorderThickness="0,1,0,0" Padding="16,0">
+            <Grid>
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <ProgressRing x:Name="StatusRing" Width="13" Height="13" IsActive="False"
+                                  Foreground="{ThemeResource AccentBrush}" />
+                    <TextBlock x:Name="StatusText" Text="正在启动..." Style="{StaticResource CaptionTextStyle}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="14" VerticalAlignment="Center">
+                    <TextBlock x:Name="EngineStateText" Text="引擎未连接" Style="{StaticResource CaptionTextStyle}" />
+                    <TextBlock Text="v6.0.0 · WinUI 3" Style="{StaticResource MonoTextStyle}" FontSize="10.5" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

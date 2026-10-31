@@ -11,7 +11,7 @@
 $script:GuiOutFile = $OutFile
 
 # ══════════════════════════════════════════════════════════
-# 游戏性能优化中心 · 可视化控制台 v5.0
+# 游戏性能优化中心 · 旧版 WinForms 备用界面（随 v6 便携包分发）
 # 引擎、控制台、CLI、GUI 共用 游戏性能优化.ps1 的同一套逻辑
 # ══════════════════════════════════════════════════════════
 
@@ -22,7 +22,7 @@ try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 # 设置文件默认放在脚本目录; TX_GUI_SETTINGS 仅用于测试时指向临时文件
 $script:GuiSettingsFile = Join-Path $PSScriptRoot 'gui-settings.json'
 if ($env:TX_GUI_SETTINGS) { $script:GuiSettingsFile = [string]$env:TX_GUI_SETTINGS }
-$script:AppVersion = '5.0.12'
+$script:AppVersion = '6.0.0'
 $script:RepoSlug   = 'tianxiclaw/game-performance-optimizer'
 $script:GuiCfg = [ordered]@{
     ExperimentalDpi = $false
@@ -6882,10 +6882,10 @@ $script:UI.SetRestart = $btnRestart
 $div1 = New-Label $expCard '' 20 168 ($setW - 40) 1 8 $false $script:C_BORDER
 $div1.BackColor = $script:C_BORDER
 
-$null = New-Label $expCard 'GPU 渲染加速 / WPF 后端' 20 188 420 24 10.5 $true $script:C_TEXT
-$null = New-Label $expCard '当前使用 WinForms + GDI+ 绘制，由 DWM 在 GPU 上合成；完整 GPU 渲染需迁移 WPF / Direct2D' 20 214 780 20 8.5 $false $script:C_SUB
-$null = New-Label $expCard '评估结论：改造成本高于收益，暂不启用，保留为实验记录' 20 236 660 20 8 $false $script:C_DIM
-$badgeWpf = New-Badge $expCard '已评估 · 未启用' ($setW - 270) 192 160 26 $script:C_GRAY_BG $script:C_GRAY_BD $script:C_SUB 8
+$null = New-Label $expCard '界面渲染（旧版备用界面）' 20 188 420 24 10.5 $true $script:C_TEXT
+$null = New-Label $expCard '本界面为 WinForms + GDI+ 旧版备用界面；主界面已迁移到 WinUI 3，仅在原生程序无法启动时使用' 20 214 780 20 8.5 $false $script:C_SUB
+$null = New-Label $expCard 'WinUI 3 主程序使用系统原生渲染，本备用界面保持现状，不再继续改造' 20 236 660 20 8 $false $script:C_DIM
+$badgeWpf = New-Badge $expCard '旧版 · 备用' ($setW - 270) 192 160 26 $script:C_GRAY_BG $script:C_GRAY_BD $script:C_SUB 8
 $badgeWpf.Anchor = 'Top, Right'
 $btnWpf = New-Btn $expCard '查看说明' ($setW - 100) 190 80 32 ((TC 24 35 50)) $script:C_TEXT 8.5
 $btnWpf.Anchor = 'Top, Right'
@@ -7054,8 +7054,8 @@ $script:UI.SetNotifyCheck.Add_CheckedChanged({
 $btnRestart.Add_Click({ Restart-Gui })
 $btnWpf.Add_Click({
     [System.Windows.Forms.MessageBox]::Show($form,
-        "当前界面的渲染路径：`n`n  · WinForms + GDI+ 负责绘制`n  · 桌面窗口管理器 (DWM) 在 GPU 上完成窗口合成`n`n已评估的方案：`n  · WPF 嵌入：可获得 GPU 合成，但需要重写控件与布局，混合自绘控件时容易引入 DPI、焦点和性能问题。`n  · Direct2D 自绘：需要额外 P/Invoke 与大量渲染代码，维护成本更高。`n`n结论：改造成本高于收益，暂不启用。现有优化集中在数据采集速度与刷新频率上。",
-        'GPU 渲染 / WPF 后端', 'OK', 'Information') | Out-Null
+        "这是一个旧版备用界面：`n`n  · 使用 WinForms + GDI+ 绘制`n  · 桌面窗口管理器 (DWM) 在 GPU 上完成窗口合成`n`n主界面已经迁移到 WinUI 3，使用系统原生控件与渲染管线。`n本界面仅在原生程序无法启动时使用，功能与优化数据完全一致，不再继续演进。",
+        '界面渲染 / 旧版备用界面', 'OK', 'Information') | Out-Null
 })
 $btnShare.Add_Click({
     if ($script:UI.Busy) {

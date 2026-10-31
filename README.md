@@ -1,6 +1,6 @@
 # 游戏性能优化中心
 
-> Windows 10 / 11 上的本地游戏性能优化工具。深色仪表盘界面，所有改动可逆、可还原，不联网、不上传。
+> Windows 10 / 11 上的本地游戏性能优化工具。WinUI 3 原生界面，深色 / 浅色主题，所有改动可逆、可还原，不联网、不上传。
 
 ![概览](docs/overview.png)
 
@@ -22,19 +22,22 @@
 
 ## 快速开始
 
-1. 到 [Releases](../../releases) 下载附件「游戏性能优化中心_v5.0_便携版.zip」（下载文件名为 `game-performance-optimizer_v5.0_portable.zip`），或直接 clone 本仓库
+1. 到 [Releases](../../releases) 下载附件「游戏性能优化中心_v6.0.0_便携版.zip」（下载文件名为 `game-performance-optimizer_v6.0.0_portable.zip`），或直接 clone 本仓库
 2. 解压到固定文件夹（不要在压缩包里直接双击）
-3. 双击 `启动优化脚本.bat`，UAC 提示点“是”
+3. 双击 `GamePerfCenter.exe`，UAC 提示点“是”
 4. 概览页确认硬件 → 优化项页按需勾选 → 预览变更 → 应用选中项
 5. 需要撤销时，到“备份还原”页操作
+
+如果原生界面无法启动，可进入 `备用-WinForms` 目录，双击 `启动优化脚本.bat` 使用旧版界面。
 
 首次打开时优化项会先显示“检测中”，约 1 秒后自动补全真实状态，不需要手动刷新。预览只会列出真正需要变更的项目，已处于推荐值的项不会重复出现。
 
 ## 系统要求
 
-- Windows 10 / 11 64 位
-- Windows PowerShell 5.1（系统自带）
-- 管理员权限
+- Windows 10 1809 / 11 64 位
+- Windows PowerShell 5.1（系统自带，引擎依赖）
+- 管理员权限（应用优化项时）
+- 便携版已自包含 .NET 与 Windows App SDK，无需单独安装运行时
 - 建议 1920×1080 及以上分辨率
 
 ## 命令行
@@ -75,10 +78,12 @@ powershell -ExecutionPolicy Bypass -File .\游戏性能优化.ps1 -RestoreAll
 
 | 文件 | 作用 |
 | --- | --- |
+| `src/GamePerfCenter/` | WinUI 3 桌面界面（.NET 10，自包含发布） |
+| `src/GamePerfCenter/engine-bridge.ps1` | 界面与 PowerShell 引擎的常驻进程桥 |
 | `游戏性能优化.ps1` | 引擎：优化项定义、状态检查、应用 / 还原、诊断、快照 |
-| `游戏性能优化-GUI.ps1` | WinForms 深色界面 |
-| `启动优化脚本.bat` | 日常启动器（自动提权） |
-| `启动控制台版.bat` | 界面异常时的备用入口 |
+| `游戏性能优化-GUI.ps1` | WinForms 旧版界面（便携包内作为备用） |
+| `启动优化脚本.bat` | WinForms 备用启动器（自动提权） |
+| `启动控制台版.bat` | 控制台入口 |
 | `赞赏码.png` | 支持作者（可选） |
 | `使用说明.txt` | 随包分发的说明 |
 | `docs/` | README 截图 |
@@ -90,8 +95,8 @@ powershell -ExecutionPolicy Bypass -File .\游戏性能优化.ps1 -RestoreAll
 - 可以在应用前勾选“创建系统还原点”
 - 所有改动都记录原值；还原按逆序回放，按位修改的项可精确恢复
 - HAGS、DRR、网卡、核显 / 独显等项目需要重启后才能完全生效，列表与结果中会明确标注
-- `backups/`、日志和 `gui-settings.json` 属于本机数据，已被 `.gitignore` 排除，请不要公开分享
-- GUI 的“导出便携包”会自动排除本机设置、备份和日志
+- `backups/`、`data/`、日志和 `gui-settings.json` 属于本机数据，已被 `.gitignore` 排除，请不要公开分享
+- 便携包由发布流程构建，不包含本机设置、备份和日志
 
 ## 兼容性
 
@@ -112,7 +117,7 @@ Intel / NVIDIA / AMD / Qualcomm 显卡；核显、独显、混合显卡自动判
 说明所选项目当前都已处于推荐值，不需要重复应用。
 
 **高缩放屏幕上界面模糊？**
-在“设置”页开启实验性高 DPI，然后重启界面。
+WinUI 3 界面会按系统缩放自动适配，无需额外设置；如果异常，请确认显示缩放为整数比例并重启程序。
 
 ## English
 

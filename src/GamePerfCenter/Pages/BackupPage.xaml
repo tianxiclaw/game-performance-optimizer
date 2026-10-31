@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="GamePerfCenter.Pages.BackupPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:GamePerfCenter.Models"
+    NavigationCacheMode="Required"
+    Background="Transparent">
+
+    <Grid Padding="28,24,28,20" RowSpacing="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid>
+            <StackPanel Spacing="5">
+                <TextBlock Text="BACKUP &amp; RESTORE · POINT IN TIME" Style="{StaticResource EyebrowTextStyle}" />
+                <TextBlock Text="备份还原" Style="{StaticResource PageTitleStyle}" />
+                <TextBlock Text="每次应用前自动记录原值 · 可单项回滚，也可整体恢复"
+                           Style="{StaticResource SecondaryTextStyle}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="8">
+                <Button Content="打开备份目录" Style="{StaticResource GhostButtonStyle}" Click="OpenFolder_Click" />
+                <Button Content="创建还原点" Style="{StaticResource SubtleButtonStyle}" Click="RestorePoint_Click"
+                        ToolTipService.ToolTip="调用系统还原点功能，耗时较长" />
+                <Button Content="恢复全部" Style="{StaticResource DangerButtonStyle}" Click="RestoreAll_Click"
+                        ToolTipService.ToolTip="把所有已记录项目恢复为原值" />
+            </StackPanel>
+        </Grid>
+
+        <InfoBar x:Name="PageInfo" Grid.Row="1" IsOpen="False" IsClosable="True" />
+
+        <Grid Grid.Row="2" ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="300" />
+            </Grid.ColumnDefinitions>
+
+            <Border Style="{StaticResource CardBorderStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid Margin="0,0,0,12">
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="备份时间线" Style="{StaticResource SectionTitleStyle}" />
+                            <TextBlock Text="按时间倒序排列，选择任意一份恢复"
+                                       Style="{StaticResource CaptionTextStyle}" />
+                        </StackPanel>
+                        <Button Content="刷新" Style="{StaticResource GhostButtonStyle}" HorizontalAlignment="Right"
+                                VerticalAlignment="Center" Click="Refresh_Click" />
+                    </Grid>
+
+                    <ListView x:Name="BackupList" Grid.Row="1" SelectionMode="None"
+                              ItemContainerStyle="{StaticResource CardListViewItemStyle}">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="models:BackupInfo">
+                                <Border Background="{ThemeResource Surface2Brush}" BorderBrush="{ThemeResource BorderBrush}"
+                                        BorderThickness="1" CornerRadius="12" Padding="16,13" Margin="0,0,0,8">
+                                    <Grid ColumnSpacing="14">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="38" Height="38" CornerRadius="10"
+                                                Background="{ThemeResource AccentSoftBrush}" VerticalAlignment="Center">
+                                            <FontIcon Glyph="&#xE777;" FontSize="16" Foreground="{ThemeResource AccentBrush}" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                            <TextBlock Text="{x:Bind Name}" FontSize="13.5" FontWeight="SemiBold"
+                                                       Foreground="{ThemeResource TextBrush}" TextTrimming="CharacterEllipsis" />
+                                            <StackPanel Orientation="Horizontal" Spacing="14">
+                                                <TextBlock Text="{x:Bind Time}" Style="{StaticResource CaptionTextStyle}" />
+                                                <TextBlock Text="{x:Bind RecordsText}" Style="{StaticResource CaptionTextStyle}" />
+                                                <TextBlock Text="{x:Bind Size, Converter={StaticResource FileSize}}"
+                                                           Style="{StaticResource CaptionTextStyle}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
+                                                    VerticalAlignment="Center">
+                                            <Button Content="定位" Style="{StaticResource GhostButtonStyle}" Click="Reveal_Click" />
+                                            <Button Content="恢复" Style="{StaticResource SubtleButtonStyle}" Click="Restore_Click" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <StackPanel x:Name="EmptyHint" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                Spacing="8" Visibility="Collapsed">
+                        <FontIcon Glyph="&#xE777;" FontSize="30" Foreground="{ThemeResource MutedTextBrush}" />
+                        <TextBlock Text="还没有备份记录" Style="{StaticResource SecondaryTextStyle}" />
+                        <TextBlock Text="应用任意优化项后会自动生成备份" Style="{StaticResource CaptionTextStyle}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <StackPanel Grid.Column="1" Spacing="14">
+                <Border Style="{StaticResource CardBorderStyle}" Padding="18">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="最近一次应用" Style="{StaticResource SectionTitleStyle}" />
+                        <TextBlock x:Name="LastApplyTime" Text="暂无记录" Style="{StaticResource BodyTextStyle}" />
+                        <TextBlock x:Name="LastApplySummary" Text="应用优化后这里会显示本次改动数量与结果。"
+                                   Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                        <Border Background="{ThemeResource Surface2Brush}" CornerRadius="8" Padding="10,8">
+                            <TextBlock x:Name="LastBackupName" Text="备份文件：--"
+                                       Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardBorderStyle}" Padding="18">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="安全说明" Style="{StaticResource SectionTitleStyle}" />
+                        <TextBlock Text="备份只包含本应用改动过的注册表值、服务启动类型与电源计划等原值，不复制个人文件。"
+                                   Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" />
+                        <TextBlock Text="恢复前会再次校验项目归属，避免误写无关系统设置。"
+                                   Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>

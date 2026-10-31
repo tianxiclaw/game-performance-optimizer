@@ -15,6 +15,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "
 if not errorlevel 1 exit /b 0
 
 :run
+REM 优先启动 WinUI 3 主程序；仅当主程序不存在时，才回退到旧版 WinForms 界面。
+if exist "%~dp0GamePerfCenter.exe" (
+    start "" "%~dp0GamePerfCenter.exe"
+    exit /b 0
+)
+
 set "GUIPATH="
 for %%f in ("%~dp0*-GUI.ps1") do set "GUIPATH=%%~ff"
 if not defined GUIPATH (
