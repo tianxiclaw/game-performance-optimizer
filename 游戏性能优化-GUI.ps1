@@ -1643,6 +1643,9 @@ $script:DrvData = $null
 $script:DrvAt = [DateTime]::MinValue
 $script:DrvWu = $null
 $script:DrvWuAt = [DateTime]::MinValue
+# Intel 驱动支持助手 (DSA) 本地数据
+$script:DrvDsa = $null
+$script:DrvDsaAt = [DateTime]::MinValue
 $script:DrvFilter = '全部'
 $script:DrvQuery = ''
 $script:DrvNeedRefresh = $false
@@ -2162,6 +2165,9 @@ function Get-TxDriverDevices([switch]$Force) {
             OldCount    = 0
             Accent      = $accent
             Enriched    = $false
+            Dsa         = $null
+            DsaState    = ''
+            DsaNote     = ''
         })
     }
     $order = @{ '显卡' = 0; '音频' = 1; '外设' = 2; '网络' = 3; '其他' = 4 }
@@ -2256,6 +2262,9 @@ function Get-TxDriverDevicesCim {
                 OldCount    = 0
                 Accent      = $accent
                 Enriched    = $false
+                Dsa         = $null
+                DsaState    = ''
+                DsaNote     = ''
             })
         }
     } catch {}
@@ -2303,6 +2312,204 @@ function Get-TxUpdatesForDevice($dev) {
         if ($dh -eq $uh -or $dh.StartsWith($uh) -or $uh.StartsWith($dh)) { [void]$out.Add($u) }
     }
     return @($out.ToArray())
+}
+
+# ── Intel 驱动支持助手 (DSA) 本地数据 ─────────────────────
+# Intel 设备的更新判断以本机 DSA 为准, 而不是 Windows Update:
+#   Data\session.xml            设备当前版本 / DSA 判定 / 待更新 ID
+#   Data\install-history.json   DSA 实际安装记录 (版本 + 结果)
+#   Data\data-*.zip             software-configurations.json 驱动目录
+# 三者都只读, 不调用网络, 不触发 DSA 界面。
+function Get-TxDsaData([switch]$Force) {
+    if (-not $Force -and $null -ne $script:DrvDsa -and ((Get-Date) - $script:DrvDsaAt).TotalSeconds -lt 120) { return $script:DrvDsa }
+    $dir = Join-Path $env:ProgramData 'Intel\DSA\Data'
+    $res = [PSCustomObject]@{
+        Available = $false
+        Root      = $dir
+        Devices   = @()
+        Offered   = @()
+        History   = @()
+        Catalog   = @()
+        At        = (Get-Date)
+    }
+    if (-not (Test-Path -LiteralPath $dir)) { $script:DrvDsa = $res; $script:DrvDsaAt = Get-Date; return $res }
+
+    $sessionPath = Join-Path $dir 'session.xml'
+    if (Test-Path -LiteralPath $sessionPath) {
+        try {
+            $raw = Get-Content -LiteralPath $sessionPath -Raw -ErrorAction Stop
+            $devs = New-Object System.Collections.ArrayList
+            foreach ($m in [regex]::Matches($raw, '<d3p1:DeviceComponent>[\s\S]*?</d3p1:DeviceComponent>')) {
+                $b = $m.Value
+                if ($b -notmatch '<d3p1:IsIntelDevice>true</d3p1:IsIntelDevice>') { continue }
+                $name = [regex]::Match($b, '<d3p1:Name>([^<]*)</d3p1:Name><d3p1:ShowMessage>').Groups[1].Value
+                $cat = [regex]::Match($b, '<d3p1:Category>([^<]*)</d3p1:Category>').Groups[1].Value
+                $ver = [regex]::Match($b, '<d3p1:ResourceKey>DriverVersion</d3p1:ResourceKey><d3p1:Value>([^<]*)</d3p1:Value>').Groups[1].Value
+                $uid = [regex]::Match($b, '<d3p1:UpdateId>([^<]*)</d3p1:UpdateId>').Groups[1].Value
+                $ust = [regex]::Match($b, '<d3p1:UpdateStatus>([^<]*)</d3p1:UpdateStatus>').Groups[1].Value
+                if (-not $ver) { continue }
+                [void]$devs.Add([PSCustomObject]@{ Name = $name; Category = $cat; Version = $ver; UpdateId = $uid; UpdateStatus = $ust })
+            }
+            $res.Devices = @($devs.ToArray())
+            $um = [regex]::Match($raw, '<(?:\w+:)?Updates[^>]*>([\s\S]*?)</(?:\w+:)?Updates>')
+            $offered = New-Object System.Collections.ArrayList
+            if ($um.Success) {
+                foreach ($idm in [regex]::Matches($um.Groups[1].Value, '<(?:\w+:)?UpdateId>(\d+)</(?:\w+:)?UpdateId>')) {
+                    [void]$offered.Add([int]$idm.Groups[1].Value)
+                }
+            }
+            $res.Offered = @($offered.ToArray())
+        } catch {}
+    }
+
+    $histPath = Join-Path $dir 'install-history.json'
+    if (Test-Path -LiteralPath $histPath) {
+        try {
+            # 注意: PS 5.1 里 @( ... | ConvertFrom-Json ) 会把整个数组包成一层, 先赋值再展开
+            $histObj = Get-Content -LiteralPath $histPath -Raw -ErrorAction Stop | ConvertFrom-Json
+            $res.History = @($histObj)
+        } catch { $res.History = @() }
+    }
+
+    try {
+        Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
+        $zipPath = Join-Path $dir 'data-zh-CN.zip'
+        if (-not (Test-Path -LiteralPath $zipPath)) { $zipPath = Join-Path $dir 'data-en.zip' }
+        if (Test-Path -LiteralPath $zipPath) {
+            $zip = [IO.Compression.ZipFile]::OpenRead($zipPath)
+            try {
+                $entry = $zip.Entries | Where-Object { $_.FullName -eq 'software-configurations.json' } | Select-Object -First 1
+                if ($entry) {
+                    $rd = New-Object IO.StreamReader($entry.Open(), [Text.Encoding]::UTF8)
+                    try { $json = $rd.ReadToEnd() } finally { $rd.Close() }
+                    $cat = New-Object System.Collections.ArrayList
+                    $catalogObj = $json | ConvertFrom-Json
+                    foreach ($it in @($catalogObj)) {
+                        if (-not $it) { continue }
+                        $comp = @($it.Components) | Select-Object -First 1
+                        $dv = @()
+                        $cc = ''
+                        if ($comp) { $dv = @($comp.DetectionValues); $cc = [string]$comp.Category }
+                        $vv = [regex]::Match([string]$it.Version, '\d+(?:\.\d+){2,3}').Value
+                        [void]$cat.Add([PSCustomObject]@{
+                            Id             = [int]$it.Id
+                            VersionNum     = $vv
+                            VersionText    = [string]$it.Version
+                            Name           = [string]$it.Name
+                            Category       = $cc
+                            Url            = [string]$it.Url
+                            ReleaseDate    = [string]$it.DisplayReleaseDate
+                            DetectionValues = $dv
+                        })
+                    }
+                    $res.Catalog = @($cat.ToArray())
+                }
+            } finally { $zip.Dispose() }
+        }
+    } catch {}
+
+    $res.Available = (($res.Devices.Count -gt 0) -or ($res.Catalog.Count -gt 0) -or ($res.History.Count -gt 0))
+    $script:DrvDsa = $res
+    $script:DrvDsaAt = Get-Date
+    return $res
+}
+
+# 把设备匹配到 DSA 目录条目, 再结合安装历史判断真实状态
+function Get-TxDsaForDevice($dev) {
+    if (-not $dev) { return $null }
+    $dsa = $script:DrvDsa
+    if (-not $dsa -or -not $dsa.Available) { return $null }
+    $hw = Get-TxHwBase ([string]$dev.HardwareId)
+    if (-not $hw -or $hw -notmatch 'VEN_8086') { return $null }
+    $venDev = ($hw -replace '^PCI\\', '')
+    $bm = [regex]::Match($venDev, 'VEN_[0-9A-F]+&DEV_[0-9A-F]+')
+    $base = $bm.Value
+    if (-not $base) { return $null }
+
+    $matched = New-Object System.Collections.ArrayList
+    foreach ($c in @($dsa.Catalog)) {
+        if (-not $c) { continue }
+        $hit = $false
+        foreach ($d in @($c.DetectionValues)) {
+            $ds = [string]$d
+            if (-not $ds) { continue }
+            if ($ds -eq $venDev -or $ds -eq $base -or $venDev.StartsWith($ds)) { $hit = $true; break }
+        }
+        if ($hit) { [void]$matched.Add($c) }
+    }
+    if ($matched.Count -eq 0) { return $null }
+
+    $latest = $null
+    foreach ($c in $matched) {
+        if (-not $c.VersionNum) { continue }
+        if (-not $latest -or (Compare-TxVersion $c.VersionNum $latest.VersionNum) -gt 0) { $latest = $c }
+    }
+    if (-not $latest) { return $null }
+
+    $comp = $null
+    foreach ($d in @($dsa.Devices)) {
+        if ([string]$d.Version -eq [string]$dev.Version) { $comp = $d; break }
+    }
+    if (-not $comp) {
+        foreach ($d in @($dsa.Devices)) {
+            if ([string]$d.Category -eq 'Graphics' -and [string]$dev.Class -eq 'DISPLAY') { $comp = $d; break }
+        }
+    }
+
+    $histHit = $null
+    $histDate = ''
+    $histVersion = ''
+    foreach ($h in @($dsa.History)) {
+        if (-not $h) { continue }
+        if ([string]$h.Status -ne 'Success') { continue }
+        if ([int]$h.Id -ne [int]$latest.Id) { continue }
+        $histHit = $h
+        break
+    }
+    if ($histHit) {
+        $histVersion = [regex]::Match([string]$histHit.Version, '\d+(?:\.\d+){2,3}').Value
+        try { $histDate = ([datetime]$histHit.Timestamp).ToLocalTime().ToString('yyyy/M/d') } catch { $histDate = [string]$histHit.Timestamp }
+    }
+
+    $actual = [string]$dev.Version
+    $latestVer = [string]$latest.VersionNum
+    $offered = $false
+    if (@($dsa.Offered).Count -gt 0 -and (@($dsa.Offered) -contains [int]$latest.Id)) { $offered = $true }
+
+    $state = 'UpToDate'
+    $note = ''
+    $isNewer = ($latestVer -and $actual -and ((Compare-TxVersion $latestVer $actual) -gt 0))
+    if ($isNewer) {
+        if ($histVersion -and ((Compare-TxVersion $histVersion $actual) -gt 0)) {
+            $state = 'RolledBack'
+            $when = ''
+            if ($histDate) { $when = "在 $histDate " }
+            $note = "Intel 支持助手${when}已安装 $histVersion，但系统当前为 $actual，可能被 Windows 更新回退"
+        } else {
+            $state = 'UpdateAvailable'
+            $note = "Intel 支持助手提供 $latestVer"
+        }
+    } else {
+        $state = 'UpToDate'
+        $statusText = '已是最新'
+        if ($comp -and [string]$comp.UpdateStatus -eq 'UpdateAvailable') { $statusText = '有可用更新' }
+        $note = "Intel 支持助手：$statusText"
+        if ($histVersion) { $note += "（记录安装 $histVersion）" }
+    }
+
+    return [PSCustomObject]@{
+        State          = $state
+        Latest         = $latestVer
+        LatestText     = [string]$latest.VersionText
+        LatestName     = [string]$latest.Name
+        UpdateId       = [int]$latest.Id
+        Link           = [string]$latest.Url
+        HistoryVersion = $histVersion
+        HistoryDate    = $histDate
+        Offered        = $offered
+        DeviceStatus   = $(if ($comp) { [string]$comp.UpdateStatus } else { '' })
+        Note           = $note
+    }
 }
 
 function Complete-TxDriverDevice($dev, $pkgs) {
@@ -2355,9 +2562,31 @@ function Complete-TxDriverDevice($dev, $pkgs) {
     $extDiff = @($dev.Packages | Where-Object { $_.ClassName -eq 'Extension' -and $_.Version -and $curVer -and (Compare-TxVersion $_.Version $curVer) -ne 0 })
     if ($extDiff.Count -gt 0) { [void]$flags.Add('扩展包版本与主驱动不一致') }
 
+    # Intel 设备: 更新判断以本机 Intel 驱动支持助手 (DSA) 为准
+    $dsa = $null
+    if ($base -match '^PCI\\VEN_8086') { try { $dsa = Get-TxDsaForDevice $dev } catch { $dsa = $null } }
+    $dev.Dsa = $dsa
+    $dev.DsaState = ''
+    $dev.DsaNote = ''
+    $dsaCount = 0
+    if ($dsa) {
+        $dev.DsaState = [string]$dsa.State
+        $dev.DsaNote = [string]$dsa.Note
+        if ($dsa.State -eq 'RolledBack') {
+            [void]$flags.Add([string]$dsa.Note)
+            $dsaCount = 1
+        } elseif ($dsa.State -eq 'UpdateAvailable') {
+            [void]$flags.Add("Intel 支持助手提供 $($dsa.Latest)")
+            $dsaCount = 1
+        }
+    }
+
     $ups = @(Get-TxUpdatesForDevice $dev)
     $dev.Updates = @($ups)
-    $dev.UpdateCount = @($ups | Where-Object { -not $_.Hidden -and $_.Version -and ((Compare-TxVersion $_.Version $curVer) -gt 0) }).Count
+    $wuCount = @($ups | Where-Object { -not $_.Hidden -and $_.Version -and ((Compare-TxVersion $_.Version $curVer) -gt 0) }).Count
+    # 有 DSA 数据时, Intel 设备的可用更新只看支持助手, 不再叠加 Windows Update 的旧包
+    if ($dsa) { $wuCount = 0 }
+    $dev.UpdateCount = $wuCount + $dsaCount
     if ($dev.UpdateCount -gt 0) { [void]$flags.Add("有 $($dev.UpdateCount) 个可用更新") }
     $dev.HasUpdate = ($dev.UpdateCount -gt 0)
     $dev.OldCount = $old.Count
@@ -2370,6 +2599,7 @@ function Get-TxDriverSnapshot([switch]$Force) {
     if (-not $Force -and $script:DrvData -and ((Get-Date) - $script:DrvAt).TotalSeconds -lt 30) { return $script:DrvData }
     $devs = @(Get-TxDriverDevices -Force:$Force)
     $pkgs = @(Get-TxDriverPackages -Force:$Force)
+    $null = Get-TxDsaData -Force:$Force
     foreach ($dev in $devs) { $null = Complete-TxDriverDevice $dev $pkgs }
     $script:DrvData = [PSCustomObject]@{
         Devices   = $devs
@@ -2421,7 +2651,7 @@ $drvHero.Add_Paint({
         $g.DrawString('驱动中心', $script:DrvHF.Title, $b2, (22 * $sc), (28 * $sc))
         $b2.Dispose()
         $b3 = New-Object Drawing.SolidBrush -ArgumentList @([Drawing.Color]::FromArgb(168, 199, 216))
-        $g.DrawString('扫描本机驱动 · 核对版本 · 本地切换 · 清理冲突 · 音频状态保护', $script:DrvHF.Sub, $b3, (24 * $sc), (60 * $sc))
+        $g.DrawString('扫描本机驱动 · 核对版本 · Intel 更新以本机支持助手为准', $script:DrvHF.Sub, $b3, (24 * $sc), (60 * $sc))
         $b3.Dispose()
     } catch {}
 })
@@ -2530,7 +2760,9 @@ function Get-DriverCardInfo($dev) {
     if (-not $dev.Enriched) { return @{ Text = '正在核对本地驱动包...'; Color = $script:C_DIM } }
     $info = '已是最新'
     $color = $script:C_GREEN
-    if ($dev.UpdateCount -gt 0) { $info = "发现 $($dev.UpdateCount) 个可用更新"; $color = $script:C_ORANGE }
+    if ([string]$dev.DsaState -eq 'RolledBack') { $info = 'Intel 驱动被回退'; $color = $script:C_RED }
+    elseif ([string]$dev.DsaState -eq 'UpdateAvailable') { $info = "Intel 支持助手可更新到 $($dev.Dsa.Latest)"; $color = $script:C_ORANGE }
+    elseif ($dev.UpdateCount -gt 0) { $info = "发现 $($dev.UpdateCount) 个可用更新"; $color = $script:C_ORANGE }
     elseif ($dev.OldCount -gt 0) { $info = "本地有 $($dev.OldCount) 个旧版本包"; $color = $script:C_ORANGE }
     elseif (-not $dev.StatusOk) { $info = '设备状态异常'; $color = $script:C_RED }
     return @{ Text = $info; Color = $color }
@@ -2579,6 +2811,7 @@ function New-DriverCard($dev) {
     $lblMeta = New-Label $card ("$prov · $dateText") (UiPx 14) (UiPx 90) ($w - (UiPx 28)) (UiPx 18) 8 $false $script:C_SUB
     $st = Get-DriverCardInfo $dev
     $lblInfo = New-Label $card $st.Text (UiPx 14) (UiPx 112) ($w - (UiPx 96)) (UiPx 20) 8.5 $false $st.Color
+    $lblInfo.AutoEllipsis = $true
     $btn = New-Btn $card '管理' ($w - (UiPx 76)) ($h - (UiPx 36)) (UiPx 62) (UiPx 26) ([Drawing.Color]::FromArgb(24, 35, 50)) $dev.Accent 8 $false
     $btn.Tag = $dev
     $btn.Add_Click({ param($s, $e) Show-DriverDetails $s.Tag })
@@ -2683,7 +2916,7 @@ function Update-DriverSummary {
     $issue = 0
     foreach ($d in $devs) {
         if ($d.UpdateCount -gt 0) { $upd++ }
-        if (-not $d.StatusOk -or $d.OldCount -gt 0) { $issue++ }
+        if (-not $d.StatusOk -or $d.OldCount -gt 0 -or [string]$d.DsaState -eq 'RolledBack') { $issue++ }
     }
     try { $script:UI.DrvStatDev.Text = [string]$devs.Count } catch {}
     try { $script:UI.DrvStatUpd.Text = [string]$upd } catch {}
@@ -2801,6 +3034,7 @@ function Refresh-DriverPage([bool]$force = $false) {
         # 第一段: 只枚举设备和当前驱动, 先把卡片显示出来
         $devs = @(Get-TxDriverDevices -Force:$force)
         $script:DrvPkgs = @(Get-TxDriverPackages -Force:$force)
+        $null = Get-TxDsaData -Force:$force
         $script:DrvData = [PSCustomObject]@{
             Devices   = $devs
             ScannedAt = (Get-Date)
@@ -2861,6 +3095,7 @@ function Invoke-DriverUpdateCheck {
         [System.Windows.Forms.Cursor]::Current = [System.Windows.Forms.Cursors]::WaitCursor
         [System.Windows.Forms.Application]::DoEvents()
         $null = Get-TxWuDriverUpdates -Force
+        $null = Get-TxDsaData -Force
         # 只重新核对驱动包和更新, 不再重新枚举设备
         Update-TxDriverEnrichment
         Update-DriverFilterButtons
@@ -2868,7 +3103,7 @@ function Invoke-DriverUpdateCheck {
         Update-DriverCards
         $n = 0
         foreach ($d in @($script:DrvData.Devices)) { $n += [int]$d.UpdateCount }
-        Set-Status "更新检测完成 · 发现 $n 个可用驱动更新"
+        Set-Status "更新检测完成 · 发现 $n 个可更新设备（Intel 设备以本机支持助手为准）"
     } catch {
         Set-Status "更新检测失败: $($_.Exception.Message)"
         [System.Windows.Forms.MessageBox]::Show($script:UI.Form, ("无法完成驱动更新检测。`n`n" + $_.Exception.Message), '驱动更新', 'OK', 'Warning') | Out-Null
@@ -3132,7 +3367,35 @@ function Show-DriverDetails($dev) {
         if (-not $dev.StatusOk) { $stFill = $script:C_ORANGE_BG; $stBd = $script:C_ORANGE_BD; $stFg = $script:C_ORANGE }
         $null = New-Badge $hdr $dev.StatusText ($w - (UiPx 130)) (UiPx 14) (UiPx 112) (UiPx 26) $stFill $stBd $stFg 8
 
-        $info = New-Card $body (UiPx 20) (UiPx 110) $w (UiPx 132) 12 $script:C_PANEL $script:C_BORDER
+        # Intel 设备: 单独一张支持助手卡片, 更新判断以它为准
+        $shift = 0
+        if ($dev.Dsa) {
+            $shift = UiPx 110
+            $dsaCard = New-Card $body (UiPx 20) (UiPx 110) $w (UiPx 98) 12 $script:C_PANEL $script:C_BORDER
+            $dsaFill = $script:C_GREEN_BG; $dsaBd = $script:C_GREEN_BD; $dsaFg = $script:C_GREEN
+            $dsaTxt = '已是最新'
+            if ([string]$dev.DsaState -eq 'RolledBack') {
+                $dsaFill = [Drawing.Color]::FromArgb(58, 22, 26); $dsaBd = [Drawing.Color]::FromArgb(120, 45, 45); $dsaFg = $script:C_RED
+                $dsaTxt = '版本被回退'
+            } elseif ([string]$dev.DsaState -eq 'UpdateAvailable') {
+                $dsaFill = $script:C_ORANGE_BG; $dsaBd = $script:C_ORANGE_BD; $dsaFg = $script:C_ORANGE
+                $dsaTxt = '可更新'
+            }
+            $null = New-Badge $dsaCard 'DSA' (UiPx 16) (UiPx 14) (UiPx 46) (UiPx 22) (Get-MixColor $script:C_PANEL $script:C_CYAN 0.14) (Get-MixColor $script:C_BORDER $script:C_CYAN 0.55) $script:C_CYAN 8
+            $null = New-Label $dsaCard 'Intel 驱动支持助手' (UiPx 70) (UiPx 15) ($w - (UiPx 230)) (UiPx 20) 9.5 $true $script:C_TEXT
+            $null = New-Badge $dsaCard $dsaTxt ($w - (UiPx 134)) (UiPx 14) (UiPx 116) (UiPx 24) $dsaFill $dsaBd $dsaFg 8
+            $noteLbl = New-Label $dsaCard ([string]$dev.Dsa.Note) (UiPx 16) (UiPx 42) ($w - (UiPx 172)) (UiPx 48) 8.2 $false $script:C_SUB
+            $noteLbl.AutoEllipsis = $false
+            if ($dev.Dsa.Link) {
+                $btnDsa = New-Btn $dsaCard '打开下载页' ($w - (UiPx 142)) (UiPx 56) (UiPx 122) (UiPx 28) (Get-MixColor $script:C_PANEL $script:C_CYAN 0.12) $script:C_CYAN 8.3
+                $dsaUrl = [string]$dev.Dsa.Link
+                $btnDsa.Add_Click({ param($s, $e) try { Start-Process $s.Tag } catch {} })
+                $btnDsa.Tag = $dsaUrl
+            }
+            $body.AutoScrollMinSize = New-Object Drawing.Size -ArgumentList @(0, [int]((UiPx 580) + $shift))
+        }
+
+        $info = New-Card $body (UiPx 20) ([int]((UiPx 110) + $shift)) $w (UiPx 132) 12 $script:C_PANEL $script:C_BORDER
         $rows = @(
             @('当前版本', $dev.Version),
             @('驱动日期', $dev.Date),
@@ -3151,9 +3414,9 @@ function Show-DriverDetails($dev) {
             $ry += UiPx 19
         }
 
-        $null = New-Label $body '本地驱动包（可切换 / 可清理）' (UiPx 22) (UiPx 252) (UiPx 420) (UiPx 20) 9 $true $script:C_SUB
+        $null = New-Label $body '本地驱动包（可切换 / 可清理）' (UiPx 22) ([int]((UiPx 252) + $shift)) (UiPx 420) (UiPx 20) 9 $true $script:C_SUB
         $lg = New-Object System.Windows.Forms.DataGridView
-        $lg.Location = New-Object Drawing.Point -ArgumentList @((UiPx 20), (UiPx 274))
+        $lg.Location = New-Object Drawing.Point -ArgumentList @((UiPx 20), [int]((UiPx 274) + $shift))
         $lg.Size = New-Object Drawing.Size -ArgumentList @($w, (UiPx 128))
         $lg.Anchor = 'Top, Left, Right'
         $body.Controls.Add($lg)
@@ -3174,9 +3437,9 @@ function Show-DriverDetails($dev) {
         foreach ($col in @($lg.Columns)) { $col.MinimumWidth = UiPx ([double]$col.MinimumWidth) }
         Fill-DriverLocalGrid $lg $dev
 
-        $null = New-Label $body 'Windows 更新中的驱动条目' (UiPx 22) (UiPx 410) (UiPx 420) (UiPx 20) 9 $true $script:C_SUB
+        $null = New-Label $body 'Windows 更新中的驱动条目' (UiPx 22) ([int]((UiPx 410) + $shift)) (UiPx 420) (UiPx 20) 9 $true $script:C_SUB
         $ug = New-Object System.Windows.Forms.DataGridView
-        $ug.Location = New-Object Drawing.Point -ArgumentList @((UiPx 20), (UiPx 432))
+        $ug.Location = New-Object Drawing.Point -ArgumentList @((UiPx 20), [int]((UiPx 432) + $shift))
         $ug.Size = New-Object Drawing.Size -ArgumentList @($w, (UiPx 100))
         $ug.Anchor = 'Top, Left, Right'
         $body.Controls.Add($ug)
@@ -3197,7 +3460,7 @@ function Show-DriverDetails($dev) {
         foreach ($col in @($ug.Columns)) { $col.MinimumWidth = UiPx ([double]$col.MinimumWidth) }
         Fill-DriverUpdateGrid $ug $dev
 
-        $lblMsg = New-Label $body '' (UiPx 22) (UiPx 536) $w (UiPx 16) 8 $false $script:C_DIM
+        $lblMsg = New-Label $body '' (UiPx 22) ([int]((UiPx 536) + $shift)) $w (UiPx 16) 8 $false $script:C_DIM
         $fy = UiPx 13
         $bh = UiPx 34
         $bx = UiPx 20
