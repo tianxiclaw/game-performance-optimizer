@@ -1520,6 +1520,8 @@ $ov.Add_Resize({
 $script:DrvInfCache = @{}
 $script:DrvPkgCache = $null
 $script:DrvPkgAt = [DateTime]::MinValue
+$script:DrvDevCache = $null
+$script:DrvDevAt = [DateTime]::MinValue
 $script:DrvData = $null
 $script:DrvAt = [DateTime]::MinValue
 $script:DrvWu = $null
@@ -1530,6 +1532,15 @@ $script:DrvNeedRefresh = $false
 $script:DrvInstallState = $null
 $script:DrvBusy = $false
 $script:DrvCardW = UiPx 326
+# 渐进式补全: 设备卡片先出来, 驱动包信息逐个填进去
+$script:DrvCards = @{}
+$script:DrvPkgs = @()
+$script:DrvEnrichQueue = $null
+$script:DrvEnrichTotal = 0
+$script:DrvEnrichDone = 0
+# 详情页里做过改动后, 只刷新对应设备
+$script:DrvRefreshDevice = ''
+$script:DrvRefreshEnum = $false
 $script:UI.DriverDirty = $true
 $script:DrvHF = @{
     Tag   = F 8 $true
@@ -1874,6 +1885,267 @@ function Get-TxDriverPackages([switch]$Force) {
     return @($script:DrvPkgCache)
 }
 
+# 设备列表 (pnputil /enum-devices /connected /drivers /ids)
+# 一次调用同时拿到设备、当前驱动版本、厂商与硬件 ID。相比逐个遍历
+# Win32_PnPSignedDriver + Win32_PnPEntity (两次 WMI 查询, 约 4.4 秒),
+# 这里通常 1.5 秒左右, 让卡片能更快出现。
+function Get-TxDriverDevices([switch]$Force) {
+    if (-not $Force -and $script:DrvDevCache -and ((Get-Date) - $script:DrvDevAt).TotalSeconds -lt 30) { return @($script:DrvDevCache) }
+    $raw = New-Object System.Collections.ArrayList
+    try {
+        $lines = @(& pnputil.exe /enum-devices /connected /drivers /ids 2>&1)
+        $cur = $null
+        $inHw = $false
+        $inDrv = $false
+        $drv = $null
+        foreach ($line in $lines) {
+            $t = [string]$line
+            $trim = $t.Trim()
+            if ($trim -match '^(Instance ID|设备实例 ID)\s*:\s*(.+)$') {
+                if ($cur) { $cur.Candidates = @($cur.CandidateList.ToArray()); [void]$raw.Add($cur) }
+                $cur = @{
+                    DeviceId      = $matches[2].Trim()
+                    Name          = ''
+                    ClassName     = ''
+                    ClassGuid     = ''
+                    Manufacturer  = ''
+                    Status        = ''
+                    DriverName    = ''
+                    HardwareIds   = (New-Object System.Collections.ArrayList)
+                    CandidateList = (New-Object System.Collections.ArrayList)
+                    Candidates    = @()
+                }
+                $inHw = $false; $inDrv = $false; $drv = $null
+                continue
+            }
+            if (-not $cur) { continue }
+            if ($inHw) {
+                if ($t -match '^\s{12,}(\S.*)$') { [void]$cur.HardwareIds.Add($matches[1].Trim()); continue }
+                $inHw = $false
+            }
+            if ($trim -match '^(Matching Drivers|匹配的驱动程序)\s*:') { $inDrv = $true; continue }
+            if ($inDrv) {
+                if ($t -match '^\s+(Driver Name|驱动程序名称)\s*:\s*(.+)$') {
+                    $drv = @{ Name = $matches[2].Trim(); VersionRaw = ''; Provider = ''; Status = '' }
+                    [void]$cur.CandidateList.Add($drv)
+                } elseif ($t -match '^\s+(Driver Version|驱动程序版本)\s*:\s*(.+)$') {
+                    if ($drv) { $drv.VersionRaw = $matches[2].Trim() }
+                } elseif ($t -match '^\s+(Provider Name|提供程序名称)\s*:\s*(.+)$') {
+                    if ($drv) { $drv.Provider = $matches[2].Trim() }
+                } elseif ($t -match '^\s+(Driver Status|驱动程序状态)\s*:\s*(.+)$') {
+                    if ($drv) { $drv.Status = $matches[2].Trim() }
+                }
+                continue
+            }
+            if ($trim -match '^(Device Description|设备描述)\s*:\s*(.+)$') { $cur.Name = $matches[2].Trim() }
+            elseif ($trim -match '^(Class Name|类名称)\s*:\s*(.+)$') { $cur.ClassName = $matches[2].Trim() }
+            elseif ($trim -match '^(Class GUID|类 GUID)\s*:\s*(.+)$') { $cur.ClassGuid = $matches[2].Trim() }
+            elseif ($trim -match '^(Manufacturer Name|制造商名称)\s*:\s*(.+)$') { $cur.Manufacturer = $matches[2].Trim() }
+            elseif ($trim -match '^(Status|状态)\s*:\s*(.+)$') { $cur.Status = $matches[2].Trim() }
+            elseif ($trim -match '^(Driver Name|驱动程序名称)\s*:\s*(.+)$') { $cur.DriverName = $matches[2].Trim() }
+            elseif ($trim -match '^(Hardware IDs|硬件 ID)\s*:\s*(.+)$') {
+                $v = $matches[2].Trim()
+                if ($v) { [void]$cur.HardwareIds.Add($v) }
+                $inHw = $true
+            }
+        }
+        if ($cur) { $cur.Candidates = @($cur.CandidateList.ToArray()); [void]$raw.Add($cur) }
+    } catch {}
+
+    if ($raw.Count -eq 0) {
+        $fb = @(Get-TxDriverDevicesCim)
+        $script:DrvDevCache = $fb
+        $script:DrvDevAt = Get-Date
+        return $fb
+    }
+    $devs = New-Object System.Collections.ArrayList
+    $seen = @{}
+    foreach ($r in $raw) {
+        $cls = ([string]$r.ClassName).ToUpperInvariant()
+        if ($cls -notin @('DISPLAY', 'MEDIA', 'MOUSE', 'KEYBOARD', 'HIDCLASS', 'NET', 'BLUETOOTH')) { continue }
+        $infName = [string]$r.DriverName
+        if (-not $infName -or $infName -eq 'null' -or $infName -match '^(?i)n/a$') { continue }
+        $name = [string]$r.Name
+        if (-not $name) { continue }
+        if ($cls -eq 'DISPLAY' -and ($name -match '(?i)Basic Display|Basic Render')) { continue }
+        if ($cls -eq 'HIDCLASS' -and -not ($name -match '(?i)mouse|keyboard|logitech|razer|steelseries|corsair|罗技|雷蛇|键盘|鼠标')) { continue }
+        if ($cls -eq 'NET' -and ($name -match '(?i)WAN Miniport|TAP-|VPN|Virtual|Hyper-V|Loopback|Kernel Debug')) { continue }
+        $devId = [string]$r.DeviceId
+        if (-not $devId) { continue }
+        $key = ($devId + '|' + $infName).ToUpperInvariant()
+        if ($seen.ContainsKey($key)) { continue }
+        $seen[$key] = $true
+
+        # 当前生效的驱动: 优先取与设备级 Driver Name 一致的那条, 否则取第一条
+        $cand = $null
+        foreach ($c in @($r.Candidates)) {
+            if (([string]$c.Name).ToLowerInvariant() -eq $infName.ToLowerInvariant()) { $cand = $c; break }
+        }
+        if (-not $cand -and @($r.Candidates).Count -gt 0) { $cand = @($r.Candidates)[0] }
+        $verRaw = ''
+        $provider = ''
+        if ($cand) { $verRaw = [string]$cand.VersionRaw; $provider = [string]$cand.Provider }
+        if (-not $provider) { $provider = [string]$r.Manufacturer }
+        $ver = $verRaw
+        $date = ''
+        $m = [regex]::Match($verRaw, '^(.*?)\s+(\d+(?:\.\d+){1,3})$')
+        if ($m.Success) {
+            $date = $m.Groups[1].Value.Trim()
+            $ver = $m.Groups[2].Value.Trim()
+            try { if ($date) { $date = ([datetime]::Parse($date)).ToString('yyyy/M/d') } } catch {}
+        }
+
+        $statusOk = $true
+        $statusText = '正常'
+        $st = [string]$r.Status
+        if ($st -and $st -notin @('Started', 'OK', 'Unknown')) {
+            $statusOk = $false
+            if ($st -match '(?i)disabled|已禁用') { $statusText = '已禁用' }
+            elseif ($st -match '(?i)stopped|已停止') { $statusText = '已停止' }
+            elseif ($st -match '(?i)problem|error|错误') { $statusText = '异常' }
+            else { $statusText = $st }
+        }
+
+        $cat = '其他'
+        switch ($cls) {
+            'DISPLAY'   { $cat = '显卡' }
+            'MEDIA'     { $cat = '音频' }
+            'MOUSE'     { $cat = '外设' }
+            'KEYBOARD'  { $cat = '外设' }
+            'HIDCLASS'  { $cat = '外设' }
+            'NET'       { $cat = '网络' }
+            'BLUETOOTH' { $cat = '网络' }
+        }
+        $hw = ''
+        if (@($r.HardwareIds).Count -gt 0) { $hw = [string](@($r.HardwareIds)[0]) }
+        $accent = switch ($cat) {
+            '显卡' { $script:C_PURPLE }
+            '音频' { $script:C_CYAN }
+            '外设' { $script:C_GREEN }
+            '网络' { $script:C_ORANGE }
+            default { $script:C_BLUE }
+        }
+        [void]$devs.Add([PSCustomObject]@{
+            Name        = $name
+            Class       = $cls
+            Category    = $cat
+            DeviceId    = $devId
+            HardwareId  = $hw
+            InfName     = $infName
+            Version     = $ver
+            Date        = $date
+            Provider    = $provider
+            StatusText  = $statusText
+            StatusOk    = $statusOk
+            Packages    = @()
+            Updates     = @()
+            Flags       = @()
+            HasUpdate   = $false
+            UpdateCount = 0
+            OldCount    = 0
+            Accent      = $accent
+            Enriched    = $false
+        })
+    }
+    $order = @{ '显卡' = 0; '音频' = 1; '外设' = 2; '网络' = 3; '其他' = 4 }
+    $sorted = @($devs.ToArray() | Sort-Object @{ Expression = { $order[[string]$_.Category] }; Ascending = $true }, @{ Expression = { [string]$_.Name }; Ascending = $true })
+    $script:DrvDevCache = $sorted
+    $script:DrvDevAt = Get-Date
+    return @($script:DrvDevCache)
+}
+
+# 兼容兜底: 老系统上 pnputil 不支持 /enum-devices 时, 退回 WMI 查询
+function Get-TxDriverDevicesCim {
+    $devs = New-Object System.Collections.ArrayList
+    try {
+        $signed = @(Get-CimInstance -ClassName Win32_PnPSignedDriver -ErrorAction SilentlyContinue)
+        $pnpMap = @{}
+        foreach ($p in @(Get-CimInstance -ClassName Win32_PnPEntity -ErrorAction SilentlyContinue)) {
+            $k = [string]$p.DeviceID
+            if ($k) { $pnpMap[$k.ToUpperInvariant()] = $p }
+        }
+        $seen = @{}
+        foreach ($d in $signed) {
+            $cls = ([string]$d.DeviceClass).ToUpperInvariant()
+            if ($cls -notin @('DISPLAY', 'MEDIA', 'MOUSE', 'KEYBOARD', 'HIDCLASS', 'NET', 'BLUETOOTH')) { continue }
+            $devId = [string]$d.DeviceID
+            $infName = [string]$d.InfName
+            if (-not $devId -or -not $infName -or $infName -eq 'null') { continue }
+            $pnp = $null
+            try { $pnp = $pnpMap[$devId.ToUpperInvariant()] } catch {}
+            $name = [string]$d.DeviceName
+            if (-not $name -and $pnp) { $name = [string]$pnp.Name }
+            if (-not $name) { continue }
+            if ($cls -eq 'DISPLAY' -and ($name -match '(?i)Basic Display|Basic Render')) { continue }
+            if ($cls -eq 'HIDCLASS' -and -not ($name -match '(?i)mouse|keyboard|logitech|razer|steelseries|corsair|罗技|雷蛇|键盘|鼠标')) { continue }
+            if ($cls -eq 'NET' -and ($name -match '(?i)WAN Miniport|TAP-|VPN|Virtual|Hyper-V|Loopback|Kernel Debug')) { continue }
+            $key = ($devId + '|' + $infName).ToUpperInvariant()
+            if ($seen.ContainsKey($key)) { continue }
+            $seen[$key] = $true
+            $cat = '其他'
+            switch ($cls) {
+                'DISPLAY'   { $cat = '显卡' }
+                'MEDIA'     { $cat = '音频' }
+                'MOUSE'     { $cat = '外设' }
+                'KEYBOARD'  { $cat = '外设' }
+                'HIDCLASS'  { $cat = '外设' }
+                'NET'       { $cat = '网络' }
+                'BLUETOOTH' { $cat = '网络' }
+            }
+            $hw = ''
+            try {
+                if ($d.HardwareID) { $hw = [string](@($d.HardwareID)[0]) }
+                if (-not $hw -and $pnp -and $pnp.HardwareID) { $hw = [string](@($pnp.HardwareID)[0]) }
+            } catch {}
+            $statusOk = $true
+            $statusText = '正常'
+            try {
+                if ($pnp) {
+                    $st = [string]$pnp.Status
+                    $cer = 0
+                    try { $cer = [int]$pnp.ConfigManagerErrorCode } catch {}
+                    if ($st -and $st -ne 'OK' -and $st -ne 'Unknown') { $statusText = $st; $statusOk = $false }
+                    if ($cer -ne 0) { $statusText = "错误码 $cer"; $statusOk = $false }
+                }
+            } catch {}
+            $curDate = ''
+            try { if ($d.DriverDate) { $curDate = ([datetime]$d.DriverDate).ToString('yyyy/M/d') } } catch {}
+            $provider = [string]$d.DriverProviderName
+            if (-not $provider -and $pnp) { $provider = [string]$pnp.Manufacturer }
+            $accent = switch ($cat) {
+                '显卡' { $script:C_PURPLE }
+                '音频' { $script:C_CYAN }
+                '外设' { $script:C_GREEN }
+                '网络' { $script:C_ORANGE }
+                default { $script:C_BLUE }
+            }
+            [void]$devs.Add([PSCustomObject]@{
+                Name        = $name
+                Class       = $cls
+                Category    = $cat
+                DeviceId    = $devId
+                HardwareId  = $hw
+                InfName     = $infName
+                Version     = [string]$d.DriverVersion
+                Date        = $curDate
+                Provider    = $provider
+                StatusText  = $statusText
+                StatusOk    = $statusOk
+                Packages    = @()
+                Updates     = @()
+                Flags       = @()
+                HasUpdate   = $false
+                UpdateCount = 0
+                OldCount    = 0
+                Accent      = $accent
+                Enriched    = $false
+            })
+        }
+    } catch {}
+    $order = @{ '显卡' = 0; '音频' = 1; '外设' = 2; '网络' = 3; '其他' = 4 }
+    return @($devs.ToArray() | Sort-Object @{ Expression = { $order[[string]$_.Category] }; Ascending = $true }, @{ Expression = { [string]$_.Name }; Ascending = $true })
+}
+
 function Get-TxWuDriverUpdates([switch]$Force) {
     if (-not $Force -and $script:DrvWu -and ((Get-Date) - $script:DrvWuAt).TotalMinutes -lt 5) { return @($script:DrvWu) }
     $list = New-Object System.Collections.ArrayList
@@ -1916,156 +2188,88 @@ function Get-TxUpdatesForDevice($dev) {
     return @($out.ToArray())
 }
 
+function Complete-TxDriverDevice($dev, $pkgs) {
+    if (-not $dev) { return $dev }
+    $cls = [string]$dev.Class
+    $curVer = [string]$dev.Version
+    $hw = [string]$dev.HardwareId
+    # 本机驱动仓库中与这块设备匹配的包
+    $locals = New-Object System.Collections.ArrayList
+    $base = Get-TxHwBase $hw
+    foreach ($pk in @($pkgs)) {
+        if (-not $pk) { continue }
+        $pcls = [string]$pk.ClassName
+        if ($pcls -ne $cls -and $pcls -ne 'Extension') { continue }
+        $meta = Get-TxInfMeta ([string]$pk.PublishedName)
+        if (-not $meta) { continue }
+        $match = $false
+        if ($base) {
+            foreach ($ih in @($meta.HardwareIds)) {
+                $ib = Get-TxHwBase ([string]$ih)
+                if (-not $ib) { continue }
+                if ($base -eq $ib -or $base.StartsWith($ib) -or $ib.StartsWith($base)) { $match = $true; break }
+            }
+        }
+        if (-not $match) { continue }
+        $ver = [string]$meta.Version
+        if (-not $ver) { $ver = [string]$pk.Version }
+        $dt = [string]$meta.Date
+        if (-not $dt) { $dt = [string]$pk.Date }
+        $inUse = (([string]$pk.PublishedName).ToLowerInvariant() -eq ([string]$dev.InfName).ToLowerInvariant())
+        $cmp = 0
+        if ($ver -and $curVer) { $cmp = Compare-TxVersion $ver $curVer }
+        [void]$locals.Add([PSCustomObject]@{
+            PublishedName = [string]$pk.PublishedName
+            OriginalName  = [string]$pk.OriginalName
+            ClassName     = $pcls
+            Version       = $ver
+            Date          = $dt
+            Provider      = [string]$meta.Provider
+            InUse         = $inUse
+            Compare       = $cmp
+        })
+    }
+    $dev.Packages = @($locals.ToArray() | Sort-Object @{ Expression = { if ($_.InUse) { 0 } else { 1 } } }, @{ Expression = { [string]$_.PublishedName } })
+
+    $flags = New-Object System.Collections.ArrayList
+    if (-not $dev.StatusOk) { [void]$flags.Add('设备状态异常') }
+    $old = @($dev.Packages | Where-Object { $_.Compare -lt 0 -and -not $_.InUse })
+    if ($old.Count -gt 0) { [void]$flags.Add("仓库中有 $($old.Count) 个旧版本包") }
+    $extDiff = @($dev.Packages | Where-Object { $_.ClassName -eq 'Extension' -and $_.Version -and $curVer -and (Compare-TxVersion $_.Version $curVer) -ne 0 })
+    if ($extDiff.Count -gt 0) { [void]$flags.Add('扩展包版本与主驱动不一致') }
+
+    $ups = @(Get-TxUpdatesForDevice $dev)
+    $dev.Updates = @($ups)
+    $dev.UpdateCount = @($ups | Where-Object { -not $_.Hidden -and $_.Version -and ((Compare-TxVersion $_.Version $curVer) -gt 0) }).Count
+    if ($dev.UpdateCount -gt 0) { [void]$flags.Add("有 $($dev.UpdateCount) 个可用更新") }
+    $dev.HasUpdate = ($dev.UpdateCount -gt 0)
+    $dev.OldCount = $old.Count
+    $dev.Flags = @($flags.ToArray())
+    $dev.Enriched = $true
+    return $dev
+}
+
 function Get-TxDriverSnapshot([switch]$Force) {
     if (-not $Force -and $script:DrvData -and ((Get-Date) - $script:DrvAt).TotalSeconds -lt 30) { return $script:DrvData }
-    $pkgs = @(Get-TxDriverPackages)
-    $signed = @()
-    try { $signed = @(Get-CimInstance -ClassName Win32_PnPSignedDriver -ErrorAction SilentlyContinue) } catch {}
-    $pnpMap = @{}
-    try {
-        foreach ($p in @(Get-CimInstance -ClassName Win32_PnPEntity -ErrorAction SilentlyContinue)) {
-            $k = [string]$p.DeviceID
-            if ($k) { $pnpMap[$k.ToUpperInvariant()] = $p }
-        }
-    } catch {}
-    $devs = New-Object System.Collections.ArrayList
-    $seen = @{}
-    foreach ($d in $signed) {
-        $cls = ([string]$d.DeviceClass).ToUpperInvariant()
-        if ($cls -notin @('DISPLAY', 'MEDIA', 'MOUSE', 'KEYBOARD', 'HIDCLASS', 'NET', 'BLUETOOTH')) { continue }
-        $devId = [string]$d.DeviceID
-        if (-not $devId) { continue }
-        $infName = [string]$d.InfName
-        if (-not $infName -or $infName -eq 'null') { continue }
-        $pnp = $null
-        try { $pnp = $pnpMap[$devId.ToUpperInvariant()] } catch {}
-        $name = [string]$d.DeviceName
-        if (-not $name -and $pnp) { $name = [string]$pnp.Name }
-        if (-not $name) { continue }
-        if ($cls -eq 'DISPLAY' -and ($name -match '(?i)Basic Display|Basic Render')) { continue }
-        if ($cls -eq 'HIDCLASS' -and -not ($name -match '(?i)mouse|keyboard|logitech|razer|steelseries|corsair|罗技|雷蛇|键盘|鼠标')) { continue }
-        if ($cls -eq 'NET' -and ($name -match '(?i)WAN Miniport|TAP-|VPN|Virtual|Hyper-V|Loopback|Kernel Debug')) { continue }
-        $key = ($devId + '|' + $infName).ToUpperInvariant()
-        if ($seen.ContainsKey($key)) { continue }
-        $seen[$key] = $true
-        $cat = '其他'
-        switch ($cls) {
-            'DISPLAY'   { $cat = '显卡' }
-            'MEDIA'     { $cat = '音频' }
-            'MOUSE'     { $cat = '外设' }
-            'KEYBOARD'  { $cat = '外设' }
-            'HIDCLASS'  { $cat = '外设' }
-            'NET'       { $cat = '网络' }
-            'BLUETOOTH' { $cat = '网络' }
-        }
-        $hw = ''
-        try {
-            if ($d.HardwareID) { $hw = [string](@($d.HardwareID)[0]) }
-            if (-not $hw -and $pnp -and $pnp.HardwareID) { $hw = [string](@($pnp.HardwareID)[0]) }
-        } catch {}
-        $status = '正常'
-        $statusOk = $true
-        try {
-            if ($pnp) {
-                $st = [string]$pnp.Status
-                $cer = 0
-                try { $cer = [int]$pnp.ConfigManagerErrorCode } catch {}
-                if ($st -and $st -ne 'OK' -and $st -ne 'Unknown') { $status = $st; $statusOk = $false }
-                if ($cer -ne 0) { $status = "错误码 $cer"; $statusOk = $false }
-            }
-        } catch {}
-        $curVer = [string]$d.DriverVersion
-        $curDate = ''
-        try { if ($d.DriverDate) { $curDate = ([datetime]$d.DriverDate).ToString('yyyy/M/d') } } catch {}
-        $provider = [string]$d.DriverProviderName
-        if (-not $provider -and $pnp) { $provider = [string]$pnp.Manufacturer }
-        $dev = [PSCustomObject]@{
-            Name       = $name
-            Class      = $cls
-            Category   = $cat
-            DeviceId   = $devId
-            HardwareId = $hw
-            InfName    = $infName
-            Version    = $curVer
-            Date       = $curDate
-            Provider   = $provider
-            StatusText = $status
-            StatusOk   = $statusOk
-            Packages   = @()
-            Updates    = @()
-            Flags      = @()
-            HasUpdate  = $false
-            UpdateCount = 0
-            OldCount   = 0
-            Accent     = $null
-        }
-        # 本机驱动仓库中与这块设备匹配的包
-        $locals = New-Object System.Collections.ArrayList
-        $base = Get-TxHwBase $hw
-        foreach ($pk in $pkgs) {
-            $pcls = [string]$pk.ClassName
-            if ($pcls -ne $cls -and $pcls -ne 'Extension') { continue }
-            $meta = Get-TxInfMeta ([string]$pk.PublishedName)
-            if (-not $meta) { continue }
-            $match = $false
-            if ($base) {
-                foreach ($ih in @($meta.HardwareIds)) {
-                    $ib = Get-TxHwBase ([string]$ih)
-                    if (-not $ib) { continue }
-                    if ($base -eq $ib -or $base.StartsWith($ib) -or $ib.StartsWith($base)) { $match = $true; break }
-                }
-            }
-            if (-not $match) { continue }
-            $ver = [string]$meta.Version
-            if (-not $ver) { $ver = [string]$pk.Version }
-            $dt = [string]$meta.Date
-            if (-not $dt) { $dt = [string]$pk.Date }
-            $inUse = (([string]$pk.PublishedName).ToLowerInvariant() -eq $infName.ToLowerInvariant())
-            $cmp = 0
-            if ($ver -and $curVer) { $cmp = Compare-TxVersion $ver $curVer }
-            [void]$locals.Add([PSCustomObject]@{
-                PublishedName = [string]$pk.PublishedName
-                OriginalName  = [string]$pk.OriginalName
-                ClassName     = $pcls
-                Version       = $ver
-                Date          = $dt
-                Provider      = [string]$meta.Provider
-                InUse         = $inUse
-                Compare       = $cmp
-            })
-        }
-        $dev.Packages = @($locals.ToArray() | Sort-Object @{ Expression = { if ($_.InUse) { 0 } else { 1 } } }, @{ Expression = { [string]$_.PublishedName } })
-        $flags = New-Object System.Collections.ArrayList
-        if (-not $statusOk) { [void]$flags.Add('设备状态异常') }
-        $old = @($dev.Packages | Where-Object { $_.Compare -lt 0 -and -not $_.InUse })
-        if ($old.Count -gt 0) { [void]$flags.Add("仓库中有 $($old.Count) 个旧版本包") }
-        $extDiff = @($dev.Packages | Where-Object { $_.ClassName -eq 'Extension' -and $_.Version -and $curVer -and (Compare-TxVersion $_.Version $curVer) -ne 0 })
-        if ($extDiff.Count -gt 0) { [void]$flags.Add('扩展包版本与主驱动不一致') }
-        $ups = @(Get-TxUpdatesForDevice $dev)
-        $dev.Updates = @($ups)
-        $dev.UpdateCount = @($ups | Where-Object { -not $_.Hidden -and $_.Version -and ((Compare-TxVersion $_.Version $curVer) -gt 0) }).Count
-        if ($dev.UpdateCount -gt 0) { [void]$flags.Add("有 $($dev.UpdateCount) 个可用更新") }
-        $dev.HasUpdate = ($dev.UpdateCount -gt 0)
-        $dev.OldCount = $old.Count
-        $dev.Flags = @($flags.ToArray())
-        $dev.Accent = switch ($cat) {
-            '显卡' { $script:C_PURPLE }
-            '音频' { $script:C_CYAN }
-            '外设' { $script:C_GREEN }
-            '网络' { $script:C_ORANGE }
-            default { $script:C_BLUE }
-        }
-        [void]$devs.Add($dev)
-    }
-    $order = @{ '显卡' = 0; '音频' = 1; '外设' = 2; '网络' = 3; '其他' = 4 }
-    $sorted = @($devs.ToArray() | Sort-Object @{ Expression = { $order[[string]$_.Category] }; Ascending = $true }, @{ Expression = { [string]$_.Name }; Ascending = $true })
+    $devs = @(Get-TxDriverDevices -Force:$Force)
+    $pkgs = @(Get-TxDriverPackages -Force:$Force)
+    foreach ($dev in $devs) { $null = Complete-TxDriverDevice $dev $pkgs }
     $script:DrvData = [PSCustomObject]@{
-        Devices   = $sorted
+        Devices   = $devs
         ScannedAt = (Get-Date)
         WuChecked = ($null -ne $script:DrvWu)
     }
     $script:DrvAt = Get-Date
     return $script:DrvData
+}
+
+# 已有设备列表时重新核对驱动包/更新 (不重新枚举设备), 用于检测更新之后
+function Update-TxDriverEnrichment([switch]$ForcePackages) {
+    if (-not $script:DrvData) { return }
+    $pkgs = @(Get-TxDriverPackages -Force:$ForcePackages)
+    foreach ($dev in @($script:DrvData.Devices)) { $null = Complete-TxDriverDevice $dev $pkgs }
+    $script:DrvData.WuChecked = ($null -ne $script:DrvWu)
+    $script:DrvAt = Get-Date
 }
 
 # ── 驱动中心页面 ─────────────────────────────────────────
@@ -2205,13 +2409,23 @@ $drvFlow.Add_Resize({
     try { $script:DrvResizeTimer.Stop(); $script:DrvResizeTimer.Start() } catch {}
 })
 
+function Get-DriverCardInfo($dev) {
+    if (-not $dev.Enriched) { return @{ Text = '正在核对本地驱动包...'; Color = $script:C_DIM } }
+    $info = '已是最新'
+    $color = $script:C_GREEN
+    if ($dev.UpdateCount -gt 0) { $info = "发现 $($dev.UpdateCount) 个可用更新"; $color = $script:C_ORANGE }
+    elseif ($dev.OldCount -gt 0) { $info = "本地有 $($dev.OldCount) 个旧版本包"; $color = $script:C_ORANGE }
+    elseif (-not $dev.StatusOk) { $info = '设备状态异常'; $color = $script:C_RED }
+    return @{ Text = $info; Color = $color }
+}
+
 function New-DriverCard($dev) {
     $w = [int]$script:DrvCardW
     if ($w -lt (UiPx 280)) { $w = UiPx 300 }
     $h = UiPx 156
     $card = New-Card $script:UI.DrvFlow 0 0 $w $h 14 $script:C_PANEL $script:C_BORDER
     $card.Margin = New-Object System.Windows.Forms.Padding -ArgumentList @(0, 0, (UiPx 12), (UiPx 12))
-    $card.Tag = @{ Accent = $dev.Accent; Data = $dev }
+    $card.Tag = @{ Accent = $dev.Accent; Data = $dev; Labels = @{} }
     $card.Add_Paint({
         param($s, $e)
         try {
@@ -2239,22 +2453,19 @@ function New-DriverCard($dev) {
     $nm.AutoEllipsis = $true
     $verText = [string]$dev.Version
     if (-not $verText) { $verText = '未知' }
-    $null = New-Label $card ("当前 " + $verText) (UiPx 14) (UiPx 68) ($w - (UiPx 28)) (UiPx 20) 9.5 $false $script:C_TEXT
+    $lblVer = New-Label $card ("当前 " + $verText) (UiPx 14) (UiPx 68) ($w - (UiPx 28)) (UiPx 20) 9.5 $false $script:C_TEXT
     $prov = [string]$dev.Provider
     if (-not $prov) { $prov = '未知厂商' }
     if ($prov.Length -gt 32) { $prov = $prov.Substring(0, 32) + '…' }
     $dateText = [string]$dev.Date
     if (-not $dateText) { $dateText = '--' }
-    $null = New-Label $card ("$prov · $dateText") (UiPx 14) (UiPx 90) ($w - (UiPx 28)) (UiPx 18) 8 $false $script:C_SUB
-    $info = '已是最新'
-    $infoColor = $script:C_GREEN
-    if ($dev.UpdateCount -gt 0) { $info = "发现 $($dev.UpdateCount) 个可用更新"; $infoColor = $script:C_ORANGE }
-    elseif ($dev.OldCount -gt 0) { $info = "本地有 $($dev.OldCount) 个旧版本包"; $infoColor = $script:C_ORANGE }
-    elseif (-not $dev.StatusOk) { $info = '设备状态异常'; $infoColor = $script:C_RED }
-    $null = New-Label $card $info (UiPx 14) (UiPx 112) ($w - (UiPx 96)) (UiPx 20) 8.5 $false $infoColor
+    $lblMeta = New-Label $card ("$prov · $dateText") (UiPx 14) (UiPx 90) ($w - (UiPx 28)) (UiPx 18) 8 $false $script:C_SUB
+    $st = Get-DriverCardInfo $dev
+    $lblInfo = New-Label $card $st.Text (UiPx 14) (UiPx 112) ($w - (UiPx 96)) (UiPx 20) 8.5 $false $st.Color
     $btn = New-Btn $card '管理' ($w - (UiPx 76)) ($h - (UiPx 36)) (UiPx 62) (UiPx 26) ([Drawing.Color]::FromArgb(24, 35, 50)) $dev.Accent 8 $false
     $btn.Tag = $dev
     $btn.Add_Click({ param($s, $e) Show-DriverDetails $s.Tag })
+    $card.Tag.Labels = @{ Version = $lblVer; Meta = $lblMeta; Info = $lblInfo; Btn = $btn }
 
     # 整卡可点: 悬停高亮, 左键打开详情 (按钮除外)
     $enter = {
@@ -2291,7 +2502,34 @@ function New-DriverCard($dev) {
             $c.Add_MouseUp($open)
         } catch {}
     }
+    try { $script:DrvCards[[string]$dev.DeviceId] = $card } catch {}
     return $card
+}
+
+# 单个设备补全后, 就地更新卡片, 不重建整个列表
+function Update-DriverCardData($dev) {
+    if (-not $dev) { return }
+    $card = $null
+    try { if ($script:DrvCards) { $card = $script:DrvCards[[string]$dev.DeviceId] } } catch {}
+    if (-not $card) { return }
+    try {
+        $ui = $card.Tag.Labels
+        if (-not $ui) { return }
+        $verText = [string]$dev.Version
+        if (-not $verText) { $verText = '未知' }
+        if ($ui.Version) { $ui.Version.Text = '当前 ' + $verText }
+        $prov = [string]$dev.Provider
+        if (-not $prov) { $prov = '未知厂商' }
+        if ($prov.Length -gt 32) { $prov = $prov.Substring(0, 32) + '…' }
+        $dateText = [string]$dev.Date
+        if (-not $dateText) { $dateText = '--' }
+        if ($ui.Meta) { $ui.Meta.Text = "$prov · $dateText" }
+        $st = Get-DriverCardInfo $dev
+        if ($ui.Info) { $ui.Info.Text = $st.Text; $ui.Info.ForeColor = $st.Color }
+        if ($ui.Btn) { $ui.Btn.Tag = $dev }
+        $card.Tag.Data = $dev
+        $card.Invalidate()
+    } catch {}
 }
 
 function Update-DriverFilterButtons {
@@ -2339,6 +2577,7 @@ function Update-DriverCards {
     $flow = $script:UI.DrvFlow
     if (-not $flow) { return }
     $old = @($flow.Controls)
+    $script:DrvCards = @{}
     $flow.Controls.Clear()
     foreach ($c in $old) { try { $c.Dispose() } catch {} }
     $script:DrvCardW = Get-DriverCardWidth
@@ -2383,24 +2622,83 @@ function Show-DriverPlaceholder([string]$text) {
     $flow.PerformLayout()
 }
 
+# 逐个设备补全驱动包信息: 每个 tick 处理一个, 期间界面保持可交互
+$script:DrvEnrichTimer = New-Object System.Windows.Forms.Timer
+$script:DrvEnrichTimer.Interval = 12
+$script:DrvEnrichTimer.Add_Tick({
+    param($s, $e)
+    $s.Stop()
+    try {
+        $q = $script:DrvEnrichQueue
+        if (-not $q) { return }
+        if ($q.Count -eq 0) { Finish-DriverEnrich; return }
+        $dev = $q.Dequeue()
+        try { $null = Complete-TxDriverDevice $dev $script:DrvPkgs } catch {}
+        $script:DrvEnrichDone++
+        Update-DriverCardData $dev
+        if (($script:DrvEnrichDone % 3) -eq 0 -or $q.Count -eq 0) {
+            Update-DriverFilterButtons
+            Update-DriverSummary
+            Set-Status "正在核对驱动包 $($script:DrvEnrichDone)/$($script:DrvEnrichTotal)..."
+        }
+        if ($q.Count -eq 0) { Finish-DriverEnrich; return }
+        $s.Start()
+    } catch {
+        Finish-DriverEnrich
+    }
+})
+
+function Start-DriverEnrich {
+    if (-not $script:DrvData) { return }
+    $q = New-Object System.Collections.Queue
+    foreach ($d in @($script:DrvData.Devices)) { if (-not $d.Enriched) { $q.Enqueue($d) } }
+    $script:DrvEnrichQueue = $q
+    $script:DrvEnrichTotal = $q.Count
+    $script:DrvEnrichDone = 0
+    if ($q.Count -eq 0) { Finish-DriverEnrich; return }
+    try { $script:DrvEnrichTimer.Stop(); $script:DrvEnrichTimer.Start() } catch {}
+}
+
+function Finish-DriverEnrich {
+    try { $script:DrvEnrichTimer.Stop() } catch {}
+    $script:DrvEnrichQueue = $null
+    try { Update-DriverFilterButtons } catch {}
+    try { Update-DriverSummary } catch {}
+    $script:DrvAt = Get-Date
+    $cnt = 0
+    if ($script:DrvData) { $cnt = @($script:DrvData.Devices).Count }
+    Set-Status "驱动信息已补全 · $cnt 个设备"
+}
+
 function Refresh-DriverPage([bool]$force = $false) {
     if ($script:DrvBusy) { return }
     $script:DrvBusy = $true
     try {
-        Set-Status '正在扫描本机驱动...'
+        Set-Status '正在枚举本机设备...'
         $btnDrvScan.Enabled = $false
         $btnDrvWu.Enabled = $false
         $btnDrvScan.Text = '扫描中...'
-        Show-DriverPlaceholder '正在扫描本机驱动，请稍候...'
+        Show-DriverPlaceholder '正在枚举本机设备（约 1~2 秒）...'
         [System.Windows.Forms.Application]::DoEvents()
-        $script:DrvData = Get-TxDriverSnapshot -Force:$force
+
+        # 第一段: 只枚举设备和当前驱动, 先把卡片显示出来
+        $devs = @(Get-TxDriverDevices -Force:$force)
+        $script:DrvPkgs = @(Get-TxDriverPackages -Force:$force)
+        $script:DrvData = [PSCustomObject]@{
+            Devices   = $devs
+            ScannedAt = (Get-Date)
+            WuChecked = ($null -ne $script:DrvWu)
+        }
+        foreach ($d in $devs) { $d.Enriched = $false }
         Update-DriverFilterButtons
         Update-DriverSummary
         Update-DriverCards
         try { [TxUi.Native]::DarkScroll($script:UI.DrvFlow.Handle) } catch {}
         $script:UI.DriverDirty = $false
-        $cnt = @($script:DrvData.Devices).Count
-        Set-Status "驱动扫描完成 · $cnt 个设备"
+        Set-Status "已发现 $($devs.Count) 个设备 · 正在逐个核对驱动包..."
+
+        # 第二段: 每个设备单独补全, 补完一个更新一张卡
+        Start-DriverEnrich
     } catch {
         Set-Status "驱动扫描失败: $($_.Exception.Message)"
     } finally {
@@ -2411,13 +2709,44 @@ function Refresh-DriverPage([bool]$force = $false) {
     }
 }
 
+# 详情页操作后只刷新受影响的那一块设备, 不重扫整页
+function Refresh-DriverDevice([string]$devId, [bool]$reEnum) {
+    if (-not $devId -or -not $script:DrvData) { Refresh-DriverPage $true; return }
+    $dev = @($script:DrvData.Devices | Where-Object { [string]$_.DeviceId -eq $devId }) | Select-Object -First 1
+    if (-not $dev) { Refresh-DriverPage $true; return }
+    try {
+        Set-Status "正在刷新设备: $($dev.Name)..."
+        [System.Windows.Forms.Application]::DoEvents()
+        if ($reEnum) {
+            $fresh = @(Get-TxDriverDevices -Force | Where-Object { [string]$_.DeviceId -eq $devId }) | Select-Object -First 1
+            if (-not $fresh) { Refresh-DriverPage $true; return }
+            foreach ($p in @('Name', 'Class', 'Category', 'HardwareId', 'InfName', 'Version', 'Date', 'Provider', 'StatusText', 'StatusOk', 'Accent')) {
+                $dev.$p = $fresh.$p
+            }
+        }
+        $pkgs = @(Get-TxDriverPackages -Force)
+        $null = Complete-TxDriverDevice $dev $pkgs
+        $carded = $false
+        try { $carded = $script:DrvCards.ContainsKey([string]$dev.DeviceId) } catch {}
+        if ($carded) { Update-DriverCardData $dev } else { Update-DriverCards }
+        Update-DriverFilterButtons
+        Update-DriverSummary
+        $script:DrvAt = Get-Date
+        Set-Status "已刷新 · $($dev.Name)"
+    } catch {
+        Set-Status "刷新设备失败: $($_.Exception.Message)"
+    }
+}
+
 function Invoke-DriverUpdateCheck {
     try {
         Set-Status '正在连接 Windows Update 检测驱动更新...'
         [System.Windows.Forms.Cursor]::Current = [System.Windows.Forms.Cursors]::WaitCursor
         [System.Windows.Forms.Application]::DoEvents()
         $null = Get-TxWuDriverUpdates -Force
-        $script:DrvData = Get-TxDriverSnapshot -Force
+        # 只重新核对驱动包和更新, 不再重新枚举设备
+        Update-TxDriverEnrichment
+        Update-DriverFilterButtons
         Update-DriverSummary
         Update-DriverCards
         $n = 0
@@ -2550,6 +2879,44 @@ function Update-DriverDetailActions($f) {
         $ctx.BtnInstall.Enabled = ($null -ne $up) -and (-not $up.Hidden)
         $ctx.BtnHide.Enabled = ($null -ne $up) -and (-not $up.Hidden)
     } catch {}
+}
+
+function Fill-DriverLocalGrid($grid, $dev) {
+    if (-not $grid) { return }
+    try { $grid.Rows.Clear() } catch {}
+    foreach ($p in @($dev.Packages)) {
+        $state = '可切换'
+        $cl = $script:C_SUB
+        if ($p.InUse) { $state = '当前使用'; $cl = $script:C_GREEN }
+        elseif ($p.Compare -lt 0) { $state = '旧版本'; $cl = $script:C_ORANGE }
+        elseif ($p.Compare -gt 0) { $state = '较新'; $cl = $script:C_CYAN }
+        elseif ($p.ClassName -eq 'Extension') { $state = '扩展包'; $cl = $script:C_DIM }
+        $idx = $grid.Rows.Add([string]$p.Version, [string]$p.ClassName, [string]$p.PublishedName, [string]$p.Date, $state)
+        $grid.Rows[$idx].DefaultCellStyle.ForeColor = $cl
+        $grid.Rows[$idx].Tag = $p
+    }
+    if ($grid.Rows.Count -eq 0) {
+        $idx = $grid.Rows.Add('--', '--', '未在本机驱动仓库中找到可切换的包', '--', '--')
+        $grid.Rows[$idx].DefaultCellStyle.ForeColor = $script:C_DIM
+    }
+}
+
+function Fill-DriverUpdateGrid($grid, $dev) {
+    if (-not $grid) { return }
+    try { $grid.Rows.Clear() } catch {}
+    foreach ($u in @($dev.Updates)) {
+        $state = '可用'
+        $cl = $script:C_ORANGE
+        if ($u.Hidden) { $state = '已隐藏'; $cl = $script:C_DIM }
+        elseif ($u.Version -and (Compare-TxVersion $u.Version $dev.Version) -le 0) { $state = '不高于当前'; $cl = $script:C_SUB }
+        $idx = $grid.Rows.Add([string]$u.Version, [string]$u.ClassName, [string]$u.Date, $state, [string]$u.Title)
+        $grid.Rows[$idx].DefaultCellStyle.ForeColor = $cl
+        $grid.Rows[$idx].Tag = $u
+    }
+    if ($grid.Rows.Count -eq 0) {
+        $idx = $grid.Rows.Add('--', '--', '--', '--', '尚未检测更新，请回到驱动中心点「检测更新」')
+        $grid.Rows[$idx].DefaultCellStyle.ForeColor = $script:C_DIM
+    }
 }
 
 function Show-DriverDetails($dev) {
@@ -2688,21 +3055,7 @@ function Show-DriverDetails($dev) {
         $null = Add-GridCol $lg 'date' '日期' 0.9 80
         $null = Add-GridCol $lg 'state' '状态' 0.9 88
         foreach ($col in @($lg.Columns)) { $col.MinimumWidth = UiPx ([double]$col.MinimumWidth) }
-        foreach ($p in @($dev.Packages)) {
-            $state = '可切换'
-            $cl = $script:C_SUB
-            if ($p.InUse) { $state = '当前使用'; $cl = $script:C_GREEN }
-            elseif ($p.Compare -lt 0) { $state = '旧版本'; $cl = $script:C_ORANGE }
-            elseif ($p.Compare -gt 0) { $state = '较新'; $cl = $script:C_CYAN }
-            elseif ($p.ClassName -eq 'Extension') { $state = '扩展包'; $cl = $script:C_DIM }
-            $idx = $lg.Rows.Add([string]$p.Version, [string]$p.ClassName, [string]$p.PublishedName, [string]$p.Date, $state)
-            $lg.Rows[$idx].DefaultCellStyle.ForeColor = $cl
-            $lg.Rows[$idx].Tag = $p
-        }
-        if ($lg.Rows.Count -eq 0) {
-            $idx = $lg.Rows.Add('--', '--', '未在本机驱动仓库中找到可切换的包', '--', '--')
-            $lg.Rows[$idx].DefaultCellStyle.ForeColor = $script:C_DIM
-        }
+        Fill-DriverLocalGrid $lg $dev
 
         $null = New-Label $body 'Windows 更新中的驱动条目' (UiPx 22) (UiPx 410) (UiPx 420) (UiPx 20) 9 $true $script:C_SUB
         $ug = New-Object System.Windows.Forms.DataGridView
@@ -2725,19 +3078,7 @@ function Show-DriverDetails($dev) {
         $null = Add-GridCol $ug 'state' '状态' 0.8 78
         $null = Add-GridCol $ug 'title' '标题' 2.4 180
         foreach ($col in @($ug.Columns)) { $col.MinimumWidth = UiPx ([double]$col.MinimumWidth) }
-        foreach ($u in @($dev.Updates)) {
-            $state = '可用'
-            $cl = $script:C_ORANGE
-            if ($u.Hidden) { $state = '已隐藏'; $cl = $script:C_DIM }
-            elseif ($u.Version -and (Compare-TxVersion $u.Version $dev.Version) -le 0) { $state = '不高于当前'; $cl = $script:C_SUB }
-            $idx = $ug.Rows.Add([string]$u.Version, [string]$u.ClassName, [string]$u.Date, $state, [string]$u.Title)
-            $ug.Rows[$idx].DefaultCellStyle.ForeColor = $cl
-            $ug.Rows[$idx].Tag = $u
-        }
-        if ($ug.Rows.Count -eq 0) {
-            $idx = $ug.Rows.Add('--', '--', '--', '--', '尚未检测更新，请回到驱动中心点「检测更新」')
-            $ug.Rows[$idx].DefaultCellStyle.ForeColor = $script:C_DIM
-        }
+        Fill-DriverUpdateGrid $ug $dev
 
         $lblMsg = New-Label $body '' (UiPx 22) (UiPx 536) $w (UiPx 16) 8 $false $script:C_DIM
         $fy = UiPx 13
@@ -2799,6 +3140,8 @@ function Show-DriverDetails($dev) {
                 $text = (@($out) | ForEach-Object { [string]$_ }) -join "`n"
                 if ($code -eq 0) {
                     $script:DrvNeedRefresh = $true
+                    $script:DrvRefreshDevice = [string]$ctx.Dev.DeviceId
+                    $script:DrvRefreshEnum = $true
                     [System.Windows.Forms.MessageBox]::Show($f, "驱动安装命令已完成。`n`n$text`n`n如果设备没有立即变化，请重启后再查看。", '切换驱动', 'OK', 'Information') | Out-Null
                     $f.Close()
                 } else {
@@ -2844,8 +3187,23 @@ function Show-DriverDetails($dev) {
                 $text = (@($out) | ForEach-Object { [string]$_ }) -join "`n"
                 if ($code -eq 0) {
                     $script:DrvNeedRefresh = $true
+                    $script:DrvRefreshDevice = [string]$ctx.Dev.DeviceId
+                    $script:DrvRefreshEnum = $false
+                    # 只重新核对这一台设备, 不重扫整页
+                    try {
+                        $pkgs = @(Get-TxDriverPackages -Force)
+                        $null = Complete-TxDriverDevice $ctx.Dev $pkgs
+                        Fill-DriverLocalGrid $ctx.LocalGrid $ctx.Dev
+                        Update-DriverCardData $ctx.Dev
+                        Update-DriverFilterButtons
+                        Update-DriverSummary
+                        Set-Status "已清理旧包 · $($ctx.Dev.Name)"
+                        $ctx.Msg.Text = "已删除 $($pkg.PublishedName)"
+                        # 页面已经同步, 关闭对话框后不必再刷新一次
+                        $script:DrvNeedRefresh = $false
+                        $script:DrvRefreshDevice = ''
+                    } catch {}
                     [System.Windows.Forms.MessageBox]::Show($f, "驱动包已删除。`n`n$text", '清理旧包', 'OK', 'Information') | Out-Null
-                    $f.Close()
                 } else {
                     [System.Windows.Forms.MessageBox]::Show($f, "删除失败（退出码 $code）。`n`n$text`n`n如果提示设备正在使用，请重启后再清理。", '清理旧包', 'OK', 'Warning') | Out-Null
                 }
@@ -2889,6 +3247,8 @@ function Show-DriverDetails($dev) {
             }
             if ($res.Ok) {
                 $script:DrvNeedRefresh = $true
+                $script:DrvRefreshDevice = [string]$ctx.Dev.DeviceId
+                $script:DrvRefreshEnum = $true
                 $m = '驱动更新已安装完成。'
                 if ($res.Reboot) { $m += ' 需要重启后生效。' }
                 [System.Windows.Forms.MessageBox]::Show($f, $m, '安装更新', 'OK', 'Information') | Out-Null
@@ -2922,11 +3282,23 @@ function Show-DriverDetails($dev) {
             if ($r -ne 'Yes') { return }
             try {
                 $u.Raw.IsHidden = $true
-                $script:DrvWu = $null
-                $script:DrvWuAt = [DateTime]::MinValue
+                $u.Hidden = $true
                 $script:DrvNeedRefresh = $true
+                $script:DrvRefreshDevice = [string]$ctx.Dev.DeviceId
+                $script:DrvRefreshEnum = $false
+                try {
+                    $pkgs = @(Get-TxDriverPackages)
+                    $null = Complete-TxDriverDevice $ctx.Dev $pkgs
+                    Fill-DriverUpdateGrid $ctx.UpdateGrid $ctx.Dev
+                    Update-DriverCardData $ctx.Dev
+                    Update-DriverFilterButtons
+                    Update-DriverSummary
+                    Update-DriverDetailActions $f
+                    # 页面已经同步, 关闭对话框后不必再刷新一次
+                    $script:DrvNeedRefresh = $false
+                    $script:DrvRefreshDevice = ''
+                } catch {}
                 [System.Windows.Forms.MessageBox]::Show($f, '已隐藏该驱动更新。', '隐藏更新', 'OK', 'Information') | Out-Null
-                $f.Close()
             } catch {
                 [System.Windows.Forms.MessageBox]::Show($f, ("隐藏失败：`n" + $_.Exception.Message), '隐藏更新', 'OK', 'Warning') | Out-Null
             }
@@ -2941,8 +3313,13 @@ function Show-DriverDetails($dev) {
         $dlg.ShowDialog($script:UI.Form) | Out-Null
         $need = $script:DrvNeedRefresh
         $script:DrvNeedRefresh = $false
+        $devId = [string]$script:DrvRefreshDevice
+        $reEnum = [bool]$script:DrvRefreshEnum
+        $script:DrvRefreshDevice = ''
+        $script:DrvRefreshEnum = $false
         try { $dlg.Dispose() } catch {}
-        if ($need) { Refresh-DriverPage $true }
+        if ($devId) { Refresh-DriverDevice $devId $reEnum }
+        elseif ($need) { Refresh-DriverPage $true }
     } catch {
         Set-Status "打开驱动详情失败: $($_.Exception.Message)"
     }
@@ -5399,6 +5776,18 @@ if ($Preview) {
             Show-Page $pk
             [System.Windows.Forms.Application]::DoEvents()
             Start-Sleep -Milliseconds 350
+            # 驱动页是逐个补全的: 预览时等补全跑完再截图
+            if ($pk -eq 'driver') {
+                try {
+                    $deadline = (Get-Date).AddSeconds(20)
+                    while ($script:DrvEnrichQueue -and $script:DrvEnrichQueue.Count -gt 0 -and (Get-Date) -lt $deadline) {
+                        [System.Windows.Forms.Application]::DoEvents()
+                        Start-Sleep -Milliseconds 15
+                    }
+                    [System.Windows.Forms.Application]::DoEvents()
+                    Start-Sleep -Milliseconds 150
+                } catch {}
+            }
             try { Update-Meters } catch {}
             $pg = $script:UI.Pages[$pk]
             Write-Output "page=$pk bounds=$($pg.Bounds) content=$($content.ClientSize)"
@@ -5409,6 +5798,14 @@ if ($Preview) {
                 Write-Output "  search_font=$($script:UI.Search.Font.Height) item_font=$($script:UI.ItemSummary.Font.Height) nav_font=$($script:UI.NavBtns['items'].Font.Height)"
             }
             if ($pk -eq 'settings') { Write-Output "  restart=$($script:UI.SetRestart.Bounds) card=$($script:UI.ExpCard.Bounds) check=$($script:UI.SetDpiCheck.Bounds)" }
+            if ($pk -eq 'driver') {
+                $dv = $script:UI.DrvFlow
+                Write-Output "  drv_flow count=$($dv.Controls.Count) scroll=$($dv.VerticalScroll.Value) auto=$($dv.AutoScrollPosition) bounds=$($dv.Bounds) enriched=$($script:DrvEnrichDone)/$($script:DrvEnrichTotal)"
+            }
+            if ($pk -eq 'driver') {
+                # 预览窗口被移到屏幕外时可能收到杂散滚轮消息, 截图前归零, 保证预览稳定
+                try { $script:UI.DrvFlow.AutoScrollPosition = New-Object Drawing.Point(0, 0) } catch {}
+            }
             $out = Join-Path $dir ("gui_$pk.png")
             Save-FormPng $out
             Write-Output "preview=$out"
