@@ -22,7 +22,7 @@ try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 # 设置文件默认放在脚本目录; TX_GUI_SETTINGS 仅用于测试时指向临时文件
 $script:GuiSettingsFile = Join-Path $PSScriptRoot 'gui-settings.json'
 if ($env:TX_GUI_SETTINGS) { $script:GuiSettingsFile = [string]$env:TX_GUI_SETTINGS }
-$script:AppVersion = '5.0.11'
+$script:AppVersion = '5.0.12'
 $script:RepoSlug   = 'tianxiclaw/game-performance-optimizer'
 $script:GuiCfg = [ordered]@{
     ExperimentalDpi = $false
@@ -6494,38 +6494,127 @@ $aboutBox.Add_DrawItem({
 })
 $aboutPage.Controls.Add($aboutBox)
 $script:UI.AboutBox = $aboutBox
-$aboutPage.Add_Resize({
+function Update-AboutLayout {
     try {
         $p = $script:UI.AboutPage
-        $h = $p.ClientSize.Height - 190 - 78
-        if ($h -lt 160) { $h = 160 }
+        if (-not $p) { return }
+        $sc = [double]$script:UI_SCALE
+        $top = [int][Math]::Round(190 * $sc)
+        $bottom = [int][Math]::Round(88 * $sc)
+        $h = $p.ClientSize.Height - $top - $bottom
+        $minH = [int][Math]::Round(160 * $sc)
+        if ($h -lt $minH) { $h = $minH }
         $script:UI.AboutBox.Height = $h
     } catch {}
+}
+$aboutPage.Add_Resize({
+    if ($script:UiScaling) { return }
+    Update-AboutLayout
 })
 
-# ★ 支持作者: 关于页底部入口, 打开包内赞赏码图片
+# ★ 支持作者: 关于页底部入口, 内置赞赏码查看, 不依赖系统图片关联
+$script:SupportImgPath = Join-Path $SD '赞赏码.png'
+if (-not (Test-Path -LiteralPath $script:SupportImgPath)) {
+    $script:SupportImgPath = Join-Path $PSScriptRoot '赞赏码.png'
+}
+
+function Show-SupportDialog {
+    try {
+        $imgPath = $script:SupportImgPath
+        $dw = UiPx 400
+        $dh = UiPx 500
+        $dlg = New-Object System.Windows.Forms.Form
+        $dlg.Text = '支持作者'
+        $dlg.FormBorderStyle = 'FixedDialog'
+        $dlg.MaximizeBox = $false
+        $dlg.MinimizeBox = $false
+        $dlg.ShowIcon = $false
+        $dlg.ShowInTaskbar = $false
+        $dlg.StartPosition = 'CenterParent'
+        $dlg.AutoScaleMode = 'None'
+        $dlg.ClientSize = New-Object Drawing.Size -ArgumentList @($dw, $dh)
+        $dlg.BackColor = $script:C_BG
+        $dlg.ForeColor = $script:C_TEXT
+        $dlg.Font = F 9
+        $dlg.SuspendLayout()
+
+        $null = New-Label $dlg '支持作者' (UiPx 24) (UiPx 20) (UiPx 352) (UiPx 28) 12 $true $script:C_TEXT
+        $null = New-Label $dlg '如果这个工具帮到了你，可以扫码请作者喝一杯。' (UiPx 24) (UiPx 52) (UiPx 352) (UiPx 20) 9 $false $script:C_SUB
+
+        $qrPanel = New-Object System.Windows.Forms.Panel
+        $qrPanel.Location = New-Object Drawing.Point -ArgumentList @([int](($dw - (UiPx 250)) / 2), (UiPx 86))
+        $qrPanel.Size = New-Object Drawing.Size -ArgumentList @((UiPx 250), (UiPx 250))
+        $qrPanel.BackColor = [Drawing.Color]::White
+        $dlg.Controls.Add($qrPanel)
+
+        if ($null -ne $script:SupportImage) {
+            $pb = New-Object System.Windows.Forms.PictureBox
+            $pb.Location = New-Object Drawing.Point -ArgumentList @((UiPx 9), (UiPx 9))
+            $pb.Size = New-Object Drawing.Size -ArgumentList @((UiPx 232), (UiPx 232))
+            $pb.BackColor = [Drawing.Color]::White
+            $pb.SizeMode = 'Zoom'
+            $pb.Image = $script:SupportImage
+            $pb.Cursor = [System.Windows.Forms.Cursors]::Hand
+            $pb.Add_Click({ try { Start-Process -FilePath $script:SupportImgPath } catch {} })
+            try { (Get-Tip).SetToolTip($pb, '点击打开原图') } catch {}
+            $qrPanel.Controls.Add($pb)
+        } else {
+            $null = New-Label $qrPanel '未找到或无法读取赞赏码.png' (UiPx 0) (UiPx 108) (UiPx 250) (UiPx 24) 9 $false $script:C_DIM 'MiddleCenter'
+        }
+
+        $null = New-Label $dlg '微信 / 支付宝扫码支持' (UiPx 24) (UiPx 346) (UiPx 352) (UiPx 20) 9 $false $script:C_DIM 'MiddleCenter'
+        $null = New-Label $dlg "赞赏码：$imgPath" (UiPx 24) (UiPx 368) (UiPx 352) (UiPx 18) 8 $false $script:C_DIM 'MiddleCenter'
+
+        $btnOpen = New-Btn $dlg '打开原图' (UiPx 138) (UiPx 404) (UiPx 110) (UiPx 34) ((TC 24 35 50)) $script:C_SUB 9
+        $btnClose = New-Btn $dlg '关闭' (UiPx 260) (UiPx 404) (UiPx 110) (UiPx 34) $script:C_CYAN ((TC 4 20 26)) 9
+        $btnOpen.Add_Click({ try { Start-Process -FilePath $script:SupportImgPath } catch {} })
+        $btnClose.Add_Click({ try { $dlg.Close() } catch {} })
+        $dlg.AcceptButton = $btnClose
+        $dlg.CancelButton = $btnClose
+        $dlg.Add_Shown({ try { [TxUi.Native]::DarkTitle($dlg.Handle) } catch {} })
+        $dlg.ResumeLayout($true)
+        $dlg.ShowDialog($form) | Out-Null
+        $dlg.Dispose()
+    } catch {
+        try { Start-Process -FilePath $script:SupportImgPath } catch {}
+    }
+}
+
 $supBar = New-Object System.Windows.Forms.Panel
 $supBar.Dock = 'Bottom'
-$supBar.Height = 66
-$supBar.BackColor = $script:C_BG
+$supBar.Height = 72
+$supBar.BackColor = $script:C_PANEL
 $aboutPage.Controls.Add($supBar)
-$supHint = New-Label $supBar '如果这个工具帮到了你，可以扫码请作者喝一杯。' 20 24 400 20 9 $false $script:C_DIM
-$btnSupport = New-Btn $supBar '支持作者' 430 16 120 34 $script:C_ORANGE_BG $script:C_ORANGE 9
-$btnSupport.Add_Click({
-    try {
-        $img = Join-Path $SD '赞赏码.png'
-        if (Test-Path -LiteralPath $img) {
-            Start-Process -FilePath $img
-            Set-Status '已打开赞赏码图片'
-        } else {
-            [System.Windows.Forms.MessageBox]::Show($form,
-                "未找到赞赏码图片：`n$img`n`n请确认 赞赏码.png 与本程序在同一个文件夹。",
-                '支持作者', 'OK', 'Information') | Out-Null
-        }
-    } catch {
-        try { Start-Process explorer.exe -ArgumentList ('/select,"{0}"' -f (Join-Path $SD '赞赏码.png')) } catch {}
-    }
-})
+$script:UI.SupportBar = $supBar
+
+$supLine = New-Object System.Windows.Forms.Panel
+$supLine.Dock = 'Top'
+$supLine.Height = 1
+$supLine.BackColor = $script:C_BORDER
+$supBar.Controls.Add($supLine)
+
+$script:SupportImage = $null
+if (Test-Path -LiteralPath $script:SupportImgPath) {
+    try { $script:SupportImage = [Drawing.Image]::FromFile($script:SupportImgPath) } catch {}
+}
+
+$supQr = New-Object System.Windows.Forms.PictureBox
+$supQr.Location = New-Object Drawing.Point -ArgumentList @(20, 11)
+$supQr.Size = New-Object Drawing.Size -ArgumentList @(50, 50)
+$supQr.BackColor = [Drawing.Color]::White
+$supQr.SizeMode = 'Zoom'
+$supQr.Cursor = [System.Windows.Forms.Cursors]::Hand
+if ($null -ne $script:SupportImage) { $supQr.Image = $script:SupportImage }
+$supQr.Add_Click({ Show-SupportDialog })
+$supBar.Controls.Add($supQr)
+try { (Get-Tip).SetToolTip($supQr, '点击查看赞赏码') } catch {}
+
+$null = New-Label $supBar '支持作者' 82 12 180 22 10 $true $script:C_TEXT
+$supHint = New-Label $supBar '扫码请作者喝一杯，感谢支持' 82 36 300 18 8.5 $false $script:C_DIM
+$btnSupport = New-Btn $supBar '支持作者' ($supBar.Width - 140) 19 120 34 $script:C_ORANGE_BG $script:C_ORANGE 9
+$btnSupport.Anchor = 'Top, Right'
+$btnSupport.Add_Click({ Show-SupportDialog })
+$script:UI.BtnSupport = $btnSupport
 
 function Fill-About {
     try {
@@ -7399,11 +7488,7 @@ function Show-Page([string]$key) {
             'startup' { if ($script:UI.StartupDirty) { Refresh-StartupPage } }
             'about'  {
                 Fill-About
-                try {
-                    $h = $script:UI.AboutPage.ClientSize.Height - 190 - 78
-                    if ($h -lt 160) { $h = 160 }
-                    $script:UI.AboutBox.Height = $h
-                } catch {}
+                Update-AboutLayout
             }
             'settings' { Update-SettingsUi }
             'overview' { Update-Overview }
@@ -8324,6 +8409,8 @@ if ($SelfTest) {
     } catch { $lines += "dryrun_error=$($_.Exception.Message)" }
     $ab = $script:UI.AboutBox
     $lines += "about_len=$($ab.Items.Count) about_visible=$($ab.Visible) about_bounds=$($ab.Bounds) about_parent=$($ab.Parent.ClientSize)"
+    try { $lines += "about_support=$($script:UI.SupportBar.Bounds) support_visible=$($script:UI.SupportBar.Visible) support_page=$($script:UI.AboutPage.ClientSize)" } catch {}
+    try { $lines += "support_img=$([bool]$script:SupportImage) support_path=$($script:SupportImgPath)" } catch {}
     $lg = $script:UI.LogBox
     $lines += "log_len=$($lg.Items.Count) log_visible=$($lg.Visible) log_bounds=$($lg.Bounds)"
     $lines += "nav_visible=$($script:UI.NavBtns['overview'].Parent.Visible) nav_bounds=$($script:UI.NavBtns['overview'].Parent.Bounds)"
