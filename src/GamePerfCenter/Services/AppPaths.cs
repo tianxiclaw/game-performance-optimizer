@@ -14,7 +14,7 @@ public static class AppPaths
     public static string DiagnosticsDir => Path.Combine(BaseDir, "diagnostics");
     public static string SettingsPath => Path.Combine(BaseDir, "gui-settings.json");
     public static string AppLogPath => Path.Combine(DataDir, "winui.log");
-    public static string Version => "6.0.2";
+    public static string Version => "6.0.3";
 
     public static string UserSid
     {

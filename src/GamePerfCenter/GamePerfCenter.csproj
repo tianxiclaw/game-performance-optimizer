@@ -17,9 +17,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <Version>6.0.2</Version>
-    <FileVersion>6.0.2.0</FileVersion>
-    <AssemblyVersion>6.0.2.0</AssemblyVersion>
+    <Version>6.0.3</Version>
+    <FileVersion>6.0.3.0</FileVersion>
+    <AssemblyVersion>6.0.3.0</AssemblyVersion>
     <Company>天禧性能实验室</Company>
     <Product>游戏性能优化中心</Product>
     <Copyright>Copyright © 2026 天禧性能实验室</Copyright>

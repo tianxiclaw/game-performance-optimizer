@@ -2272,19 +2272,45 @@ function Clear-TxPendingRebootCache {
     $script:PR_CACHE = $null
     $script:PR_CACHE_AT = [datetime]::MinValue
 }
+function Get-TxPendingFileRename {
+    # 只统计 Windows 能真正处理的条目: 来源必须是 \??\、\SystemRoot\ 或 \DosDevices\ 路径,
+    # 且来源文件仍存在。安装器写坏的记录(如 "*1\??\..." 前缀)系统不会处理,
+    # 重启多少次都不会消失, 不能当作“系统等待重启”。
+    $valid = $false
+    $ignored = 0
+    try {
+        $p = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -Name PendingFileRenameOperations -EA 0
+        if ($p -and 'PendingFileRenameOperations' -in $p.PSObject.Properties.Name) {
+            $vals = @($p.PendingFileRenameOperations)
+            for ($i = 0; $i -lt $vals.Count; $i += 2) {
+                $src = [string]$vals[$i]
+                if ([string]::IsNullOrWhiteSpace($src)) { continue }
+                $path = $null
+                if ($src.StartsWith('\??\')) { $path = $src.Substring(4) }
+                elseif ($src.StartsWith('\SystemRoot\', [StringComparison]::OrdinalIgnoreCase)) { $path = Join-Path $env:SystemRoot $src.Substring(12) }
+                elseif ($src.StartsWith('\DosDevices\', [StringComparison]::OrdinalIgnoreCase)) { $path = $src.Substring(12) }
+                if (-not $path) { $ignored++; continue }
+                if (Test-Path -LiteralPath $path) { $valid = $true }
+            }
+        }
+    } catch {}
+    return [PSCustomObject]@{ Pending = $valid; Ignored = $ignored }
+}
 function Get-TxPendingReboot {
     # v5.0: 3 秒短缓存, 同一轮快照/诊断不再重复读取注册表
     $now = Get-Date
     if ($script:PR_CACHE -and (($now - $script:PR_CACHE_AT).TotalSeconds -lt 3)) { return $script:PR_CACHE }
     $reasons = @()
+    $ignored = 0
     try { if (Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending') { $reasons += 'CBS' } } catch {}
     try { if (Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired') { $reasons += 'WindowsUpdate' } } catch {}
     try {
-        $p = Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' -Name PendingFileRenameOperations -EA 0
-        if ($p -and 'PendingFileRenameOperations' -in $p.PSObject.Properties.Name) { $reasons += 'PendingFileRename' }
+        $pf = Get-TxPendingFileRename
+        if ($pf.Pending) { $reasons += 'PendingFileRename' }
+        $ignored = [int]$pf.Ignored
     } catch {}
     try { if (Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\PackagesPending') { $reasons += 'PackagesPending' } } catch {}
-    $script:PR_CACHE = [PSCustomObject]@{ Pending = ($reasons.Count -gt 0); Reasons = @($reasons) }
+    $script:PR_CACHE = [PSCustomObject]@{ Pending = ($reasons.Count -gt 0); Reasons = @($reasons); Ignored = $ignored }
     $script:PR_CACHE_AT = $now
     return $script:PR_CACHE
 }
@@ -2858,7 +2884,8 @@ function Get-TxDiagnostics {
 
     try {
         $rb = Get-TxPendingReboot
-        & $add '系统' '待重启' $(if ($rb.Pending) { "是 ($($rb.Reasons -join ', '))" } else { '否' }) $(if ($rb.Pending) { 'Yellow' } else { 'Green' }) ''
+        $rbText = if ($rb.Pending) { "是 ($($rb.Reasons -join ', '))" } elseif ($rb.Ignored -gt 0) { "否 (已忽略 $($rb.Ignored) 条无效记录)" } else { '否' }
+        & $add '系统' '待重启' $rbText $(if ($rb.Pending) { 'Yellow' } else { 'Green' }) ''
     } catch {}
     try {
         $last = Get-TxPendingState
@@ -2923,7 +2950,8 @@ function Export-TxReport {
     & $add ''
     & $add '【待重启】'
     $rb = Get-TxPendingReboot
-    & $add "  $(if ($rb.Pending) { "是 ($($rb.Reasons -join ', '))" } else { '否' })"
+    $rbLine = if ($rb.Pending) { "是 ($($rb.Reasons -join ', '))" } elseif ($rb.Ignored -gt 0) { "否 (已忽略 $($rb.Ignored) 条无效记录)" } else { '否' }
+    & $add "  $rbLine"
     & $add ''
     & $add "日志文件: $LOG"
     & $add '============================================================'
