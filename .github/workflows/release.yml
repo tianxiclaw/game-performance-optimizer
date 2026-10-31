@@ -67,7 +67,7 @@ jobs:
           }
           Set-Content -LiteralPath (Join-Path $stage 'SHA256.txt') -Value $lines -Encoding utf8NoBOM
 
-          $zip = Join-Path $env:RUNNER_TEMP "game-performance-optimizer_v$version_portable.zip"
+          $zip = Join-Path $env:RUNNER_TEMP "game-performance-optimizer_v${version}_portable.zip"
           Compress-Archive -Path $stage -DestinationPath $zip -CompressionLevel Optimal
 
           "PKG=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
