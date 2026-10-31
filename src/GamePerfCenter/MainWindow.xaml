@@ -111,7 +111,7 @@
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="14" VerticalAlignment="Center">
                     <TextBlock x:Name="EngineStateText" Text="引擎未连接" Style="{StaticResource CaptionTextStyle}" />
-                    <TextBlock Text="v6.0.0 · WinUI 3" Style="{StaticResource MonoTextStyle}" FontSize="10.5" />
+                    <TextBlock x:Name="VersionText" Text="WinUI 3" Style="{StaticResource MonoTextStyle}" FontSize="10.5" />
                 </StackPanel>
             </Grid>
         </Border>

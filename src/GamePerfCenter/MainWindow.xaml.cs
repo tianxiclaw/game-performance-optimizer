@@ -36,6 +36,8 @@ public sealed partial class MainWindow : Window
         AppWindow.Closing += OnAppWindowClosing;
         Closed += OnClosed;
 
+        try { VersionText.Text = $"v{AppPaths.Version} · WinUI 3"; } catch { }
+
         try
         {
             _tray = new TrayIcon(Path.Combine(AppPaths.BaseDir, "Assets", "AppIcon.ico"));
@@ -60,10 +62,12 @@ public sealed partial class MainWindow : Window
             var scale = dpi / 96.0;
 
             // 以 DIP 为单位计算目标尺寸，再换算成物理像素，避免高 DPI 下窗口“缩水”。
+            // 同时必须受工作区约束：200% 缩放的 1440×900 屏幕只有约 720×430 DIP，
+            // 如果此处保底取 960 DIP，窗口会比屏幕还宽，右侧内容被推到屏幕外。
             var availWidth = work.Width / scale;
             var availHeight = work.Height / scale;
-            var widthDip = Math.Min(1380, Math.Max(960, availWidth - 40));
-            var heightDip = Math.Min(900, Math.Max(640, availHeight - 40));
+            var widthDip = Math.Min(1380, Math.Max(480, availWidth - 24));
+            var heightDip = Math.Min(900, Math.Max(320, availHeight - 24));
             var width = (int)Math.Round(widthDip * scale);
             var height = (int)Math.Round(heightDip * scale);
             var x = work.X + (work.Width - width) / 2;

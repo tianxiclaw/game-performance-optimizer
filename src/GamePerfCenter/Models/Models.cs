@@ -190,13 +190,15 @@ public sealed class GameInfo
     public GameProfile Profile { get; set; } = new();
 
     [JsonIgnore]
-    public string SourceText => Source switch
+    public string SourceText => (Source ?? "").Trim().ToLowerInvariant() switch
     {
         "steam" => "Steam",
         "epic" => "Epic",
         "xbox" => "Xbox",
-        "manual" => "手动添加",
-        _ => string.IsNullOrEmpty(Source) ? "本地" : Source
+        "wegame" => "WeGame",
+        "手动" or "manual" => "手动添加",
+        "" => "本地",
+        _ => Source!
     };
 
     [JsonIgnore]
@@ -206,12 +208,13 @@ public sealed class GameInfo
         {
             if (Profile is null || !Profile.HasSaved) return "尚未保存方案 · 使用默认启动";
             var parts = new List<string>();
-            if (!string.IsNullOrEmpty(Profile.Priority) && Profile.Priority != "Normal")
-                parts.Add(Profile.Priority == "High" ? "高优先级" : Profile.Priority);
+            if (Profile.Priority == "High") parts.Add("高优先级");
+            else if (Profile.Priority == "AboveNormal") parts.Add("高于正常");
             if (Profile.Affinity == "Physical") parts.Add("仅物理核心");
             if (Profile.FsOff) parts.Add("全屏独占");
             if (Profile.GpuHigh) parts.Add("高性能 GPU");
             if (Profile.RunAsAdmin) parts.Add("管理员启动");
+            if (!string.IsNullOrWhiteSpace(Profile.Args)) parts.Add("自定义参数");
             return parts.Count == 0 ? "已保存方案（默认策略）" : string.Join(" · ", parts);
         }
     }

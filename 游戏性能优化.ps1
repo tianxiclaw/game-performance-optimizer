@@ -3282,25 +3282,103 @@ function Get-TxSteamRoots {
     return @($roots.ToArray())
 }
 
+function Test-TxGameExeCandidate([string]$path) {
+    if (-not $path) { return $false }
+    $name = [IO.Path]::GetFileName($path)
+    if ($name -match '(?i)unins|setup|install|vcredist|redist|dxsetup|dxwebsetup|crash|report|update|dotnet|benchmark|bugreport|tinydl|teniodl|launcher|proxy|helper|service|sguard|anticheat|icreate|ffmpeg|ffprobe|obs-|recorder|epicwebhelper|msdk|cosupload|crossproxy|browser|diagnose') { return $false }
+    if ($path -match '(?i)\\(engine|thirdparty|redist|runtime|plugins|anticheatexpert|icreatesdk|recorder-release|aclos|common_apps|downloading)(\\|$)') { return $false }
+    return $true
+}
+
 function Find-TxGameExe([string]$dir, [string]$name) {
     if (-not $dir -or -not (Test-Path -LiteralPath $dir)) { return '' }
     $best = ''
     try {
-        $exes = @(Get-ChildItem -LiteralPath $dir -Filter *.exe -File -Recurse -Depth 2 -ErrorAction SilentlyContinue)
+        $exes = @(Get-ChildItem -LiteralPath $dir -Filter *.exe -File -Recurse -Depth 2 -ErrorAction SilentlyContinue |
+            Where-Object { Test-TxGameExeCandidate $_.FullName })
         if ($exes.Count -eq 0) { return '' }
-        $bad = '(?i)unins|setup|install|vcredist|redist|dxsetup|dxwebsetup|crash|report|update|dotnet|benchmark'
         $key = ($name -replace '[^0-9A-Za-z\u4e00-\u9fa5]', '').ToLowerInvariant()
         $max = 0
         foreach ($e in $exes) {
-            if ($e.Name -match $bad) { continue }
             $n = [IO.Path]::GetFileNameWithoutExtension($e.Name).ToLowerInvariant()
-            if ($n -match 'launcher' -and $exes.Count -gt 1) { continue }
             $k = ($n -replace '[^0-9A-Za-z\u4e00-\u9fa5]', '')
             if ($key.Length -ge 3 -and $k.Length -ge 3 -and ($key.Contains($k) -or $k.Contains($key))) { return $e.FullName }
             if ($e.Length -gt $max) { $max = $e.Length; $best = $e.FullName }
         }
     } catch {}
     return $best
+}
+
+function Find-TxWeGameExe([string]$dir) {
+    if (-not $dir -or -not (Test-Path -LiteralPath $dir)) { return '' }
+    $best = ''
+    $bestScore = [long]-1
+    try {
+        $exes = @(Get-ChildItem -LiteralPath $dir -Filter *.exe -File -Recurse -ErrorAction SilentlyContinue)
+        foreach ($e in $exes) {
+            if ([long]$e.Length -lt 1048576) { continue }
+            if (-not (Test-TxGameExeCandidate $e.FullName)) { continue }
+            $score = [long]$e.Length
+            if ($e.Name -match '(?i)-Win64-Shipping\.exe$') { $score += [long]5000000000 }
+            if ($e.FullName -match '(?i)\\Binaries\\Win64\\') { $score += [long]1000000000 }
+            if ($score -gt $bestScore) { $bestScore = $score; $best = $e.FullName }
+        }
+    } catch {}
+    return $best
+}
+
+function Get-TxWeGameRoots {
+    $roots = New-Object System.Collections.ArrayList
+    $cands = New-Object System.Collections.ArrayList
+    if ($env:ProgramFiles) { [void]$cands.Add((Join-Path $env:ProgramFiles 'WeGameApps')) }
+    if (${env:ProgramFiles(x86)}) { [void]$cands.Add((Join-Path ${env:ProgramFiles(x86)} 'WeGameApps')) }
+    try {
+        foreach ($d in [IO.DriveInfo]::GetDrives()) {
+            try {
+                if ($d.DriveType -eq [IO.DriveType]::Fixed -and $d.IsReady) {
+                    [void]$cands.Add((Join-Path $d.RootDirectory.FullName 'WeGameApps'))
+                }
+            } catch {}
+        }
+    } catch {}
+    foreach ($c in @($cands.ToArray())) {
+        if (-not $c) { continue }
+        if (-not (Test-Path -LiteralPath $c)) { continue }
+        try { $c = [IO.Path]::GetFullPath($c) } catch { continue }
+        $have = $false
+        foreach ($x in $roots) { if ($x -eq $c) { $have = $true; break } }
+        if (-not $have) { [void]$roots.Add($c) }
+    }
+    return @($roots.ToArray())
+}
+
+function Get-TxWeGameGames {
+    $out = New-Object System.Collections.ArrayList
+    foreach ($root in @(Get-TxWeGameRoots)) {
+        $rail = Join-Path $root 'rail_apps'
+        if (-not (Test-Path -LiteralPath $rail)) { continue }
+        foreach ($g in @(Get-ChildItem -LiteralPath $rail -Directory -ErrorAction SilentlyContinue)) {
+            try {
+                $name = [string]$g.Name
+                $appId = ''
+                $m = [regex]::Match($name, '^(.*?)\s*\((\d+)\)\s*$')
+                if ($m.Success) { $name = $m.Groups[1].Value.Trim(); $appId = $m.Groups[2].Value }
+                $idf = Join-Path (Join-Path $g.FullName 'rail_files') 'rail_game_identify.json'
+                if (Test-Path -LiteralPath $idf) {
+                    try {
+                        $j = Get-Content -Raw -LiteralPath $idf | ConvertFrom-Json
+                        if ($j.game_id) { $appId = [string]$j.game_id }
+                    } catch {}
+                }
+                $exe = Find-TxWeGameExe $g.FullName
+                if (-not $exe) { continue }
+                [void]$out.Add([PSCustomObject]@{
+                    Name = $name; Exe = $exe; Dir = $g.FullName; Source = 'WeGame'; AppId = $appId
+                })
+            } catch {}
+        }
+    }
+    return @($out.ToArray())
 }
 
 function Get-TxSteamGames {
@@ -3385,7 +3463,10 @@ function Save-TxGameDoc($doc) {
             Manual  = @($doc.Manual)
             Profiles = $doc.Profiles
         }
-        ($obj | ConvertTo-Json -Depth 10) | Out-File -LiteralPath $TX_GAMES -Encoding UTF8
+        $json = $obj | ConvertTo-Json -Depth 10
+        $dir = Split-Path -Parent $TX_GAMES
+        if ($dir -and -not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        [IO.File]::WriteAllText($TX_GAMES, $json, (New-Object System.Text.UTF8Encoding($true)))
         return $true
     } catch { return $false }
 }
@@ -3418,6 +3499,7 @@ function Get-TxGames {
     $all = @()
     $all += @(Get-TxSteamGames)
     $all += @(Get-TxEpicGames)
+    $all += @(Get-TxWeGameGames)
     $all += @($doc.Manual | ForEach-Object {
         [PSCustomObject]@{ Name = $_.Name; Exe = $_.Exe; Dir = $_.Dir; Source = '手动'; AppId = '' }
     })
@@ -3446,23 +3528,36 @@ function Get-TxGames {
 }
 
 function Add-TxManualGame([string]$name, [string]$exe) {
-    if (-not $exe -or -not (Test-Path -LiteralPath $exe)) { throw '程序文件不存在' }
+    $exe = ([string]$exe).Trim().Trim('"')
+    if (-not $exe) { throw '请选择游戏程序' }
+    try { $exe = [IO.Path]::GetFullPath($exe) } catch {}
+    if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "程序文件不存在: $exe" }
     if (-not $name) { $name = [IO.Path]::GetFileNameWithoutExtension($exe) }
     $doc = Read-TxGameDoc
     $exists = @($doc.Manual | Where-Object { ([string]$_.Exe).ToLowerInvariant() -eq $exe.ToLowerInvariant() })
     if ($exists.Count -eq 0) {
         $doc.Manual = @(@($doc.Manual) + @([PSCustomObject]@{ Name = $name; Exe = $exe; Dir = (Split-Path -Parent $exe) }))
-        $null = Save-TxGameDoc $doc
+    } else {
+        $doc.Manual = @($doc.Manual | ForEach-Object {
+            if (([string]$_.Exe).ToLowerInvariant() -eq $exe.ToLowerInvariant()) {
+                [PSCustomObject]@{ Name = $name; Exe = $exe; Dir = (Split-Path -Parent $exe) }
+            } else { $_ }
+        })
     }
+    if (-not (Save-TxGameDoc $doc)) { throw "无法写入游戏库数据，请检查目录权限: $TX_GAMES" }
     $script:TxGameAt = [DateTime]::MinValue
     return $name
 }
 
 function Remove-TxManualGame([string]$exe) {
+    $exe = ([string]$exe).Trim().Trim('"')
+    if ($exe) { $null = Remove-TxGameProfile -exe $exe }
     $doc = Read-TxGameDoc
     $doc.Manual = @($doc.Manual | Where-Object { ([string]$_.Exe).ToLowerInvariant() -ne $exe.ToLowerInvariant() })
-    $null = Save-TxGameDoc $doc
+    if ($doc.Profiles.ContainsKey($exe.ToLowerInvariant())) { $doc.Profiles.Remove($exe.ToLowerInvariant()) }
+    if (-not (Save-TxGameDoc $doc)) { throw "无法写入游戏库数据，请检查目录权限: $TX_GAMES" }
     $script:TxGameAt = [DateTime]::MinValue
+    return '已从游戏库移除'
 }
 
 # ── 单游戏配置: 应用的注册表项都可还原 ────────────────────
@@ -3526,7 +3621,7 @@ function Save-TxGameProfile([string]$exe, $profile) {
         $p.OrigGpu = [string]$curG.Value
     }
     $doc.Profiles[$key] = [PSCustomObject]$p
-    $null = Save-TxGameDoc $doc
+    if (-not (Save-TxGameDoc $doc)) { throw "无法写入游戏库数据，请检查目录权限: $TX_GAMES" }
     $script:TxGameAt = [DateTime]::MinValue
     return $true
 }
@@ -3584,12 +3679,26 @@ function Remove-TxGameProfile([string]$exe) {
 }
 
 function Start-TxGame([string]$exe, $profile) {
-    $r = [PSCustomObject]@{ Ok = $false; Pid = 0; Msg = '' }
+    $r = [PSCustomObject]@{ Ok = $false; Pid = 0; Msg = ''; Message = '' }
     try {
+        $exe = ([string]$exe).Trim().Trim('"')
+        if (-not $exe -or -not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "程序文件不存在: $exe" }
         $wd = Split-Path -Parent $exe
-        $p = Start-Process -FilePath $exe -WorkingDirectory $wd -PassThru -ErrorAction Stop
+        $argList = @()
+        if ($profile -and $profile.Args) {
+            $argText = ([string]$profile.Args).Trim()
+            if ($argText) {
+                $argList = @([regex]::Matches($argText, '"[^"]*"|\S+') | ForEach-Object { $_.Value.Trim('"') })
+            }
+        }
+        $useAdmin = $false
+        try { $useAdmin = [bool]$profile.RunAsAdmin } catch {}
+        $sp = @{ FilePath = $exe; WorkingDirectory = $wd; PassThru = $true; ErrorAction = 'Stop' }
+        if ($argList.Count -gt 0) { $sp.ArgumentList = $argList }
+        if ($useAdmin) { $sp.Verb = 'RunAs' }
+        $p = Start-Process @sp
         $r.Pid = [int]$p.Id
-        $prio = 'Normal'
+        $prio = '默认'
         $aff = '全部核心'
         try {
             if ($profile.Priority -eq 'High') { $p.PriorityClass = [Diagnostics.ProcessPriorityClass]::High; $prio = '高' }
@@ -3609,6 +3718,7 @@ function Start-TxGame([string]$exe, $profile) {
         $r.Ok = $true
         $r.Msg = "已启动 · 优先级 $prio · 亲和性 $aff"
     } catch { $r.Msg = $_.Exception.Message }
+    $r.Message = $r.Msg
     return $r
 }
 
