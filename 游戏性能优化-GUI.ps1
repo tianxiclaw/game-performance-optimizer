@@ -22,7 +22,7 @@ try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 # 设置文件默认放在脚本目录; TX_GUI_SETTINGS 仅用于测试时指向临时文件
 $script:GuiSettingsFile = Join-Path $PSScriptRoot 'gui-settings.json'
 if ($env:TX_GUI_SETTINGS) { $script:GuiSettingsFile = [string]$env:TX_GUI_SETTINGS }
-$script:AppVersion = '5.0.9'
+$script:AppVersion = '5.0.10'
 $script:RepoSlug   = 'tianxiclaw/game-performance-optimizer'
 $script:GuiCfg = [ordered]@{
     ExperimentalDpi = $false
@@ -140,25 +140,27 @@ Add-Type -AssemblyName System.Core
 [System.Windows.Forms.Application]::SetCompatibleTextRenderingDefault($false)
 
 # ── 主题 ─────────────────────────────────────────────────
-$script:C_BG      = [Drawing.Color]::FromArgb(11,14,20)
-$script:C_PANEL   = [Drawing.Color]::FromArgb(18,23,34)
-$script:C_PANEL2  = [Drawing.Color]::FromArgb(14,19,28)
-$script:C_BORDER  = [Drawing.Color]::FromArgb(38,49,68)
+$script:C_BG      = [Drawing.Color]::FromArgb(11,15,22)
+$script:C_PANEL   = [Drawing.Color]::FromArgb(18,24,36)
+$script:C_PANEL2  = [Drawing.Color]::FromArgb(14,20,29)
+$script:C_BORDER  = [Drawing.Color]::FromArgb(38,50,74)
 $script:C_TEXT    = [Drawing.Color]::FromArgb(230,237,243)
 $script:C_SUB     = [Drawing.Color]::FromArgb(143,163,184)
 $script:C_DIM     = [Drawing.Color]::FromArgb(100,116,139)
-$script:C_CYAN    = [Drawing.Color]::FromArgb(0,229,255)
-$script:C_GREEN   = [Drawing.Color]::FromArgb(0,230,118)
-$script:C_ORANGE  = [Drawing.Color]::FromArgb(255,179,0)
-$script:C_RED     = [Drawing.Color]::FromArgb(255,82,82)
-$script:C_PURPLE  = [Drawing.Color]::FromArgb(124,77,255)
-$script:C_BLUE    = [Drawing.Color]::FromArgb(41,121,255)
-$script:C_GREEN_BG  = [Drawing.Color]::FromArgb(18,53,40)
-$script:C_GREEN_BD  = [Drawing.Color]::FromArgb(31,107,74)
-$script:C_ORANGE_BG = [Drawing.Color]::FromArgb(42,33,19)
-$script:C_ORANGE_BD = [Drawing.Color]::FromArgb(122,90,24)
-$script:C_GRAY_BG   = [Drawing.Color]::FromArgb(26,33,48)
+$script:C_CYAN    = [Drawing.Color]::FromArgb(76,194,224)
+$script:C_GREEN   = [Drawing.Color]::FromArgb(61,214,140)
+$script:C_ORANGE  = [Drawing.Color]::FromArgb(230,180,92)
+$script:C_RED     = [Drawing.Color]::FromArgb(240,113,120)
+$script:C_PURPLE  = [Drawing.Color]::FromArgb(139,124,246)
+$script:C_BLUE    = [Drawing.Color]::FromArgb(96,165,250)
+$script:C_GREEN_BG  = [Drawing.Color]::FromArgb(17,46,36)
+$script:C_GREEN_BD  = [Drawing.Color]::FromArgb(38,104,76)
+$script:C_ORANGE_BG = [Drawing.Color]::FromArgb(43,35,22)
+$script:C_ORANGE_BD = [Drawing.Color]::FromArgb(113,88,42)
+$script:C_GRAY_BG   = [Drawing.Color]::FromArgb(26,34,49)
 $script:C_GRAY_BD   = [Drawing.Color]::FromArgb(51,65,85)
+$script:C_RED_BG    = [Drawing.Color]::FromArgb(48,24,28)
+$script:C_RED_BD    = [Drawing.Color]::FromArgb(122,50,56)
 
 # 浅色主题: 只替换语义色板; 内联颜色统一走 TC() 做映射
 $script:ThemeName = 'dark'
@@ -171,9 +173,9 @@ if ($script:ThemeName -eq 'light') {
     $script:C_TEXT    = [Drawing.Color]::FromArgb(30,41,59)
     $script:C_SUB     = [Drawing.Color]::FromArgb(71,85,105)
     $script:C_DIM     = [Drawing.Color]::FromArgb(100,116,139)
-    $script:C_CYAN    = [Drawing.Color]::FromArgb(0,132,158)
-    $script:C_GREEN   = [Drawing.Color]::FromArgb(0,145,80)
-    $script:C_ORANGE  = [Drawing.Color]::FromArgb(190,118,0)
+    $script:C_CYAN    = [Drawing.Color]::FromArgb(0,115,140)
+    $script:C_GREEN   = [Drawing.Color]::FromArgb(0,128,72)
+    $script:C_ORANGE  = [Drawing.Color]::FromArgb(163,98,0)
     $script:C_RED     = [Drawing.Color]::FromArgb(200,45,45)
     $script:C_PURPLE  = [Drawing.Color]::FromArgb(96,64,200)
     $script:C_BLUE    = [Drawing.Color]::FromArgb(28,92,205)
@@ -183,6 +185,8 @@ if ($script:ThemeName -eq 'light') {
     $script:C_ORANGE_BD = [Drawing.Color]::FromArgb(235,199,136)
     $script:C_GRAY_BG   = [Drawing.Color]::FromArgb(240,244,249)
     $script:C_GRAY_BD   = [Drawing.Color]::FromArgb(214,222,232)
+    $script:C_RED_BG    = [Drawing.Color]::FromArgb(254,236,238)
+    $script:C_RED_BD    = [Drawing.Color]::FromArgb(238,172,176)
 }
 
 function Get-TxHsl([int]$r, [int]$g, [int]$b) {
@@ -356,19 +360,16 @@ function New-PageHero($page, [string]$eyebrow, [string]$title, [string]$subtitle
             $g = $e.Graphics
             $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
             $r = New-Object Drawing.Rectangle -ArgumentList @(0, 0, ($s.Width - 1), ($s.Height - 1))
-            $lg = New-Object System.Drawing.Drawing2D.LinearGradientBrush -ArgumentList @($r, (TC 12 34 50), (TC 30 22 60), [single](20 * $sc))
+            $lg = New-Object System.Drawing.Drawing2D.LinearGradientBrush -ArgumentList @($r, (TC 14 32 46), (TC 24 28 52), [single](20 * $sc))
             $g.FillRectangle($lg, $r)
             $lg.Dispose()
-            $ar = New-Object Drawing.Rectangle -ArgumentList @(0, 1, $s.Width, [int](3 * $sc))
-            $ag = New-Object System.Drawing.Drawing2D.LinearGradientBrush -ArgumentList @($ar, $script:C_CYAN, $script:C_PURPLE, [single]0)
+            $ar = New-Object Drawing.Rectangle -ArgumentList @(0, 1, $s.Width, [int](2 * $sc))
+            $ag = New-Object Drawing.SolidBrush -ArgumentList @($script:C_CYAN)
             $g.FillRectangle($ag, $ar)
             $ag.Dispose()
-            $glow = New-Object Drawing.SolidBrush -ArgumentList @((TC 18 0 229 255))
-            $g.FillEllipse($glow, ($s.Width - 240 * $sc), (-100 * $sc), (260 * $sc), (260 * $sc))
+            $glow = New-Object Drawing.SolidBrush -ArgumentList @((TC 10 76 194 224))
+            $g.FillEllipse($glow, ($s.Width - 260 * $sc), (-130 * $sc), (300 * $sc), (300 * $sc))
             $glow.Dispose()
-            $glow2 = New-Object Drawing.SolidBrush -ArgumentList @((TC 12 124 77 255))
-            $g.FillEllipse($glow2, ($s.Width - 430 * $sc), (70 * $sc), (240 * $sc), (200 * $sc))
-            $glow2.Dispose()
             $tg = $s.Tag
             $b1 = New-Object Drawing.SolidBrush -ArgumentList @($script:C_CYAN)
             $g.DrawString([string]$tg.Eyebrow, $script:PageHF.Tag, $b1, (24 * $sc), (12 * $sc))
@@ -376,7 +377,7 @@ function New-PageHero($page, [string]$eyebrow, [string]$title, [string]$subtitle
             $b2 = New-Object Drawing.SolidBrush -ArgumentList @($script:C_TEXT)
             $g.DrawString([string]$tg.Title, $script:PageHF.Title, $b2, (22 * $sc), (28 * $sc))
             $b2.Dispose()
-            $b3 = New-Object Drawing.SolidBrush -ArgumentList @((TC 168 199 216))
+            $b3 = New-Object Drawing.SolidBrush -ArgumentList @($script:C_SUB)
             $g.DrawString([string]$tg.Subtitle, $script:PageHF.Sub, $b3, (24 * $sc), (60 * $sc))
             $b3.Dispose()
         } catch {}
@@ -386,16 +387,16 @@ function New-PageHero($page, [string]$eyebrow, [string]$title, [string]$subtitle
     if ($null -ne $stats) {
         $arr = @($stats)
         $n = $arr.Count
-        $sx = $w - (100 * $n)
+        $sx = $w - (104 * $n)
         for ($i = 0; $i -lt $n; $i++) {
             $st = $arr[$i]
             $fg = $script:C_TEXT
             if ($st.ContainsKey('C')) { $fg = $st.C }
-            $sz = 11
+            $sz = 18
             if ($st.ContainsKey('S')) { $sz = [double]$st.S }
-            $v = New-Label $card ([string]$st.V) ($sx + $i * 100) 28 96 30 $sz $true $fg 'MiddleRight'
+            $v = New-Label $card ([string]$st.V) ($sx + $i * 104) 28 100 34 $sz $true $fg 'MiddleRight'
             $v.Anchor = 'Top, Right'
-            $cp = New-Label $card ([string]$st.T) ($sx + $i * 100) 60 96 18 8 $false $script:C_SUB 'MiddleRight'
+            $cp = New-Label $card ([string]$st.T) ($sx + $i * 104) 64 100 18 8.5 $false $script:C_SUB 'MiddleRight'
             $cp.Anchor = 'Top, Right'
             [void]$vals.Add($v)
             [void]$caps.Add($cp)
@@ -432,44 +433,32 @@ function New-Check($parent, $text, [int]$x, [int]$y, [int]$w, [int]$h, [bool]$ch
 }
 
 function New-Combo($parent, [int]$x, [int]$y, [int]$w) {
-    $c = New-Object System.Windows.Forms.ComboBox
+    $c = New-Object TxUi.Combo
     $c.Location = New-Object Drawing.Point -ArgumentList @($x, $y)
-    $c.Size = New-Object Drawing.Size -ArgumentList @($w, 28)
-    $c.DropDownStyle = 'DropDownList'
-    $c.FlatStyle = 'Flat'
-    $c.BackColor = $script:C_PANEL2
-    $c.ForeColor = $script:C_TEXT
+    $c.Size = New-Object Drawing.Size -ArgumentList @($w, 30)
     $c.Font = F 9
-    $c.DrawMode = 'OwnerDrawFixed'
-    $c.ItemHeight = [int][Math]::Round(22 * $script:UI_SCALE)
-    $c.Add_DrawItem({
-        param($s, $e)
-        if ($e.Index -lt 0) { return }
-        $sc = [double]$script:UI_SCALE
-        $bg = $script:C_PANEL2
-        if (($e.State -band [System.Windows.Forms.DrawItemState]::Selected) -ne 0) { $bg = (TC 30 42 58) }
-        $br = New-Object Drawing.SolidBrush -ArgumentList @($bg)
-        $e.Graphics.FillRectangle($br, $e.Bounds)
-        $br.Dispose()
-        $tb = New-Object Drawing.SolidBrush -ArgumentList @($script:C_TEXT)
-        $txt = $s.Items[$e.Index].ToString()
-        $e.Graphics.DrawString($txt, $s.Font, $tb, ($e.Bounds.X + 6 * $sc), ($e.Bounds.Y + 3 * $sc))
-        $tb.Dispose()
-    })
+    $c.FillColor = $script:C_PANEL2
+    $c.BorderColor = $script:C_BORDER
+    $c.TextColor = $script:C_TEXT
+    $c.MutedColor = $script:C_DIM
+    $c.HoverColor = (TC 24 34 49)
+    $c.Radius = [int](8 * $script:UI_SCALE)
     $parent.Controls.Add($c)
     return $c
 }
 
 function New-TextBox($parent, [int]$x, [int]$y, [int]$w, [int]$h, [string]$placeholder) {
-    $t = New-Object System.Windows.Forms.TextBox
+    $t = New-Object TxUi.Input
     $t.Location = New-Object Drawing.Point -ArgumentList @($x, $y)
     $t.Size = New-Object Drawing.Size -ArgumentList @($w, $h)
-    $t.BorderStyle = 'FixedSingle'
     $t.BackColor = $script:C_PANEL2
     $t.ForeColor = $script:C_DIM
+    $t.BorderColor = $script:C_BORDER
+    $t.FocusBorderColor = $script:C_CYAN
     $t.Font = F 9
     $t.Text = $placeholder
     $t.Tag = @{ Placeholder = $placeholder; Active = $false }
+    $t.Add_KeyDown({ param($s, $e) if ($e.KeyCode -eq 'Enter') { $e.SuppressKeyPress = $true } })
     $t.Add_GotFocus({
         param($s, $e)
         if (-not $s.Tag.Active) { $s.Text = ''; $s.ForeColor = $script:C_TEXT; $s.Tag.Active = $true }
@@ -506,6 +495,7 @@ function Set-Round($ctrl, [int]$r) {
 # ── 自定义控件 ───────────────────────────────────────────
 $cs = @'
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
@@ -552,6 +542,360 @@ namespace TxUi
         {
             if (!DarkEnabled) return;
             try { SetWindowTheme(h, "DarkMode_Explorer", null); } catch { }
+        }
+
+        // 输入类控件（ComboBox / TextBox）用 CFD 主题，去掉系统白边
+        public static void DarkControl(IntPtr h)
+        {
+            if (!DarkEnabled) return;
+            try { SetWindowTheme(h, "DarkMode_CFD", null); } catch { }
+        }
+
+        private delegate bool EnumChildProc(IntPtr hWnd, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern bool EnumChildWindows(IntPtr hWndParent, EnumChildProc lpEnumFunc, IntPtr lParam);
+
+        // 递归给子窗口（表格滚动条 / 输入框内部窗口）应用深色主题
+        public static void DarkChildren(IntPtr h)
+        {
+            if (!DarkEnabled) return;
+            try
+            {
+                EnumChildWindows(h, delegate(IntPtr child, IntPtr p)
+                {
+                    try { SetWindowTheme(child, "DarkMode_Explorer", null); } catch { }
+                    return true;
+                }, IntPtr.Zero);
+            }
+            catch { }
+        }
+    }
+
+    // 自绘下拉框: 系统 ComboBox 的白边和箭头在深色主题下无法彻底去掉
+    public class Combo : Control
+    {
+        public class ItemCollection
+        {
+            private readonly Combo _owner;
+            private readonly List<string> _list = new List<string>();
+
+            public ItemCollection(Combo owner) { _owner = owner; }
+
+            public int Count { get { return _list.Count; } }
+
+            public string this[int index]
+            {
+                get { return _list[index]; }
+                set
+                {
+                    _list[index] = value == null ? "" : value;
+                    if (_owner.SelectedIndex == index) _owner.Invalidate();
+                }
+            }
+
+            public void Add(string text) { _list.Add(text == null ? "" : text); _owner.Invalidate(); }
+            public void AddRange(string[] items)
+            {
+                if (items == null) return;
+                for (int i = 0; i < items.Length; i++) _list.Add(items[i] == null ? "" : items[i]);
+                _owner.Invalidate();
+            }
+            public void Clear() { _list.Clear(); _owner.SelectedIndex = -1; _owner.Invalidate(); }
+            public int IndexOf(string text) { return _list.IndexOf(text); }
+        }
+
+        public Color FillColor = Color.FromArgb(14, 20, 29);
+        public Color BorderColor = Color.FromArgb(38, 50, 74);
+        public Color TextColor = Color.FromArgb(230, 237, 243);
+        public Color MutedColor = Color.FromArgb(100, 116, 139);
+        public Color HoverColor = Color.FromArgb(24, 34, 49);
+        public int Radius = 8;
+
+        private readonly ItemCollection _items;
+        private ContextMenuStrip _menu;
+        private int _selected = -1;
+        private bool _hover = false;
+        private bool _open = false;
+
+        public event EventHandler SelectedIndexChanged;
+
+        public Combo()
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.UserPaint | ControlStyles.ResizeRedraw | ControlStyles.Selectable, true);
+            SetStyle(ControlStyles.SupportsTransparentBackColor, true);
+            BackColor = Color.Transparent;
+            _items = new ItemCollection(this);
+            Height = 30;
+            Cursor = Cursors.Hand;
+            TabStop = true;
+        }
+
+        public ItemCollection Items { get { return _items; } }
+
+        public int SelectedIndex
+        {
+            get { return _selected; }
+            set
+            {
+                int v = value;
+                if (v < -1) v = -1;
+                if (v >= _items.Count) v = _items.Count - 1;
+                if (_selected == v) return;
+                _selected = v;
+                Invalidate();
+                if (SelectedIndexChanged != null) SelectedIndexChanged(this, EventArgs.Empty);
+            }
+        }
+
+        public string SelectedItem
+        {
+            get { return (_selected >= 0 && _selected < _items.Count) ? _items[_selected] : null; }
+        }
+
+        public override string Text
+        {
+            get { return SelectedItem == null ? "" : SelectedItem; }
+            set { }
+        }
+
+        private GraphicsPath RoundPath(Rectangle r, int radius)
+        {
+            GraphicsPath p = new GraphicsPath();
+            int d = radius * 2;
+            if (d > r.Width) d = r.Width;
+            if (d > r.Height) d = r.Height;
+            if (d <= 1)
+            {
+                p.AddRectangle(r);
+                return p;
+            }
+            p.AddArc(r.X, r.Y, d, d, 180, 90);
+            p.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+            p.CloseFigure();
+            return p;
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            Rectangle r = new Rectangle(0, 0, Width - 1, Height - 1);
+            using (GraphicsPath path = RoundPath(r, Radius))
+            {
+                using (SolidBrush b = new SolidBrush(FillColor)) g.FillPath(b, path);
+                Color bc = (_hover || _open) ? TextColor : BorderColor;
+                if (!Enabled) bc = BorderColor;
+                using (Pen p = new Pen(bc)) g.DrawPath(p, path);
+            }
+            float sc = DeviceDpi / 96f;
+            string txt = SelectedItem == null ? "" : SelectedItem;
+            Color tc = Enabled ? TextColor : MutedColor;
+            using (SolidBrush b = new SolidBrush(tc))
+            {
+                StringFormat sf = new StringFormat();
+                sf.LineAlignment = StringAlignment.Center;
+                sf.Trimming = StringTrimming.EllipsisCharacter;
+                sf.FormatFlags = StringFormatFlags.NoWrap;
+                g.DrawString(txt, Font, b, new RectangleF(10 * sc, 0, Width - 30 * sc, Height), sf);
+                sf.Dispose();
+            }
+            using (Pen p = new Pen(Enabled ? MutedColor : BorderColor, 1.4f))
+            {
+                float cx = Width - 15 * sc;
+                float cy = Height / 2f;
+                g.DrawLines(p, new PointF[] {
+                    new PointF(cx - 4 * sc, cy - 2 * sc),
+                    new PointF(cx, cy + 2 * sc),
+                    new PointF(cx + 4 * sc, cy - 2 * sc)
+                });
+            }
+        }
+
+        protected override void OnMouseEnter(EventArgs e) { _hover = true; Invalidate(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { _hover = false; Invalidate(); base.OnMouseLeave(e); }
+        protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
+        protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
+            {
+                Focus();
+                ShowMenu();
+            }
+            base.OnMouseDown(e);
+        }
+
+        protected override void OnMouseWheel(MouseEventArgs e)
+        {
+            if (e.Delta > 0) { if (_selected > 0) SelectedIndex = _selected - 1; }
+            else if (e.Delta < 0) { if (_selected < _items.Count - 1) SelectedIndex = _selected + 1; }
+            base.OnMouseWheel(e);
+        }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Down) { if (_selected < _items.Count - 1) SelectedIndex = _selected + 1; e.Handled = true; }
+            else if (e.KeyCode == Keys.Up) { if (_selected > 0) SelectedIndex = _selected - 1; e.Handled = true; }
+            else if (e.KeyCode == Keys.Space || e.KeyCode == Keys.Enter) { ShowMenu(); e.Handled = true; }
+            else if (e.KeyCode == Keys.Escape && _open) { _menu.Close(); e.Handled = true; }
+            base.OnKeyDown(e);
+        }
+
+        private void ShowMenu()
+        {
+            if (!Enabled || _items.Count == 0) return;
+            if (_open) { _menu.Close(); return; }
+            if (_menu != null) _menu.Dispose();
+            _menu = new ContextMenuStrip();
+            _menu.ShowImageMargin = false;
+            _menu.ShowCheckMargin = false;
+            _menu.Padding = new Padding(0, 4, 0, 4);
+            _menu.BackColor = FillColor;
+            _menu.ForeColor = TextColor;
+            _menu.Font = Font;
+            _menu.Renderer = new ComboMenuRenderer(this);
+            _menu.Closed += delegate { _open = false; Invalidate(); };
+            for (int i = 0; i < _items.Count; i++)
+            {
+                int idx = i;
+                string prefix = (i == _selected) ? "●  " : "    ";
+                ToolStripMenuItem mi = new ToolStripMenuItem(prefix + _items[i]);
+                mi.ForeColor = TextColor;
+                mi.BackColor = FillColor;
+                mi.Padding = new Padding(2, 5, 10, 5);
+                mi.Click += delegate { SelectedIndex = idx; };
+                _menu.Items.Add(mi);
+            }
+            _menu.MinimumSize = new Size(Width, 0);
+            _open = true;
+            Invalidate();
+            _menu.Show(this, 0, Height);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && _menu != null) _menu.Dispose();
+            base.Dispose(disposing);
+        }
+
+        private class ComboMenuRenderer : ToolStripProfessionalRenderer
+        {
+            private readonly Combo _owner;
+            public ComboMenuRenderer(Combo owner) : base(new ComboColorTable(owner))
+            {
+                _owner = owner;
+                RoundedEdges = false;
+            }
+            protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
+            {
+                Rectangle r = new Rectangle(0, 0, e.Item.Width, e.Item.Height);
+                using (SolidBrush b = new SolidBrush(e.Item.Selected ? _owner.HoverColor : _owner.FillColor))
+                {
+                    e.Graphics.FillRectangle(b, r);
+                }
+            }
+            protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+            {
+                e.TextColor = e.Item.Enabled ? _owner.TextColor : _owner.MutedColor;
+                base.OnRenderItemText(e);
+            }
+        }
+
+        private class ComboColorTable : ProfessionalColorTable
+        {
+            private readonly Combo _owner;
+            public ComboColorTable(Combo owner) { _owner = owner; }
+            public override Color ToolStripDropDownBackground { get { return _owner.FillColor; } }
+            public override Color MenuBorder { get { return _owner.BorderColor; } }
+            public override Color MenuItemSelected { get { return _owner.HoverColor; } }
+            public override Color MenuItemBorder { get { return _owner.HoverColor; } }
+            public override Color ImageMarginGradientBegin { get { return _owner.FillColor; } }
+            public override Color ImageMarginGradientMiddle { get { return _owner.FillColor; } }
+            public override Color ImageMarginGradientEnd { get { return _owner.FillColor; } }
+            public override Color SeparatorDark { get { return _owner.BorderColor; } }
+            public override Color SeparatorLight { get { return _owner.BorderColor; } }
+        }
+    }
+
+    // 自绘输入框: 去掉系统白边, 保留多行高度以对齐 30/32px 控件
+    public class Input : TextBox
+    {
+        public Color BorderColor = Color.FromArgb(38, 50, 74);
+        public Color FocusBorderColor = Color.FromArgb(76, 194, 224);
+        private bool _focused = false;
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+        public Input()
+        {
+            BorderStyle = BorderStyle.None;
+            Multiline = true;
+            WordWrap = false;
+            AcceptsReturn = false;
+            ScrollBars = ScrollBars.None;
+            SetStyle(ControlStyles.OptimizedDoubleBuffer, true);
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            ApplyMargins();
+        }
+
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            ApplyMargins();
+        }
+
+        private void ApplyMargins()
+        {
+            if (!IsHandleCreated) return;
+            float sc = DeviceDpi / 96f;
+            int left = (int)Math.Round(10 * sc);
+            int right = (int)Math.Round(8 * sc);
+            SendMessage(Handle, 0xD3, (IntPtr)3, (IntPtr)((right << 16) | (left & 0xFFFF)));
+            int top = Math.Max(0, (Height - Font.Height) / 2);
+            RECT rc = new RECT();
+            rc.Left = left;
+            rc.Top = top;
+            rc.Right = Math.Max(left + 1, Width - right);
+            rc.Bottom = Math.Max(top + 1, Height - 2);
+            SendMessage(Handle, 0xB3, IntPtr.Zero, ref rc);
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, ref RECT lParam);
+
+        protected override void OnGotFocus(EventArgs e) { _focused = true; Invalidate(); base.OnGotFocus(e); }
+        protected override void OnLostFocus(EventArgs e) { _focused = false; Invalidate(); base.OnLostFocus(e); }
+
+        protected override void WndProc(ref Message m)
+        {
+            base.WndProc(ref m);
+            if (m.Msg == 0x000F && IsHandleCreated)
+            {
+                try
+                {
+                    using (Graphics g = Graphics.FromHwnd(Handle))
+                    {
+                        using (Pen p = new Pen(_focused ? FocusBorderColor : BorderColor))
+                        {
+                            g.DrawRectangle(p, 0, 0, Width - 1, Height - 1);
+                        }
+                    }
+                }
+                catch { }
+            }
         }
     }
 
@@ -1022,6 +1366,7 @@ namespace TxUi
         private Point _dragStart;
         private Point _dragOrigin;
         public bool UserClosed = false;
+        public Label VerLabel;
 
         public SplashForm() : this(1f) { }
 
@@ -1061,13 +1406,13 @@ namespace TxUi
             _bar.SetBounds(32, 112, 396, 7);
             Controls.Add(_bar);
 
-            Label ver = new Label();
-            ver.Text = "v5.0 · 硬件兼容版 · 所有改动均可还原";
-            ver.Font = new Font("Microsoft YaHei UI", 8f);
-            ver.ForeColor = Color.FromArgb(100, 116, 139);
-            ver.BackColor = Color.Transparent;
-            ver.SetBounds(32, 142, 396, 20);
-            Controls.Add(ver);
+            VerLabel = new Label();
+            VerLabel.Text = "硬件兼容版 · 所有改动均可还原";
+            VerLabel.Font = new Font("Microsoft YaHei UI", 8f);
+            VerLabel.ForeColor = Color.FromArgb(100, 116, 139);
+            VerLabel.BackColor = Color.Transparent;
+            VerLabel.SetBounds(32, 142, 396, 20);
+            Controls.Add(VerLabel);
 
             Label hint = new Label();
             hint.Text = "可拖动 · 可关闭 · 加载期间界面保持响应";
@@ -1094,7 +1439,7 @@ namespace TxUi
             EnableDrag(title);
             EnableDrag(_sub);
             EnableDrag(_bar);
-            EnableDrag(ver);
+            EnableDrag(VerLabel);
             EnableDrag(hint);
             KeyDown += delegate(object s, KeyEventArgs e)
             {
@@ -1200,6 +1545,7 @@ try { [TxUi.Native]::DarkEnabled = ($script:ThemeName -ne 'light') } catch {}
 $script:SplashState = [hashtable]::Synchronized(@{
     Ready = $false; Closed = $false; Done = $false; Form = $null; Error = $null
     Scale = [double]$script:UI_SCALE
+    Version = [string]$script:AppVersion
 })
 $script:SplashScript = @'
 param($State)
@@ -1208,6 +1554,7 @@ try {
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
     $f = New-Object TxUi.SplashForm -ArgumentList @([single]$State.Scale)
+    try { $f.VerLabel.Text = "v$($State.Version) · 硬件兼容版 · 所有改动均可还原" } catch {}
     $State.Form = $f
     $f.Add_Shown({ $State.Ready = $true })
     [System.Windows.Forms.Application]::Run($f)
@@ -1313,7 +1660,7 @@ $form = New-Object TxUi.MainForm
 # 启动期间用户已切到别的程序时, 界面安静出现并闪任务栏, 不抢焦点
 $form.QuietShow = $false
 try { if (-not $Preview -and -not $SelfTest) { $form.QuietShow = -not [TxUi.Boot]::ShouldActivate() } } catch {}
-$form.Text = '游戏性能优化中心 v5.0'
+$form.Text = "游戏性能优化中心 v$($script:AppVersion)"
 $form.BackColor = $script:C_BG
 $form.ForeColor = $script:C_TEXT
 $form.Font = F 9
@@ -1329,12 +1676,12 @@ $maxW = [int]($wa.Width / $script:UI_SCALE) - 40
 $maxH = [int]($wa.Height / $script:UI_SCALE) - 40
 if ($maxW -lt 900) { $maxW = 900 }
 if ($maxH -lt 560) { $maxH = 560 }
-$fw = [Math]::Min(1240, $maxW)
-$fh = [Math]::Min(800, $maxH)
-if ($fw -lt 1080) { $fw = [Math]::Min(1080, $maxW) }
-if ($fh -lt 660)  { $fh = [Math]::Min(660, $maxH) }
-$script:MinW = [Math]::Min(1080, $fw)
-$script:MinH = [Math]::Min(660, $fh)
+$fw = [Math]::Min(1320, $maxW)
+$fh = [Math]::Min(840, $maxH)
+if ($fw -lt 1180) { $fw = [Math]::Min(1180, $maxW) }
+if ($fh -lt 700)  { $fh = [Math]::Min(700, $maxH) }
+$script:MinW = [Math]::Min(1180, $fw)
+$script:MinH = [Math]::Min(700, $fh)
 $form.ClientSize = New-Object Drawing.Size -ArgumentList @($fw, $fh)
 $form.MinimumSize = New-Object Drawing.Size -ArgumentList @($script:MinW, $script:MinH)
 
@@ -1462,7 +1809,7 @@ foreach ($nd in $navDefs) {
     $script:UI.NavBtns[$nd.Key] = $nb
     $ny += 46
 }
-$navFoot = New-Label $nav "v5.0`n核显 / 独显 / 混合显卡`n本地运行 · 不上传数据" 20 ($fh - 200) 164 64 8 $false $script:C_DIM
+$navFoot = New-Label $nav "v$($script:AppVersion)`n核显 / 独显 / 混合显卡`n本地运行 · 不上传数据" 20 ($fh - 200) 164 64 8 $false $script:C_DIM
 $navFoot.Anchor = 'Bottom, Left'
 
 # 底部状态栏
@@ -1479,7 +1826,7 @@ $lblRender = New-Label $statusBar '' ($fw - 600) 3 300 20 8.5 $false $script:C_D
 $lblRender.Anchor = 'Top, Right'
 $lblRender.Visible = [bool]$script:GuiCfg.ShowRenderInfo
 $script:UI.Render = $lblRender
-$lblStatusR = New-Label $statusBar "v5.0 · $statusMode" ($fw - 280) 3 260 20 8.5 $false $script:C_DIM 'MiddleRight'
+$lblStatusR = New-Label $statusBar "v$($script:AppVersion) · $statusMode" ($fw - 280) 3 260 20 8.5 $false $script:C_DIM 'MiddleRight'
 $lblStatusR.Anchor = 'Top, Right'
 $statusLine = New-Object System.Windows.Forms.Panel
 $statusLine.Dock = 'Top'
@@ -1506,16 +1853,16 @@ function New-Page([string]$key) {
 $cw = $fw - 200
 $ov = New-Page 'overview'
 $script:UI.Ov = $ov
-$ov.AutoScrollMinSize = New-Object Drawing.Size -ArgumentList @(0, 720)
+$ov.AutoScrollMinSize = New-Object Drawing.Size -ArgumentList @(0, 700)
 
-$hero = New-Card $ov 20 16 ($cw - 40) 156 16 $script:C_PANEL $script:C_BORDER
+$hero = New-Card $ov 20 16 ($cw - 40) 126 16 $script:C_PANEL $script:C_BORDER
 $script:UI.Hero = $hero
 $script:HF = @{
     Tag = F 8 $true
-    Title = F 24 $true
+    Title = F 20 $true
     Sub = F 10
-    Stat = F 26 $true
-    StatLabel = F 8
+    Stat = F 18 $true
+    StatLabel = F 8.5
     Small = F 8
 }
 $hero.Add_Paint({
@@ -1524,24 +1871,21 @@ $hero.Add_Paint({
     $g = $e.Graphics
     $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
     $r = New-Object Drawing.Rectangle -ArgumentList @(0, 0, ($s.Width - 1), ($s.Height - 1))
-    $lg = New-Object System.Drawing.Drawing2D.LinearGradientBrush -ArgumentList @($r, (TC 12 38 52), (TC 30 26 72), [single](12 * $sc))
+    $lg = New-Object System.Drawing.Drawing2D.LinearGradientBrush -ArgumentList @($r, (TC 14 32 46), (TC 24 28 52), [single](20 * $sc))
     $g.FillRectangle($lg, $r)
     $lg.Dispose()
-    $accentRect = New-Object Drawing.Rectangle -ArgumentList @(0, 1, $s.Width, [int](3 * $sc))
-    $ag = New-Object System.Drawing.Drawing2D.LinearGradientBrush -ArgumentList @($accentRect, $script:C_CYAN, $script:C_PURPLE, [single]0)
+    $accentRect = New-Object Drawing.Rectangle -ArgumentList @(0, 1, $s.Width, [int](2 * $sc))
+    $ag = New-Object Drawing.SolidBrush -ArgumentList @($script:C_CYAN)
     $g.FillRectangle($ag, $accentRect)
     $ag.Dispose()
-    $glow1 = New-Object Drawing.SolidBrush -ArgumentList @((TC 16 0 229 255))
-    $g.FillEllipse($glow1, ($s.Width - 240 * $sc), (-90 * $sc), (260 * $sc), (260 * $sc))
+    $glow1 = New-Object Drawing.SolidBrush -ArgumentList @((TC 10 76 194 224))
+    $g.FillEllipse($glow1, ($s.Width - 260 * $sc), (-130 * $sc), (300 * $sc), (300 * $sc))
     $glow1.Dispose()
-    $glow2 = New-Object Drawing.SolidBrush -ArgumentList @((TC 14 124 77 255))
-    $g.FillEllipse($glow2, ($s.Width - 430 * $sc), (70 * $sc), (240 * $sc), (200 * $sc))
-    $glow2.Dispose()
     $bTag = New-Object Drawing.SolidBrush -ArgumentList @($script:C_CYAN)
-    $g.DrawString('TIANXI PERFORMANCE LAB · V5.0', $script:HF.Tag, $bTag, (28 * $sc), (18 * $sc))
+    $g.DrawString('TIANXI PERFORMANCE LAB', $script:HF.Tag, $bTag, (24 * $sc), (12 * $sc))
     $bTag.Dispose()
     $bTitle = New-Object Drawing.SolidBrush -ArgumentList @($script:C_TEXT)
-    $g.DrawString('游戏性能优化中心', $script:HF.Title, $bTitle, (26 * $sc), (36 * $sc))
+    $g.DrawString('游戏性能优化中心', $script:HF.Title, $bTitle, (22 * $sc), (28 * $sc))
     $bTitle.Dispose()
     $sub = '正在读取硬件信息'
     try {
@@ -1549,8 +1893,8 @@ $hero.Add_Paint({
         $sub = "$($script:MachineTxt) · $($gs -join ' + ') · $(if($isAdmin){'管理员模式'}else{'非管理员模式'})"
         if (@($script:Snap.Gpus | Where-Object Dedicated).Count -eq 0) { $sub += ' · 未检测到独显' }
     } catch {}
-    $bSub = New-Object Drawing.SolidBrush -ArgumentList @((TC 168 199 216))
-    $g.DrawString($sub, $script:HF.Sub, $bSub, (28 * $sc), (82 * $sc))
+    $bSub = New-Object Drawing.SolidBrush -ArgumentList @($script:C_SUB)
+    $g.DrawString($sub, $script:HF.Sub, $bSub, (24 * $sc), (60 * $sc))
     $bSub.Dispose()
     $chk = 0
     try { $chk = [int]$script:Snap.Summary.Checking } catch {}
@@ -1559,19 +1903,22 @@ $hero.Add_Paint({
         @{ V = $(if ($chk -gt 0) { '--' } else { $script:Snap.Summary.Pending });      T = '待应用'; C = $script:C_ORANGE },
         @{ V = $(if ($chk -gt 0) { '--' } else { $script:Snap.Summary.NotApplicable });T = '不适用'; C = $script:C_DIM }
     )
-    $sx = $s.Width - 330 * $sc
+    $sx = $s.Width - (312 * $sc)
+    $fmt = New-Object Drawing.StringFormat
+    $fmt.Alignment = 'Far'
+    $fmt.LineAlignment = 'Center'
     foreach ($st in $stats) {
         $bV = New-Object Drawing.SolidBrush -ArgumentList @($st.C)
-        $g.DrawString([string]$st.V, $script:HF.Stat, $bV, $sx, (40 * $sc))
+        $rv = New-Object Drawing.RectangleF -ArgumentList @($sx, (28 * $sc), (100 * $sc), (34 * $sc))
+        $g.DrawString([string]$st.V, $script:HF.Stat, $bV, $rv, $fmt)
         $bV.Dispose()
-        $bL = New-Object Drawing.SolidBrush -ArgumentList @((TC 143 163 184))
-        $g.DrawString($st.T, $script:HF.StatLabel, $bL, ($sx + 3 * $sc), (88 * $sc))
+        $bL = New-Object Drawing.SolidBrush -ArgumentList @($script:C_SUB)
+        $rl = New-Object Drawing.RectangleF -ArgumentList @($sx, (64 * $sc), (100 * $sc), (18 * $sc))
+        $g.DrawString($st.T, $script:HF.StatLabel, $bL, $rl, $fmt)
         $bL.Dispose()
-        $sx += 100 * $sc
+        $sx += 104 * $sc
     }
-    $hp = New-Object Drawing.Pen -ArgumentList @((TC 52 72 95), 1)
-    $g.DrawRectangle($hp, 0, 0, $s.Width - 1, $s.Height - 1)
-    $hp.Dispose()
+    $fmt.Dispose()
 })
 $heroBtnBg = (TC 22 48 62)
 $heroBtnBg2 = (TC 22 36 50)
@@ -1579,11 +1926,11 @@ if ($script:ThemeName -eq 'light') {
     $heroBtnBg = [Drawing.Color]::FromArgb(196, 212, 227)
     $heroBtnBg2 = [Drawing.Color]::FromArgb(203, 217, 231)
 }
-$btnQuick = New-Btn $hero '一键优化' 28 110 118 34 $script:C_GREEN ((TC 6 22 13))
+$btnQuick = New-Btn $hero '一键优化' 24 84 116 32 $script:C_GREEN ((TC 6 22 13)) 9
 $btnQuick.Add_Click({ Invoke-QuickOptimize })
-$btnPreview = New-Btn $hero '预览变更' 154 110 110 34 $heroBtnBg ((TC 207 232 245))
+$btnPreview = New-Btn $hero '预览变更' 148 84 108 32 $heroBtnBg $script:C_TEXT 9
 $btnPreview.Add_Click({ Invoke-PreviewSelected })
-$btnRestoreLatest = New-Btn $hero '撤销上次优化' 272 110 128 34 $heroBtnBg2 ((TC 190 210 225))
+$btnRestoreLatest = New-Btn $hero '撤销上次优化' 264 84 124 32 $heroBtnBg2 $script:C_SUB 9
 $btnRestoreLatest.Add_Click({ Invoke-RestoreLatest })
 
 # 硬件卡片悬停 / 点击
@@ -1678,12 +2025,20 @@ $hwDefs = @(
 )
 $script:UI.HwCards = @()
 $script:UI.Hw = @{}
+$script:Tip = New-Object System.Windows.Forms.ToolTip
+$script:Tip.AutoPopDelay = 9000
+$script:Tip.InitialDelay = 400
+$script:Tip.ReshowDelay = 100
+$script:Tip.BackColor = $script:C_PANEL2
+$script:Tip.ForeColor = $script:C_TEXT
 $hx = 20
 foreach ($hd in $hwDefs) {
-    $card = New-Card $ov $hx 192 $hwW 118 12 $script:C_PANEL $script:C_BORDER
+    $card = New-Card $ov $hx 160 $hwW 112 12 $script:C_PANEL $script:C_BORDER
     $card.Anchor = 'Top, Left'
-    $null = New-Badge $card $hd.Label 14 12 52 22 $script:C_GRAY_BG $script:C_GRAY_BD $hd.Accent 8
-    $v = New-Label $card '--' 14 38 ($hwW - 28) 28 11 $true $script:C_TEXT
+    $badgeW = 58
+    if ($hd.Key -eq 'disk') { $badgeW = 88 }
+    $null = New-Badge $card $hd.Label 14 12 $badgeW 22 $script:C_GRAY_BG $script:C_GRAY_BD $script:C_SUB 7.5
+    $v = New-Label $card '--' 14 38 ($hwW - 28) 28 10.5 $true $script:C_TEXT
     $s1 = New-Label $card '' 14 70 ($hwW - 28) 18 8.5 $false $script:C_SUB
     $s2 = New-Label $card '' 14 89 ($hwW - 28) 18 8 $false $script:C_DIM
     $v.Anchor = 'Top, Left, Right'
@@ -1696,7 +2051,7 @@ foreach ($hd in $hwDefs) {
 }
 
 # 实时监控
-$mon = New-Card $ov 20 322 ($cw - 40) 170 12 $script:C_PANEL $script:C_BORDER
+$mon = New-Card $ov 20 290 ($cw - 40) 168 12 $script:C_PANEL $script:C_BORDER
 $script:UI.Mon = $mon
 $null = New-SectionTitle $mon '实时监控' 18 12 160 11
 $null = New-Label $mon '每 0.25 秒刷新 · 仅本机读取' 124 15 260 18 8 $false $script:C_DIM
@@ -1730,7 +2085,7 @@ $null = New-Label $mon '数据来源: 系统内核计数器 / CIM · 不联网�
 
 # 待应用项
 $leftW = [int](($cw - 40 - 12) * 0.58)
-$pendCard = New-Card $ov 20 506 $leftW 180 12 $script:C_PANEL $script:C_BORDER
+$pendCard = New-Card $ov 20 476 $leftW 180 12 $script:C_PANEL $script:C_BORDER
 $script:UI.PendCard = $pendCard
 $script:UI.PendTitle = New-SectionTitle $pendCard '待应用项' 16 12 220 11
 $btnGoItems = New-Btn $pendCard '查看全部' ($leftW - 92) 12 76 24 ((TC 24 35 50)) $script:C_CYAN 8 $false
@@ -1744,7 +2099,7 @@ for ($i = 0; $i -lt 5; $i++) {
 
 # 系统状态
 $rightW = $cw - 40 - $leftW - 12
-$sysCard = New-Card $ov (20 + $leftW + 12) 506 $rightW 180 12 $script:C_PANEL $script:C_BORDER
+$sysCard = New-Card $ov (20 + $leftW + 12) 476 $rightW 180 12 $script:C_PANEL $script:C_BORDER
 $script:UI.SysCard = $sysCard
 $null = New-SectionTitle $sysCard '系统状态' 16 12 160 11
 $sysNames = @('待重启','上次应用','供电','安全','网络','备份','版本')
@@ -3120,7 +3475,7 @@ $drvFlow.Add_Resize({
 function Get-DriverCardInfo($dev) {
     if (-not $dev.Enriched) { return @{ Text = '正在核对本地驱动包...'; Color = $script:C_DIM } }
     $info = '已是最新'
-    $color = $script:C_GREEN
+    $color = $script:C_SUB
     $vs = [string]$dev.VendorState
     if ($vs -eq 'RolledBack') { $info = "$($dev.Vendor.Short) 驱动被回退"; $color = $script:C_RED }
     elseif ($vs -eq 'Mismatch') { $info = "$($dev.Vendor.Short) 驱动与软件版本不匹配"; $color = $script:C_RED }
@@ -3139,24 +3494,7 @@ function New-DriverCard($dev) {
     $card = New-Card $script:UI.DrvFlow 0 0 $w $h 14 $script:C_PANEL $script:C_BORDER
     $card.Margin = New-Object System.Windows.Forms.Padding -ArgumentList @(0, 0, (UiPx 12), (UiPx 12))
     $card.Tag = @{ Accent = $dev.Accent; Data = $dev; Labels = @{} }
-    $card.Add_Paint({
-        param($s, $e)
-        try {
-            $sc = [double]$script:UI_SCALE
-            $g = $e.Graphics
-            $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-            $ac = $s.Tag.Accent
-            if (-not $ac) { $ac = $script:C_CYAN }
-            $glow = New-Object Drawing.SolidBrush -ArgumentList @((TC 20 $ac.R $ac.G $ac.B))
-            $g.FillEllipse($glow, ($s.Width - 110 * $sc), (-60 * $sc), (150 * $sc), (150 * $sc))
-            $glow.Dispose()
-            $bar = New-Object Drawing.Rectangle -ArgumentList @(0, 1, $s.Width, [int](3 * $sc))
-            $bg = New-Object Drawing.SolidBrush -ArgumentList @($ac)
-            $g.FillRectangle($bg, $bar)
-            $bg.Dispose()
-        } catch {}
-    })
-    $null = New-Badge $card $dev.Category (UiPx 14) (UiPx 12) (UiPx 52) (UiPx 22) $script:C_GRAY_BG $script:C_GRAY_BD $dev.Accent 8
+    $null = New-Badge $card $dev.Category (UiPx 14) (UiPx 12) (UiPx 52) (UiPx 22) $script:C_GRAY_BG $script:C_GRAY_BD $script:C_SUB 8
     $stFill = $script:C_GREEN_BG
     $stBd = $script:C_GREEN_BD
     $stFg = $script:C_GREEN
@@ -3176,7 +3514,7 @@ function New-DriverCard($dev) {
     $st = Get-DriverCardInfo $dev
     $lblInfo = New-Label $card $st.Text (UiPx 14) (UiPx 112) ($w - (UiPx 96)) (UiPx 20) 8.5 $false $st.Color
     $lblInfo.AutoEllipsis = $true
-    $btn = New-Btn $card '管理' ($w - (UiPx 76)) ($h - (UiPx 36)) (UiPx 62) (UiPx 26) ((TC 24 35 50)) $dev.Accent 8 $false
+    $btn = New-Btn $card '管理' ($w - (UiPx 76)) ($h - (UiPx 36)) (UiPx 62) (UiPx 26) $script:C_PANEL2 $script:C_TEXT 8 $false
     $btn.Tag = $dev
     $btn.Add_Click({ param($s, $e) Show-DriverDetails $s.Tag })
     $card.Tag.Labels = @{ Version = $lblVer; Meta = $lblMeta; Info = $lblInfo; Btn = $btn }
@@ -4354,7 +4692,7 @@ function New-ItemRow($it, $si, [int]$rowW) {
 
     $cur = New-Label $row ("当前: " + [string]$si.StatusText) ($rowW - [int](436 * $sc)) ([int](8 * $sc)) ([int](118 * $sc)) ([int](20 * $sc)) 8 $false $script:C_DIM 'MiddleRight'
     $cur.Anchor = 'Top, Right'
-    $tgt = New-Label $row ("目标: " + [string]$it.TL) ($rowW - [int](436 * $sc)) ([int](30 * $sc)) ([int](118 * $sc)) ([int](20 * $sc)) 8 $false $script:C_CYAN 'MiddleRight'
+    $tgt = New-Label $row ("目标: " + [string]$it.TL) ($rowW - [int](436 * $sc)) ([int](30 * $sc)) ([int](118 * $sc)) ([int](20 * $sc)) 8 $false $script:C_TEXT 'MiddleRight'
     $tgt.Anchor = 'Top, Right'
 
     $catColor = $script:C_GRAY_BG
@@ -4363,12 +4701,13 @@ function New-ItemRow($it, $si, [int]$rowW) {
     $catBadge.Anchor = 'Top, Right'
 
     if ($si.NeedsReboot) {
-        $rb = New-Badge $row '需重启' ($rowW - [int](238 * $sc)) ([int](19 * $sc)) ([int](64 * $sc)) ([int](24 * $sc)) ((TC 35 26 58)) ((TC 91 61 148)) ((TC 196 181 253)) 7.5
+        $rb = New-Badge $row '需重启' ($rowW - [int](238 * $sc)) ([int](19 * $sc)) ([int](64 * $sc)) ([int](24 * $sc)) $script:C_GRAY_BG $script:C_GRAY_BD $script:C_SUB 7.5
         $rb.Anchor = 'Top, Right'
     }
 
-    $riskText = '低风险'; $riskFg = $script:C_GREEN; $riskBg = $script:C_GREEN_BG; $riskBd = $script:C_GREEN_BD
+    $riskText = '低风险'; $riskFg = $script:C_SUB; $riskBg = $script:C_GRAY_BG; $riskBd = $script:C_GRAY_BD
     if ($it.R -eq 'med') { $riskText = '中风险'; $riskFg = $script:C_ORANGE; $riskBg = $script:C_ORANGE_BG; $riskBd = $script:C_ORANGE_BD }
+    elseif ($it.R -eq 'high') { $riskText = '高风险'; $riskFg = $script:C_RED; $riskBg = $script:C_RED_BG; $riskBd = $script:C_RED_BD }
     $rk = New-Badge $row $riskText ($rowW - [int](166 * $sc)) ([int](19 * $sc)) ([int](52 * $sc)) ([int](24 * $sc)) $riskBg $riskBd $riskFg 7.5
     $rk.Anchor = 'Top, Right'
 
@@ -5142,28 +5481,28 @@ $script:UI.GameMeta = New-Label $gameDetailCard '' 24 70 ($cw - 420) 18 8 $false
 $script:UI.GameMeta.Anchor = 'Top, Left, Right'
 
 $gameComboW = [Math]::Max(140, [Math]::Min(360, ($cw - 550)))
-$gameArgsW = [Math]::Max(120, ($cw - 504))
+$gameArgsW = $gameComboW
 $gameSecRun = New-SectionTitle $gameDetailCard '运行设置' 24 100 200 10
-$lblGamePrio = New-Label $gameDetailCard '进程优先级' 24 138 90 26 9 $false $script:C_SUB
-$script:UI.GamePrio = New-Combo $gameDetailCard 118 134 $gameComboW
+$lblGamePrio = New-Label $gameDetailCard '进程优先级' 24 138 84 26 9 $false $script:C_SUB
+$script:UI.GamePrio = New-Combo $gameDetailCard 116 134 $gameComboW
 $script:UI.GamePrio.Items.AddRange([string[]]@('正常', '高于正常', '高'))
 $script:UI.GamePrio.SelectedIndex = 0
-$lblGameAff = New-Label $gameDetailCard '核心亲和性' 24 174 90 26 9 $false $script:C_SUB
-$script:UI.GameAff = New-Combo $gameDetailCard 118 170 $gameComboW
+$lblGameAff = New-Label $gameDetailCard '核心亲和性' 24 174 84 26 9 $false $script:C_SUB
+$script:UI.GameAff = New-Combo $gameDetailCard 116 170 $gameComboW
 $script:UI.GameAff.Items.AddRange([string[]]@('全部核心', '仅前 N 个逻辑处理器'))
 $script:UI.GameAff.SelectedIndex = 0
 
 $script:UI.GameFs = New-Check $gameDetailCard '关闭全屏优化（写入 AppCompatFlags）' 24 208 320 26
 $script:UI.GameGpu = New-Check $gameDetailCard '优先使用高性能显卡（独显）' 24 238 320 26
 $script:UI.GameAdmin = New-Check $gameDetailCard '以管理员身份启动' 24 268 320 26
-$lblGameArgs = New-Label $gameDetailCard '启动参数' 24 304 80 22 9 $false $script:C_SUB
-$script:UI.GameArgs = New-TextBox $gameDetailCard 108 300 $gameArgsW 30 '可选，例如 -dx11 -novid'
+$lblGameArgs = New-Label $gameDetailCard '启动参数' 24 304 84 22 9 $false $script:C_SUB
+$script:UI.GameArgs = New-TextBox $gameDetailCard 116 300 $gameArgsW 30 '可选，例如 -dx11 -novid'
 $script:UI.GameArgs.Anchor = 'Top, Left, Right'
 
-$script:UI.GameBtnApply = New-Btn $gameDetailCard '保存并应用' 24 348 104 34 $script:C_CYAN ((TC 4 20 26)) 9
-$script:UI.GameBtnLaunch = New-Btn $gameDetailCard '启动游戏' 134 348 88 34 ((TC 24 35 50)) $script:C_GREEN 9
-$script:UI.GameBtnRestore = New-Btn $gameDetailCard '恢复原值' 228 348 88 34 ((TC 24 35 50)) $script:C_SUB 9
-$script:UI.GameBtnRemove = New-Btn $gameDetailCard '移除手动添加' 322 348 100 34 ((TC 46 25 30)) $script:C_RED 9
+$script:UI.GameBtnApply = New-Btn $gameDetailCard '保存并应用' 24 348 104 34 $script:C_GREEN ((TC 6 22 13)) 9
+$script:UI.GameBtnLaunch = New-Btn $gameDetailCard '启动游戏' 134 348 88 34 $script:C_PANEL2 $script:C_TEXT 9
+$script:UI.GameBtnRestore = New-Btn $gameDetailCard '恢复原值' 228 348 88 34 $script:C_PANEL2 $script:C_SUB 9
+$script:UI.GameBtnRemove = New-Btn $gameDetailCard '移除手动添加' 322 348 100 34 $script:C_PANEL2 $script:C_RED 9
 
 $script:UI.GameMsg = New-Label $gameDetailCard '' 24 392 ($cw - 420) 40 8.5 $false $script:C_DIM
 $script:UI.GameMsg.Anchor = 'Top, Left, Right'
@@ -5566,7 +5905,7 @@ $script:LogSink = {
     if ($script:UI.Busy) { Set-Status ([string]$line) }
 }
 foreach ($lb in @($script:LogBuffer)) { Append-LogLine $lb.Line $lb.Color }
-Append-LogLine "[引擎] 游戏性能优化脚本 v5.0 已加载 · 共 $($O.Count) 项优化" 'DarkGray'
+Append-LogLine "[引擎] 游戏性能优化脚本 v$($script:AppVersion) 已加载 · 共 $($O.Count) 项优化" 'DarkGray'
 $script:GpuShort = (@($script:Snap.Gpus | ForEach-Object { $t = '核显'; if ($_.Dedicated) { $t = '独显' }; if ($_.Basic) { $t = '基础显示' }; "$($_.Name)[$t]" }) -join ' + ')
 Append-LogLine "[硬件] $($script:MachineTxt) · $($script:GpuShort)" 'DarkGray'
 if ([int]$script:Snap.Summary.Checking -gt 0) {
@@ -5582,23 +5921,23 @@ Append-LogLine "[界面] 可视化控制台已就绪 · 所有改动均可还原
 $aboutPage = New-Page 'about'
 $script:UI.AboutPage = $aboutPage
 $aboutPage.AutoScroll = $false
-$aboutHero = New-PageHero $aboutPage 'ABOUT · V5.0' '关于' '核显 / 独显 / 混合显卡 · 本地运行 · 不上传数据'
+$aboutHero = New-PageHero $aboutPage 'ABOUT · TIANXI PERFORMANCE LAB' '关于' '核显 / 独显 / 混合显卡 · 本地运行 · 不上传数据'
 $script:UI.AboutHero = $aboutHero.Card
 $btnAboutUpdate = New-Btn $aboutHero.Card '检查更新' 24 84 110 32 $heroBtnBg2 $script:C_CYAN 9
 $script:UI.BtnAboutUpdate = $btnAboutUpdate
 $lblAboutVer = New-Label $aboutHero.Card "当前版本 v$($script:AppVersion) · 发布源 GitHub Releases" 146 88 460 24 8.5 $false $script:C_SUB
 $btnAboutUpdate.Add_Click({ Invoke-CheckUpdate })
 $aboutBadges = @(
-    @{ T='核显兼容'; C=$script:C_CYAN },
-    @{ T='独显优化'; C=$script:C_PURPLE },
-    @{ T='混合显卡'; C=$script:C_BLUE },
-    @{ T='双重备份'; C=$script:C_GREEN },
-    @{ T='只读诊断'; C=$script:C_ORANGE },
-    @{ T='本地运行'; C=$script:C_SUB }
+    @{ T='核显兼容' },
+    @{ T='独显优化' },
+    @{ T='混合显卡' },
+    @{ T='双重备份' },
+    @{ T='只读诊断' },
+    @{ T='本地运行' }
 )
 $bx = 20
 foreach ($ab in $aboutBadges) {
-    $null = New-Badge $aboutPage $ab.T $bx 150 92 24 $script:C_GRAY_BG $script:C_GRAY_BD $ab.C 8
+    $null = New-Badge $aboutPage $ab.T $bx 150 92 24 $script:C_GRAY_BG $script:C_GRAY_BD $script:C_SUB 8
     $bx += 100
 }
 $aboutBox = New-Object System.Windows.Forms.ListBox
@@ -5635,6 +5974,14 @@ $aboutBox.Add_DrawItem({
 })
 $aboutPage.Controls.Add($aboutBox)
 $script:UI.AboutBox = $aboutBox
+$aboutPage.Add_Resize({
+    try {
+        $p = $script:UI.AboutPage
+        $h = $p.ClientSize.Height - 190 - 78
+        if ($h -lt 160) { $h = 160 }
+        $script:UI.AboutBox.Height = $h
+    } catch {}
+})
 
 # ★ 支持作者: 关于页底部入口, 打开包内赞赏码图片
 $supBar = New-Object System.Windows.Forms.Panel
@@ -5763,7 +6110,7 @@ function Invoke-CheckUpdate {
 # ══════════════════════════════════════════════════════════
 function New-ShareReadme([string]$stamp) {
     return @"
-游戏性能优化中心 v5.0 · 便携版
+游戏性能优化中心 v$($script:AppVersion) · 便携版
 ========================================
 
 一、快速开始
@@ -5823,7 +6170,7 @@ function New-ShareReadme([string]$stamp) {
 
 function Export-SharePackage([string]$zipPath, [switch]$Quiet) {
     $tmp = Join-Path ([IO.Path]::GetTempPath()) ('txshare_' + [Guid]::NewGuid().ToString('N'))
-    $payload = Join-Path $tmp '游戏性能优化中心_v5.0'
+    $payload = Join-Path $tmp "游戏性能优化中心_v$($script:AppVersion)"
     New-Item -ItemType Directory -Path $payload -Force | Out-Null
     try {
         $guiPath = $PSCommandPath
@@ -6112,7 +6459,7 @@ $btnShare.Add_Click({
         $dlg.Filter = 'ZIP 压缩包 (*.zip)|*.zip'
         $dlg.DefaultExt = 'zip'
         $dlg.AddExtension = $true
-        $dlg.FileName = '游戏性能优化中心_v5.0_便携版.zip'
+        $dlg.FileName = "游戏性能优化中心_v$($script:AppVersion)_便携版.zip"
         try { $dlg.InitialDirectory = [Environment]::GetFolderPath('Desktop') } catch {}
         if ($dlg.ShowDialog($form) -ne [System.Windows.Forms.DialogResult]::OK) { return }
         Set-Status '正在打包便携包，请稍候...'
@@ -6123,8 +6470,8 @@ $btnShare.Add_Click({
     }
 })
 $btnShareTip.Add_Click({
-    $tip = @'
-游戏性能优化中心 v5.0 便携版（Windows 10 / 11）
+    $tip = @"
+游戏性能优化中心 v$($script:AppVersion) 便携版（Windows 10 / 11）
 
 使用步骤：
 1. 先解压整个压缩包到固定文件夹，不要直接在压缩包里双击。
@@ -6139,7 +6486,7 @@ $btnShareTip.Add_Click({
 · 启动器会自动解除脚本锁定；本工具不联网、不上传、不改系统文件。
 
 所有优化都有原值备份，可以在“备份还原”里撤销。
-'@
+"@
     try {
         [System.Windows.Forms.Clipboard]::SetText($tip)
         Set-Status '分享话术已复制到剪贴板'
@@ -6198,14 +6545,28 @@ function Update-RenderInfo {
 }
 
 function Apply-DarkScrollbars {
+    $apply = {
+        param($ctrl)
+        if ($null -eq $ctrl) { return }
+        try {
+            if ($ctrl -is [System.Windows.Forms.DataGridView] -or
+                $ctrl -is [System.Windows.Forms.ListBox] -or
+                $ctrl -is [System.Windows.Forms.Panel] -or
+                $ctrl -is [System.Windows.Forms.FlowLayoutPanel]) {
+                if ($ctrl.IsHandleCreated) {
+                    [TxUi.Native]::DarkScroll($ctrl.Handle)
+                    [TxUi.Native]::DarkChildren($ctrl.Handle)
+                }
+            }
+        } catch {}
+        try { foreach ($ch in @($ctrl.Controls)) { & $apply $ch } } catch {}
+    }
     try {
         foreach ($k in @('AboutBox', 'LogBox', 'BakGrid', 'DiagGrid', 'DrvFlow')) {
             $c = $script:UI[$k]
-            if ($c) { [TxUi.Native]::DarkScroll($c.Handle) }
+            if ($c) { & $apply $c }
         }
-        foreach ($pg in @($script:UI.Pages.Values)) {
-            if ($pg -and $pg.IsHandleCreated) { [TxUi.Native]::DarkScroll($pg.Handle) }
-        }
+        foreach ($pg in @($script:UI.Pages.Values)) { & $apply $pg }
     } catch {}
 }
 
@@ -6285,6 +6646,23 @@ function Update-Overview {
         $diskFree = Get-DiagVal '存储' '系统盘剩余'
         if ($diskFree) { $script:UI.Hw['disk'].Sub2.Text = "系统盘剩余 $diskFree" } else { $script:UI.Hw['disk'].Sub2.Text = '' }
 
+        # 卡片文字可能因宽度被截断，完整内容放进 tooltip
+        try {
+            foreach ($k in @('cpu', 'gpu', 'ram')) {
+                $lbl = $script:UI.Hw[$k].Value
+                $len = ([string]$lbl.Text).Length
+                $fs = 10.5
+                if ($len -gt 30) { $fs = 8.5 }
+                elseif ($len -gt 24) { $fs = 9 }
+                elseif ($len -gt 19) { $fs = 9.5 }
+                $lbl.Font = F $fs $true
+            }
+            $script:Tip.SetToolTip($script:UI.Hw['cpu'].Value, ("{0} {1}" -f $cpuName, $cpuSub).Trim())
+            $script:Tip.SetToolTip($script:UI.Hw['gpu'].Value, [string]$script:UI.Hw['gpu'].Value.Text)
+            $script:Tip.SetToolTip($script:UI.Hw['ram'].Value, ("{0} {1}" -f $ramVal, $ramSub).Trim())
+            $script:Tip.SetToolTip($script:UI.Hw['disk'].Sub1, [string]$script:UI.Hw['disk'].Sub1.Text)
+        } catch {}
+
         # 待应用项
         $pend = @($s.Items | Where-Object { $_.Status -eq 'no' })
         $chk = @($s.Items | Where-Object { $_.Status -eq 'checking' })
@@ -6338,7 +6716,7 @@ function Update-Overview {
         else { [void]$vals.Add(@{ T = '未检测到物理网卡'; C = $script:C_DIM }) }
         $bkCount = @(Get-ChildItem $BK -Filter backup_*.json -EA 0).Count
         [void]$vals.Add(@{ T = "$bkCount 份"; C = $script:C_TEXT })
-        [void]$vals.Add(@{ T = 'v5.0'; C = $script:C_CYAN })
+        [void]$vals.Add(@{ T = "v$($script:AppVersion)"; C = $script:C_CYAN })
         for ($i = 0; $i -lt $script:UI.SysVals.Count; $i++) {
             if ($i -lt $vals.Count) {
                 $script:UI.SysVals[$i].Text = [string]$vals[$i].T
@@ -6361,7 +6739,7 @@ function Layout-Overview {
         if ($hwW -lt [int](150 * $sc)) { $hwW = [int](150 * $sc) }
         for ($i = 0; $i -lt $script:UI.HwCards.Count; $i++) {
             $c = $script:UI.HwCards[$i]
-            $c.Location = New-Object Drawing.Point -ArgumentList @(([int](20 * $sc) + $i * ($hwW + [int](12 * $sc))), [int](192 * $sc))
+            $c.Location = New-Object Drawing.Point -ArgumentList @(([int](20 * $sc) + $i * ($hwW + [int](12 * $sc))), [int](160 * $sc))
             $c.Width = $hwW
         }
         foreach ($k in @('cpu', 'gpu', 'ram', 'disk')) {
@@ -6382,9 +6760,9 @@ function Layout-Overview {
         }
         $leftW = [int](($heroW - 12 * $sc) * 0.58)
         $rightW = $heroW - [int](12 * $sc) - $leftW
-        $script:UI.PendCard.Location = New-Object Drawing.Point -ArgumentList @([int](20 * $sc), [int](506 * $sc))
+        $script:UI.PendCard.Location = New-Object Drawing.Point -ArgumentList @([int](20 * $sc), [int](476 * $sc))
         $script:UI.PendCard.Width = $leftW
-        $script:UI.SysCard.Location = New-Object Drawing.Point -ArgumentList @(([int](20 * $sc) + $leftW + [int](12 * $sc)), [int](506 * $sc))
+        $script:UI.SysCard.Location = New-Object Drawing.Point -ArgumentList @(([int](20 * $sc) + $leftW + [int](12 * $sc)), [int](476 * $sc))
         $script:UI.SysCard.Width = $rightW
         foreach ($pl in $script:UI.PendLabels) { $pl.Width = $leftW - [int](32 * $sc) }
         foreach ($sv in $script:UI.SysVals) { $sv.Width = $rightW - [int](96 * $sc) }
@@ -6495,7 +6873,14 @@ function Show-Page([string]$key) {
             'driver' { if ($script:UI.DriverDirty) { Refresh-DriverPage $false } }
             'diag'   { if ($script:UI.DiagDirty) { Refresh-Diag $false } }
             'startup' { if ($script:UI.StartupDirty) { Refresh-StartupPage } }
-            'about'  { Fill-About }
+            'about'  {
+                Fill-About
+                try {
+                    $h = $script:UI.AboutPage.ClientSize.Height - 190 - 78
+                    if ($h -lt 160) { $h = 160 }
+                    $script:UI.AboutBox.Height = $h
+                } catch {}
+            }
             'settings' { Update-SettingsUi }
             'overview' { Update-Overview }
             'items'  { Update-ItemSummary }
@@ -6811,7 +7196,7 @@ function Show-HardwareDetails([string]$key) {
         $null = New-Label $hdr $meta[0] (UiPx 96) (UiPx 26) $titleW (UiPx 32) 17 $true $script:C_TEXT 'MiddleLeft'
         $null = New-Label $hdr $meta[1] (UiPx 96) (UiPx 60) $titleW (UiPx 22) 9 $false $script:C_SUB 'MiddleLeft'
         $null = New-Badge $hdr '只读信息' ($cardW - (UiPx 112)) (UiPx 30) (UiPx 92) (UiPx 26) $script:C_GRAY_BG $script:C_GRAY_BD $script:C_SUB 8
-        $null = New-Label $hdr '游戏性能优化中心 · v5.0' ($cardW - (UiPx 250)) (UiPx 62) (UiPx 230) (UiPx 18) 8 $false $script:C_DIM 'MiddleRight'
+        $null = New-Label $hdr "游戏性能优化中心 · v$($script:AppVersion)" ($cardW - (UiPx 250)) (UiPx 62) (UiPx 230) (UiPx 18) 8 $false $script:C_DIM 'MiddleRight'
 
         # ── 内容区 ────────────────────────────────────────
         $scrollW = [System.Windows.Forms.SystemInformation]::VerticalScrollBarWidth
@@ -6913,7 +7298,7 @@ function Show-HardwareDetails([string]$key) {
                     }
                     [void]$body.Add("$($r.K): $($r.V)")
                 }
-                $text = $tg.Meta[0] + ' · 游戏性能优化中心 v5.0' + "`r`n" +
+                $text = $tg.Meta[0] + " · 游戏性能优化中心 v$($script:AppVersion)" + "`r`n" +
                         ('=' * 44) + "`r`n" + ($body -join "`r`n") +
                         "`r`n`r`n导出时间: " + (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
                 [System.Windows.Forms.Clipboard]::SetText($text)
@@ -7382,7 +7767,7 @@ if ($SelfTest) {
     Layout-Overview
     $lines = @()
     $lines += 'gui_selftest=True'
-    $lines += "version=v5.0"
+    $lines += "version=v$($script:AppVersion)"
     $lines += "items=$($O.Count)"
     $lines += "snapshot_items=$(@($script:Snap.Items).Count)"
     $lines += "snapmap=$($script:SnapMap.Count)"
