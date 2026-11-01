@@ -14,23 +14,24 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid>
-            <StackPanel Spacing="5">
-                <TextBlock Text="DRIVER CENTER · VENDOR NATIVE" Style="{StaticResource EyebrowTextStyle}" />
+        <StackPanel Spacing="10">
+            <StackPanel Spacing="4">
                 <TextBlock Text="驱动中心" Style="{StaticResource PageTitleStyle}" />
-                <TextBlock Text="读取显卡驱动与系统更新记录 · 优先使用厂商原生工具，不做驱动包代下载"
+                <TextBlock Text="驱动是否正常、要不要更新：版本、厂商工具与变化记录。"
                            Style="{StaticResource SecondaryTextStyle}" />
             </StackPanel>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="6">
                 <Button Content="打开设备管理器" Style="{StaticResource SubtleButtonStyle}" Click="OpenDeviceManager_Click" />
                 <Button Content="刷新" Style="{StaticResource AccentButtonStyle}" Click="Refresh_Click"
                         ToolTipService.ToolTip="重新枚举显卡与驱动历史" />
             </StackPanel>
-        </Grid>
+        </StackPanel>
 
         <InfoBar x:Name="PageInfo" Grid.Row="1" IsOpen="False" IsClosable="True" />
 
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,0,4,8">
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,0,4,8"
+                      HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
+                      HorizontalContentAlignment="Stretch">
             <StackPanel Spacing="16" MaxWidth="1500" HorizontalAlignment="Stretch">
 
                 <Border Style="{StaticResource CardBorderStyle}">
@@ -48,48 +49,50 @@
                         <ItemsControl x:Name="DeviceList">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate x:DataType="models:DriverDevice">
-                                    <Border Background="{ThemeResource Surface2Brush}" BorderBrush="{ThemeResource BorderBrush}"
-                                            BorderThickness="1" CornerRadius="12" Padding="16,14" Margin="0,0,0,10">
+                                    <Border Style="{StaticResource DataRowStyle}" Padding="4,12">
                                         <Grid ColumnSpacing="16">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
 
-                                            <StackPanel Spacing="7">
-                                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                                    <FontIcon Glyph="&#xE7F8;" FontSize="15" Foreground="{ThemeResource AccentBrush}"
-                                                              VerticalAlignment="Center" />
-                                                    <TextBlock Text="{x:Bind Name}" FontSize="14.5" FontWeight="SemiBold"
-                                                               Foreground="{ThemeResource TextBrush}" TextWrapping="Wrap" />
-                                                    <Border Style="{StaticResource PillBorderStyle}" Padding="7,1">
-                                                        <TextBlock Text="{x:Bind Vendor}" Style="{StaticResource CaptionTextStyle}" />
-                                                    </Border>
-                                                    <Border Style="{StaticResource PillBorderStyle}" Padding="7,1">
-                                                        <TextBlock Text="{x:Bind KindText}" Style="{StaticResource CaptionTextStyle}" />
-                                                    </Border>
-                                                </StackPanel>
+                                            <StackPanel Spacing="3">
+                                                <TextBlock Text="{x:Bind Name}" FontSize="13.5" FontWeight="SemiBold"
+                                                           Foreground="{ThemeResource TextBrush}" TextWrapping="Wrap" />
+                                                <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="NoWrap">
+                                                    <Run Text="{x:Bind Vendor}" />
+                                                    <Run Text="  ·  " />
+                                                    <Run Text="{x:Bind KindText}" />
+                                                </TextBlock>
                                                 <TextBlock Text="{x:Bind DriverText}" Style="{StaticResource SecondaryTextStyle}" />
-                                                <StackPanel Orientation="Horizontal" Spacing="16">
-                                                    <TextBlock Text="{x:Bind VramText}" Style="{StaticResource CaptionTextStyle}" />
-                                                    <TextBlock Text="{x:Bind PnpId}" Style="{StaticResource CaptionTextStyle}"
-                                                               TextTrimming="CharacterEllipsis" MaxWidth="420"
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{x:Bind VramText}" Style="{StaticResource CaptionTextStyle}"
+                                                               TextWrapping="NoWrap" />
+                                                    <TextBlock Grid.Column="1" Text="{x:Bind PnpId}"
+                                                               Style="{StaticResource CaptionTextStyle}"
+                                                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
                                                                ToolTipService.ToolTip="{x:Bind PnpId}" />
-                                                </StackPanel>
+                                                </Grid>
                                             </StackPanel>
 
-                                            <StackPanel Grid.Column="1" Spacing="7" VerticalAlignment="Center"
+                                            <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center"
                                                         HorizontalAlignment="Right">
                                                 <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
-                                                    <Ellipse Width="7" Height="7" Fill="{ThemeResource OkBrush}" />
+                                                    <Ellipse Width="6" Height="6" Fill="{ThemeResource OkBrush}"
+                                                             VerticalAlignment="Center" />
                                                     <TextBlock Text="{x:Bind Status}" Style="{StaticResource CaptionTextStyle}" />
                                                 </StackPanel>
-                                                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
                                                     <Button Content="{x:Bind ToolText}" Style="{StaticResource SubtleButtonStyle}"
                                                             Click="OpenTool_Click"
                                                             ToolTipService.ToolTip="打开厂商驱动工具，未安装则跳转官网" />
                                                     <Button Content="下载驱动" Style="{StaticResource GhostButtonStyle}"
-                                                            Click="DownloadDriver_Click" />
+                                                            Click="DownloadDriver_Click"
+                                                            ToolTipService.ToolTip="打开厂商官方下载页面" />
                                                 </StackPanel>
                                             </StackPanel>
                                         </Grid>
@@ -122,23 +125,20 @@
                             <ItemsControl x:Name="ChangeList">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="models:DriverChange">
-                                        <Border Background="{ThemeResource Surface2Brush}" CornerRadius="10"
-                                                Padding="12,10" Margin="0,0,0,8">
-                                            <StackPanel Spacing="4">
+                                        <Border Style="{StaticResource DataRowStyle}" Padding="4,10">
+                                            <StackPanel Spacing="3">
                                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                                     <TextBlock Text="{x:Bind Name}" FontSize="13" FontWeight="SemiBold"
                                                                Foreground="{ThemeResource TextBrush}" />
-                                                    <Border Style="{StaticResource PillBorderStyle}" Padding="6,0">
-                                                        <TextBlock Text="{x:Bind Type}" Style="{StaticResource CaptionTextStyle}" />
-                                                    </Border>
+                                                    <TextBlock Text="{x:Bind Type}" Style="{StaticResource CaptionTextStyle}"
+                                                               VerticalAlignment="Center" />
                                                 </StackPanel>
                                                 <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap">
                                                     <Run Text="{x:Bind From}" />
-                                                    <Run Text="  →  " Foreground="{ThemeResource AccentBrush}" />
+                                                    <Run Text="  →  " Foreground="{ThemeResource SubTextBrush}" />
                                                     <Run Text="{x:Bind To}" />
                                                 </TextBlock>
-                                                <TextBlock Text="{x:Bind At}" Style="{StaticResource CaptionTextStyle}"
-                                                           Foreground="{ThemeResource MutedTextBrush}" />
+                                                <TextBlock Text="{x:Bind At}" Style="{StaticResource CaptionTextStyle}" />
                                             </StackPanel>
                                         </Border>
                                     </DataTemplate>
@@ -160,15 +160,17 @@
                                            Style="{StaticResource CaptionTextStyle}" />
                             </StackPanel>
                             <ListView x:Name="HistoryList" SelectionMode="None"
-                                      ItemContainerStyle="{StaticResource PlainListViewItemStyle}">
+                                      ItemContainerStyle="{StaticResource DenseListViewItemStyle}">
                                 <ListView.ItemTemplate>
                                     <DataTemplate x:DataType="models:DriverHistRow">
-                                        <StackPanel Spacing="3" Margin="0,0,0,10">
-                                            <TextBlock Text="{x:Bind Name}" FontSize="13" FontWeight="SemiBold"
-                                                       Foreground="{ThemeResource TextBrush}" TextWrapping="Wrap" />
-                                            <TextBlock Text="{x:Bind MetaText}" Style="{StaticResource CaptionTextStyle}"
-                                                       TextWrapping="Wrap" />
-                                        </StackPanel>
+                                        <Border Style="{StaticResource DataRowStyle}" Padding="4,10">
+                                            <StackPanel Spacing="3">
+                                                <TextBlock Text="{x:Bind Name}" FontSize="13" FontWeight="SemiBold"
+                                                           Foreground="{ThemeResource TextBrush}" TextWrapping="Wrap" />
+                                                <TextBlock Text="{x:Bind MetaText}" Style="{StaticResource CaptionTextStyle}"
+                                                           TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Border>
                                     </DataTemplate>
                                 </ListView.ItemTemplate>
                             </ListView>
@@ -179,12 +181,17 @@
                 </Grid>
 
                 <Border Style="{StaticResource CardBorderStyle}" Padding="16">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
                         <FontIcon Glyph="&#xE946;" FontSize="15" Foreground="{ThemeResource InfoBrush}"
                                   VerticalAlignment="Top" Margin="0,1,0,0" />
-                        <TextBlock Text="驱动更新建议使用 NVIDIA App、AMD Software 或 Intel 驱动支持助手。系统不会自动下载或替换驱动包；若发现版本意外回退，请查看左侧变更记录。"
+                        <TextBlock Grid.Column="1"
+                                   Text="驱动更新建议使用 NVIDIA App、AMD Software 或 Intel 驱动支持助手。系统不会自动下载或替换驱动包；若发现版本意外回退，请查看左侧变更记录。"
                                    Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" />
-                    </StackPanel>
+                    </Grid>
                 </Border>
             </StackPanel>
         </ScrollViewer>

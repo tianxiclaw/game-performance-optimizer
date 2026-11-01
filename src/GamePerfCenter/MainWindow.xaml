@@ -16,15 +16,10 @@
 
         <!-- 自定义标题栏 -->
         <Grid x:Name="TitleBarDrag" Grid.Row="0" Background="Transparent">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0" Spacing="10">
-                <Image Source="Assets/AppIcon.png" Width="20" Height="20" />
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0" Spacing="9">
+                <Image Source="Assets/AppIcon.png" Width="18" Height="18" />
                 <TextBlock Text="游戏性能优化中心" FontSize="13" FontWeight="SemiBold"
                            Foreground="{ThemeResource TextBrush}" VerticalAlignment="Center" />
-                <Border Background="{ThemeResource AccentSoftBrush}" BorderBrush="{ThemeResource AccentBrush}"
-                        BorderThickness="1" CornerRadius="6" Padding="6,1" VerticalAlignment="Center">
-                    <TextBlock Text="WINUI 3" FontFamily="{StaticResource MonoFontFamily}" FontSize="9.5"
-                               CharacterSpacing="80" Foreground="{ThemeResource AccentBrush}" />
-                </Border>
             </StackPanel>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
                         Margin="0,0,148,0" Spacing="2">
@@ -47,9 +42,11 @@
                         IsBackButtonVisible="Collapsed"
                         IsSettingsVisible="False"
                         IsPaneToggleButtonVisible="True"
-                        PaneDisplayMode="Left"
-                        OpenPaneLength="238"
+                        PaneDisplayMode="Auto"
+                        OpenPaneLength="224"
                         CompactPaneLength="56"
+                        CompactModeThresholdWidth="900"
+                        ExpandedModeThresholdWidth="1100"
                         AlwaysShowHeader="False"
                         SelectionFollowsFocus="Disabled"
                         SelectionChanged="Nav_SelectionChanged">
@@ -95,7 +92,7 @@
                 </Grid.RowDefinitions>
                 <InfoBar x:Name="EngineInfoBar" Grid.Row="0" IsOpen="False" Severity="Error"
                          Margin="20,10,20,0" Title="引擎错误" IsClosable="True" />
-                <Frame x:Name="ContentFrame" Grid.Row="1" />
+                <Frame x:Name="ContentFrame" Grid.Row="1" Background="{ThemeResource AppBgBrush}" />
             </Grid>
         </NavigationView>
 

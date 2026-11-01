@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using GamePerfCenter.Helpers;
 using GamePerfCenter.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -16,6 +17,33 @@ public sealed partial class SettingsPage : Page, IThemeAware
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        Responsive.Watch(this, 900, ApplyWidth);
+    }
+
+    private void ApplyWidth(bool narrow)
+    {
+        if (narrow)
+        {
+            Grid.SetColumn(LeftColumn, 0);
+            Grid.SetColumnSpan(LeftColumn, 2);
+            Grid.SetRow(LeftColumn, 0);
+
+            Grid.SetColumn(RightColumn, 0);
+            Grid.SetColumnSpan(RightColumn, 2);
+            Grid.SetRow(RightColumn, 1);
+            RightColumn.Margin = new Thickness(0, 16, 0, 0);
+        }
+        else
+        {
+            Grid.SetColumn(LeftColumn, 0);
+            Grid.SetColumnSpan(LeftColumn, 1);
+            Grid.SetRow(LeftColumn, 0);
+
+            Grid.SetColumn(RightColumn, 1);
+            Grid.SetColumnSpan(RightColumn, 1);
+            Grid.SetRow(RightColumn, 0);
+            RightColumn.Margin = new Thickness(0);
+        }
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)

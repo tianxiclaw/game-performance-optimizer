@@ -14,19 +14,18 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid>
-            <StackPanel Spacing="5">
-                <TextBlock Text="STARTUP &amp; BACKGROUND · READ ONLY" Style="{StaticResource EyebrowTextStyle}" />
+        <StackPanel Spacing="10">
+            <StackPanel Spacing="4">
                 <TextBlock Text="启动项与后台" Style="{StaticResource PageTitleStyle}" />
-                <TextBlock Text="只读展示开机自启与内存占用较高的进程 · 不在应用内结束进程"
+                <TextBlock Text="哪些程序会自启、后台在跑什么：只读展示，不在应用内结束进程。"
                            Style="{StaticResource SecondaryTextStyle}" />
             </StackPanel>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="6">
                 <Button Content="启动文件夹" Style="{StaticResource GhostButtonStyle}" Click="OpenStartupFolder_Click" />
                 <Button Content="任务管理器" Style="{StaticResource SubtleButtonStyle}" Click="OpenTaskManager_Click" />
                 <Button Content="刷新" Style="{StaticResource AccentButtonStyle}" Click="Refresh_Click" />
             </StackPanel>
-        </Grid>
+        </StackPanel>
 
         <InfoBar x:Name="PageInfo" Grid.Row="1" IsOpen="False" IsClosable="True" />
 
@@ -53,21 +52,20 @@
                     </Grid>
 
                     <ListView x:Name="StartupList" Grid.Row="1" SelectionMode="None"
-                              ItemContainerStyle="{StaticResource CardListViewItemStyle}">
+                              ItemContainerStyle="{StaticResource DenseListViewItemStyle}">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="models:StartupEntry">
-                                <Border Background="{ThemeResource Surface2Brush}" BorderBrush="{ThemeResource BorderBrush}"
-                                        BorderThickness="1" CornerRadius="10" Padding="13,10" Margin="0,0,0,7">
-                                    <StackPanel Spacing="4">
+                                <Border Style="{StaticResource DataRowStyle}" Padding="4,10">
+                                    <StackPanel Spacing="3">
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <TextBlock Text="{x:Bind Name}" FontSize="13" FontWeight="SemiBold"
-                                                       Foreground="{ThemeResource TextBrush}" />
-                                            <Border Style="{StaticResource PillBorderStyle}" Padding="6,0">
-                                                <TextBlock Text="{x:Bind Source}" Style="{StaticResource CaptionTextStyle}" />
-                                            </Border>
+                                                       Foreground="{ThemeResource TextBrush}" TextWrapping="NoWrap" />
+                                            <TextBlock Text="{x:Bind Source}" Style="{StaticResource CaptionTextStyle}"
+                                                       VerticalAlignment="Center" TextWrapping="NoWrap" />
                                         </StackPanel>
                                         <TextBlock Text="{x:Bind Command}" Style="{StaticResource MonoTextStyle}" FontSize="11"
-                                                   TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Command}" />
+                                                   TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                                   ToolTipService.ToolTip="{x:Bind Command}" />
                                     </StackPanel>
                                 </Border>
                             </DataTemplate>
@@ -98,29 +96,33 @@
                     </Grid>
 
                     <ListView x:Name="BackgroundList" Grid.Row="1" SelectionMode="None"
-                              ItemContainerStyle="{StaticResource PlainListViewItemStyle}">
+                              ItemContainerStyle="{StaticResource DenseListViewItemStyle}">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="models:BackgroundProc">
-                                <Grid ColumnSpacing="10" Margin="0,0,0,9">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Spacing="2">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Border Style="{StaticResource DataRowStyle}" Padding="4,9">
+                                    <Grid ColumnSpacing="10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Spacing="2">
                                             <TextBlock Text="{x:Bind Name}" FontSize="13" FontWeight="SemiBold"
-                                                       Foreground="{ThemeResource TextBrush}" />
-                                            <TextBlock Text="{x:Bind PidText}" Style="{StaticResource CaptionTextStyle}" />
-                                            <Border Style="{StaticResource PillBorderStyle}" Padding="6,0">
-                                                <TextBlock Text="{x:Bind StateText}" Style="{StaticResource CaptionTextStyle}" />
-                                            </Border>
+                                                       Foreground="{ThemeResource TextBrush}" MaxLines="1"
+                                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                            <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="NoWrap">
+                                                <Run Text="{x:Bind PidText}" />
+                                                <Run Text="  ·  " />
+                                                <Run Text="{x:Bind StateText}" />
+                                            </TextBlock>
+                                            <TextBlock Text="{x:Bind TitleText}" Style="{StaticResource CaptionTextStyle}"
+                                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" MaxWidth="420"
+                                                       ToolTipService.ToolTip="{x:Bind TitleText}" />
                                         </StackPanel>
-                                        <TextBlock Text="{x:Bind TitleText}" Style="{StaticResource CaptionTextStyle}"
-                                                   TextTrimming="CharacterEllipsis" MaxWidth="420" />
-                                    </StackPanel>
-                                    <TextBlock Grid.Column="1" Text="{x:Bind MemText}" FontSize="12.5" FontWeight="SemiBold"
-                                               Foreground="{ThemeResource SubTextBrush}" VerticalAlignment="Center" />
-                                </Grid>
+                                        <TextBlock Grid.Column="1" Text="{x:Bind MemText}" FontSize="12.5" FontWeight="SemiBold"
+                                                   Foreground="{ThemeResource SubTextBrush}" VerticalAlignment="Center"
+                                                   TextWrapping="NoWrap" />
+                                    </Grid>
+                                </Border>
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>

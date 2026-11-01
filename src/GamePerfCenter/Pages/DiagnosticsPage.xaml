@@ -15,21 +15,20 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid>
-            <StackPanel Spacing="5">
-                <TextBlock Text="DIAGNOSTICS · LOCAL AUDIT" Style="{StaticResource EyebrowTextStyle}" />
+        <StackPanel Spacing="10">
+            <StackPanel Spacing="4">
                 <TextBlock Text="诊断报告" Style="{StaticResource PageTitleStyle}" />
-                <TextBlock Text="硬件、电源、驱动、服务与安全状态一次性核查 · 可导出为文本或诊断包"
+                <TextBlock Text="当前有哪些风险：硬件、电源、驱动、服务与安全状态的一次性核查。"
                            Style="{StaticResource SecondaryTextStyle}" />
             </StackPanel>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="6">
                 <Button Content="打开诊断目录" Style="{StaticResource GhostButtonStyle}" Click="OpenFolder_Click" />
                 <Button Content="导出诊断包" Style="{StaticResource SubtleButtonStyle}" Click="ExportBundle_Click"
                         ToolTipService.ToolTip="打包日志、配置与诊断文本，便于反馈问题" />
                 <Button Content="导出报告" Style="{StaticResource SubtleButtonStyle}" Click="ExportReport_Click" />
                 <Button Content="重新诊断" Style="{StaticResource AccentButtonStyle}" Click="Run_Click" />
             </StackPanel>
-        </Grid>
+        </StackPanel>
 
         <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Padding="16,12">
             <Grid ColumnSpacing="12">
@@ -54,12 +53,14 @@
 
         <InfoBar x:Name="PageInfo" Grid.Row="2" IsOpen="False" IsClosable="True" />
 
-        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" Padding="0,0,4,8">
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" Padding="0,0,4,8"
+                      HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
+                      HorizontalContentAlignment="Stretch">
             <StackPanel Spacing="14" MaxWidth="1500" HorizontalAlignment="Stretch">
                 <ItemsControl x:Name="GroupList">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="models:DiagGroup">
-                            <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,14">
+                            <Border Style="{StaticResource CardBorderStyle}">
                                 <StackPanel Spacing="12">
                                     <Grid>
                                         <TextBlock Text="{x:Bind Name}" Style="{StaticResource SectionTitleStyle}" />

@@ -36,7 +36,7 @@ public sealed partial class MainWindow : Window
         AppWindow.Closing += OnAppWindowClosing;
         Closed += OnClosed;
 
-        try { VersionText.Text = $"v{AppPaths.Version} · WinUI 3"; } catch { }
+        try { VersionText.Text = $"v{AppPaths.Version}"; } catch { }
 
         try
         {

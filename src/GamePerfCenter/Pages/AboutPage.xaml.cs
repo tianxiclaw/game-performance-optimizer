@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using GamePerfCenter.Helpers;
 using GamePerfCenter.Models;
 using GamePerfCenter.Services;
 using Microsoft.UI.Xaml;
@@ -15,6 +16,27 @@ public sealed partial class AboutPage : Page, IThemeAware
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        Responsive.Watch(this, 880, ApplyWidth);
+    }
+
+    private void ApplyWidth(bool narrow)
+    {
+        if (narrow)
+        {
+            Grid.SetColumnSpan(SupportCard, 2);
+            Grid.SetColumnSpan(CapabilityCard, 2);
+            Grid.SetColumn(CapabilityCard, 0);
+            Grid.SetRow(CapabilityCard, 1);
+            CapabilityCard.Margin = new Thickness(0, 16, 0, 0);
+        }
+        else
+        {
+            Grid.SetColumnSpan(SupportCard, 1);
+            Grid.SetColumnSpan(CapabilityCard, 1);
+            Grid.SetColumn(CapabilityCard, 1);
+            Grid.SetRow(CapabilityCard, 0);
+            CapabilityCard.Margin = new Thickness(0);
+        }
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)

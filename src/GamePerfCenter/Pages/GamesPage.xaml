@@ -16,13 +16,12 @@
         </Grid.RowDefinitions>
 
         <StackPanel Spacing="10">
-            <StackPanel Spacing="5">
-                <TextBlock Text="GAME LIBRARY · PER-TITLE PROFILE" Style="{StaticResource EyebrowTextStyle}" />
+            <StackPanel Spacing="4">
                 <TextBlock Text="游戏库" Style="{StaticResource PageTitleStyle}" />
-                <TextBlock Text="自动识别 Steam / Epic / WeGame 游戏，为每个游戏单独保存启动方案"
+                <TextBlock Text="这个游戏该用什么方案：识别本地游戏，为每个游戏单独保存启动配置。"
                            Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" />
             </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="6">
                 <Button Content="手动添加" Style="{StaticResource SubtleButtonStyle}" Click="AddGame_Click"
                         ToolTipService.ToolTip="选择任意 exe 加入游戏库" />
                 <Button x:Name="EditSelectedButton" Content="编辑方案" Style="{StaticResource GhostButtonStyle}"
@@ -47,56 +46,46 @@
             </Grid>
         </Border>
 
-        <Border Grid.Row="3" Style="{StaticResource CardBorderStyle}" Padding="10">
+        <Border Grid.Row="3" Style="{StaticResource CardBorderStyle}" Padding="14,4">
             <Grid>
                 <ListView x:Name="GameList" SelectionMode="Single"
                           SelectionChanged="GameList_SelectionChanged"
-                          ItemContainerStyle="{StaticResource CardListViewItemStyle}">
+                          ItemContainerStyle="{StaticResource DenseListViewItemStyle}">
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="models:GameInfo">
-                            <Border Background="{ThemeResource Surface2Brush}" BorderBrush="{ThemeResource BorderBrush}"
-                                    BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="0,0,0,8"
+                            <Border Style="{StaticResource DataRowStyle}" Padding="6,11"
                                     DoubleTapped="Row_DoubleTapped">
-                                <Grid ColumnSpacing="10">
+                                <Grid ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
-                                    <Border Width="38" Height="38" CornerRadius="10" VerticalAlignment="Center"
-                                            Background="{ThemeResource AccentSoftBrush}">
-                                        <FontIcon Glyph="&#xE7FC;" FontSize="16" Foreground="{ThemeResource AccentBrush}" />
-                                    </Border>
-
-                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                                        <Grid ColumnSpacing="7">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{x:Bind Name}" FontSize="14" FontWeight="SemiBold"
-                                                       Foreground="{ThemeResource TextBrush}" TextTrimming="CharacterEllipsis" />
-                                            <Border Grid.Column="1" Style="{StaticResource PillBorderStyle}" Padding="7,1">
-                                                <TextBlock Text="{x:Bind SourceText}" Style="{StaticResource CaptionTextStyle}" />
-                                            </Border>
-                                            <Border Grid.Column="2" Style="{StaticResource PillBorderStyle}" Padding="7,1">
-                                                <TextBlock Text="{x:Bind StateText}" Style="{StaticResource CaptionTextStyle}" />
-                                            </Border>
-                                        </Grid>
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Text="{x:Bind Name}" FontSize="13.5" FontWeight="SemiBold"
+                                                   Foreground="{ThemeResource TextBrush}" MaxLines="1"
+                                                   TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                                   ToolTipService.ToolTip="{x:Bind Name}" />
+                                        <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="NoWrap">
+                                            <Run Text="{x:Bind SourceText}" />
+                                            <Run Text="  ·  " />
+                                            <Run Text="{x:Bind StateText}" />
+                                        </TextBlock>
                                         <TextBlock Text="{x:Bind Exe}" Style="{StaticResource MonoTextStyle}" FontSize="11"
-                                                   TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Exe}" />
+                                                   TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                                   ToolTipService.ToolTip="{x:Bind Exe}" />
                                         <TextBlock Text="{x:Bind ProfileText}" Style="{StaticResource CaptionTextStyle}"
-                                                   TextTrimming="CharacterEllipsis" />
+                                                   MaxLines="1" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                                   ToolTipService.ToolTip="{x:Bind ProfileText}" />
                                     </StackPanel>
 
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6"
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
                                                 VerticalAlignment="Center">
                                         <Button Content="编辑" Style="{StaticResource GhostButtonStyle}"
                                                 Click="EditProfile_Click"
                                                 ToolTipService.ToolTip="编辑并保存该游戏的启动方案" />
-                                        <Button Content="启动" Style="{StaticResource SubtleButtonStyle}" Click="Start_Click" />
+                                        <Button Content="启动" Style="{StaticResource SubtleButtonStyle}" Click="Start_Click"
+                                                ToolTipService.ToolTip="按该游戏保存的方案启动" />
                                     </StackPanel>
                                 </Grid>
                             </Border>
@@ -105,10 +94,10 @@
                 </ListView>
 
                 <StackPanel x:Name="EmptyHint" VerticalAlignment="Center" HorizontalAlignment="Center"
-                            Spacing="9" Visibility="Collapsed">
-                    <FontIcon Glyph="&#xE7FC;" FontSize="32" Foreground="{ThemeResource MutedTextBrush}" />
+                            Spacing="6" Visibility="Collapsed">
+                    <FontIcon Glyph="&#xE7FC;" FontSize="28" Foreground="{ThemeResource MutedTextBrush}" />
                     <TextBlock Text="没有检测到游戏" Style="{StaticResource SecondaryTextStyle}" />
-                    <TextBlock Text="支持 Steam / Epic / WeGame / Xbox 与手动添加的 exe"
+                    <TextBlock Text="支持 Steam / Epic / WeGame / Xbox；也可以手动选择任意 exe。"
                                Style="{StaticResource CaptionTextStyle}" TextAlignment="Center" TextWrapping="Wrap" />
                     <Button Content="手动添加游戏" Style="{StaticResource SubtleButtonStyle}" Click="AddGame_Click"
                             Margin="0,4,0,0" />

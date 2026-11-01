@@ -14,21 +14,20 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid>
-            <StackPanel Spacing="5">
-                <TextBlock Text="BACKUP &amp; RESTORE · POINT IN TIME" Style="{StaticResource EyebrowTextStyle}" />
+        <StackPanel Spacing="10">
+            <StackPanel Spacing="4">
                 <TextBlock Text="备份还原" Style="{StaticResource PageTitleStyle}" />
-                <TextBlock Text="每次应用前自动记录原值 · 可单项回滚，也可整体恢复"
+                <TextBlock Text="怎么安全回退：每次应用前都记录原值，可选择任意时间点恢复。"
                            Style="{StaticResource SecondaryTextStyle}" />
             </StackPanel>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="6">
                 <Button Content="打开备份目录" Style="{StaticResource GhostButtonStyle}" Click="OpenFolder_Click" />
                 <Button Content="创建还原点" Style="{StaticResource SubtleButtonStyle}" Click="RestorePoint_Click"
                         ToolTipService.ToolTip="调用系统还原点功能，耗时较长" />
                 <Button Content="恢复全部" Style="{StaticResource DangerButtonStyle}" Click="RestoreAll_Click"
                         ToolTipService.ToolTip="把所有已记录项目恢复为原值" />
             </StackPanel>
-        </Grid>
+        </StackPanel>
 
         <InfoBar x:Name="PageInfo" Grid.Row="1" IsOpen="False" IsClosable="True" />
 
@@ -55,24 +54,19 @@
                     </Grid>
 
                     <ListView x:Name="BackupList" Grid.Row="1" SelectionMode="None"
-                              ItemContainerStyle="{StaticResource CardListViewItemStyle}">
+                              ItemContainerStyle="{StaticResource DenseListViewItemStyle}">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="models:BackupInfo">
-                                <Border Background="{ThemeResource Surface2Brush}" BorderBrush="{ThemeResource BorderBrush}"
-                                        BorderThickness="1" CornerRadius="12" Padding="16,13" Margin="0,0,0,8">
-                                    <Grid ColumnSpacing="14">
+                                <Border Style="{StaticResource DataRowStyle}" Padding="4,11">
+                                    <Grid ColumnSpacing="12">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <Border Width="38" Height="38" CornerRadius="10"
-                                                Background="{ThemeResource AccentSoftBrush}" VerticalAlignment="Center">
-                                            <FontIcon Glyph="&#xE777;" FontSize="16" Foreground="{ThemeResource AccentBrush}" />
-                                        </Border>
-                                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <StackPanel Spacing="3" VerticalAlignment="Center">
                                             <TextBlock Text="{x:Bind Name}" FontSize="13.5" FontWeight="SemiBold"
-                                                       Foreground="{ThemeResource TextBrush}" TextTrimming="CharacterEllipsis" />
+                                                       Foreground="{ThemeResource TextBrush}"
+                                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                                             <StackPanel Orientation="Horizontal" Spacing="14">
                                                 <TextBlock Text="{x:Bind Time}" Style="{StaticResource CaptionTextStyle}" />
                                                 <TextBlock Text="{x:Bind RecordsText}" Style="{StaticResource CaptionTextStyle}" />
@@ -80,10 +74,12 @@
                                                            Style="{StaticResource CaptionTextStyle}" />
                                             </StackPanel>
                                         </StackPanel>
-                                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8"
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
                                                     VerticalAlignment="Center">
-                                            <Button Content="定位" Style="{StaticResource GhostButtonStyle}" Click="Reveal_Click" />
-                                            <Button Content="恢复" Style="{StaticResource SubtleButtonStyle}" Click="Restore_Click" />
+                                            <Button Content="定位" Style="{StaticResource GhostButtonStyle}" Click="Reveal_Click"
+                                                    ToolTipService.ToolTip="在资源管理器中选中该备份文件夹" />
+                                            <Button Content="恢复" Style="{StaticResource SubtleButtonStyle}" Click="Restore_Click"
+                                                    ToolTipService.ToolTip="把该时间点记录的原值写回系统" />
                                         </StackPanel>
                                     </Grid>
                                 </Border>
@@ -107,10 +103,8 @@
                         <TextBlock x:Name="LastApplyTime" Text="暂无记录" Style="{StaticResource BodyTextStyle}" />
                         <TextBlock x:Name="LastApplySummary" Text="应用优化后这里会显示本次改动数量与结果。"
                                    Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
-                        <Border Background="{ThemeResource Surface2Brush}" CornerRadius="8" Padding="10,8">
-                            <TextBlock x:Name="LastBackupName" Text="备份文件：--"
-                                       Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
-                        </Border>
+                        <TextBlock x:Name="LastBackupName" Text="备份文件：--"
+                                   Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
 

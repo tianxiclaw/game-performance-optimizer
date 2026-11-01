@@ -13,27 +13,32 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid>
-            <StackPanel Spacing="5">
-                <TextBlock Text="PREFERENCES · LOCAL PROFILE" Style="{StaticResource EyebrowTextStyle}" />
+        <StackPanel Spacing="10">
+            <StackPanel Spacing="4">
                 <TextBlock Text="设置" Style="{StaticResource PageTitleStyle}" />
-                <TextBlock Text="外观与行为设置 · 修改后立即保存到 gui-settings.json"
+                <TextBlock Text="怎么改变程序行为：外观、托盘与配置文件，修改后立即保存。"
                            Style="{StaticResource SecondaryTextStyle}" />
             </StackPanel>
-            <Button Content="打开程序目录" Style="{StaticResource SubtleButtonStyle}"
-                    HorizontalAlignment="Right" VerticalAlignment="Center" Click="OpenConfig_Click" />
-        </Grid>
+            <Button Content="打开程序目录" Style="{StaticResource SubtleButtonStyle}" HorizontalAlignment="Left"
+                    Click="OpenConfig_Click" />
+        </StackPanel>
 
         <InfoBar x:Name="PageInfo" Grid.Row="1" IsOpen="False" IsClosable="True" />
 
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,0,4,8">
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,0,4,8"
+                      HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
+                      HorizontalContentAlignment="Stretch">
             <Grid ColumnSpacing="16" MaxWidth="1500" HorizontalAlignment="Stretch">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="1.1*" />
                     <ColumnDefinition Width="1*" />
                 </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-                <StackPanel Spacing="16">
+                <StackPanel x:Name="LeftColumn" Spacing="16">
                     <Border Style="{StaticResource CardBorderStyle}">
                         <StackPanel Spacing="0">
                             <StackPanel Spacing="3" Margin="0,0,0,6">
@@ -43,26 +48,21 @@
                             </StackPanel>
 
                             <Border Style="{StaticResource SettingsRowStyle}" BorderThickness="0">
-                                <Grid ColumnSpacing="16">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                <StackPanel Spacing="12">
+                                    <StackPanel Spacing="2">
                                         <TextBlock Text="界面主题" Style="{StaticResource BodyTextStyle}" />
                                         <TextBlock Text="深色适合游戏场景，浅色适合办公环境"
                                                    Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                                     </StackPanel>
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14"
-                                                VerticalAlignment="Center">
-                                        <RadioButton x:Name="DarkOption" Content="深色" GroupName="Theme"
+                                    <StackPanel Orientation="Horizontal" Spacing="18">
+                                        <RadioButton x:Name="DarkOption" Content="深色" GroupName="Theme" MinWidth="0"
                                                      Checked="Theme_Checked" />
-                                        <RadioButton x:Name="LightOption" Content="浅色" GroupName="Theme"
+                                        <RadioButton x:Name="LightOption" Content="浅色" GroupName="Theme" MinWidth="0"
                                                      Checked="Theme_Checked" />
-                                        <RadioButton x:Name="SystemOption" Content="跟随系统" GroupName="Theme"
+                                        <RadioButton x:Name="SystemOption" Content="跟随系统" GroupName="Theme" MinWidth="0"
                                                      Checked="Theme_Checked" />
                                     </StackPanel>
-                                </Grid>
+                                </StackPanel>
                             </Border>
                         </StackPanel>
                     </Border>
@@ -83,7 +83,7 @@
                                     <StackPanel Spacing="2" VerticalAlignment="Center">
                                         <TextBlock Text="关闭时最小化到托盘" Style="{StaticResource BodyTextStyle}" />
                                         <TextBlock Text="保留后台监控，可从托盘图标重新打开"
-                                                   Style="{StaticResource CaptionTextStyle}" />
+                                                   Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                                     </StackPanel>
                                     <ToggleSwitch x:Name="TraySwitch" Grid.Column="1"
                                                   Toggled="Setting_Toggled" VerticalAlignment="Center" />
@@ -99,7 +99,7 @@
                                     <StackPanel Spacing="2" VerticalAlignment="Center">
                                         <TextBlock Text="驱动变化提醒" Style="{StaticResource BodyTextStyle}" />
                                         <TextBlock Text="检测到驱动版本变化时给出提示"
-                                                   Style="{StaticResource CaptionTextStyle}" />
+                                                   Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                                     </StackPanel>
                                     <ToggleSwitch x:Name="DriverNotifySwitch" Grid.Column="1"
                                                   Toggled="Setting_Toggled" VerticalAlignment="Center" />
@@ -110,7 +110,7 @@
 
                 </StackPanel>
 
-                <StackPanel Grid.Column="1" Spacing="16">
+                <StackPanel x:Name="RightColumn" Grid.Column="1" Spacing="16">
                     <Border Style="{StaticResource CardBorderStyle}">
                         <StackPanel Spacing="12">
                             <TextBlock Text="存储与配置" Style="{StaticResource SectionTitleStyle}" />

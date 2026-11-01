@@ -24,6 +24,43 @@ public sealed partial class OverviewPage : Page, IThemeAware
         App.Services.State.Changed += OnStateChanged;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
+        Responsive.Watch(this, 880, ApplyWidth);
+    }
+
+    private void ApplyWidth(bool narrow)
+    {
+        if (narrow)
+        {
+            Grid.SetColumnSpan(StatusMain, 3);
+            StatusDivider.Visibility = Visibility.Collapsed;
+            Grid.SetColumn(StatusIdentity, 0);
+            Grid.SetColumnSpan(StatusIdentity, 3);
+            Grid.SetRow(StatusIdentity, 2);
+            StatusIdentity.Margin = new Thickness(0, 16, 0, 0);
+            StatusIdentity.MinWidth = 0;
+
+            Grid.SetColumnSpan(HardwareCard, 2);
+            Grid.SetColumnSpan(SecurityCard, 2);
+            Grid.SetColumn(SecurityCard, 0);
+            Grid.SetRow(SecurityCard, 1);
+            SecurityCard.Margin = new Thickness(0, 16, 0, 0);
+        }
+        else
+        {
+            Grid.SetColumnSpan(StatusMain, 1);
+            StatusDivider.Visibility = Visibility.Visible;
+            Grid.SetColumn(StatusIdentity, 2);
+            Grid.SetColumnSpan(StatusIdentity, 1);
+            Grid.SetRow(StatusIdentity, 0);
+            StatusIdentity.Margin = new Thickness(0);
+            StatusIdentity.MinWidth = 220;
+
+            Grid.SetColumnSpan(HardwareCard, 1);
+            Grid.SetColumnSpan(SecurityCard, 1);
+            Grid.SetColumn(SecurityCard, 1);
+            Grid.SetRow(SecurityCard, 0);
+            SecurityCard.Margin = new Thickness(0);
+        }
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -55,22 +92,33 @@ public sealed partial class OverviewPage : Page, IThemeAware
         var snap = App.Services.State.Snapshot;
         if (snap is null)
         {
-            HeroTitle.Text = "正在读取本机硬件...";
-            HeroSubtitle.Text = App.Services.State.StatusText;
+            StatusHeadline.Text = "正在读取本机状态...";
+            StatusDetail.Text = string.IsNullOrWhiteSpace(App.Services.State.StatusText)
+                ? "正在采集硬件与优化项状态。"
+                : App.Services.State.StatusText;
+            PendingCount.Text = "--";
+            AppliedText.Text = "已生效 -- 项";
             return;
         }
 
-        HeroTitle.Text = string.IsNullOrWhiteSpace(snap.Machine) ? "本机性能优化" : snap.Machine;
-        var gpus = snap.Gpus.Where(g => !g.Basic && !g.Virtual).Select(g => g.Name).Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
-        var gpuText = gpus.Count > 0 ? string.Join("  +  ", gpus) : "未识别到独立/集成显卡";
-        var os = snap.Diagnostics.FirstOrDefault(d => d.Name == "操作系统")?.Value;
-        HeroSubtitle.Text = $"{gpuText}{(string.IsNullOrWhiteSpace(os) ? "" : "  ·  " + os)}";
-        ChipMachine.Text = string.IsNullOrWhiteSpace(snap.Machine) ? "本机" : snap.Machine;
-        ChipForm.Text = snap.IsLaptop ? "笔记本平台" : "台式机平台";
-
+        var recommended = GetRecommendedIds();
         var s = snap.Summary;
-        ScoreValue.Text = s.Applied.ToString();
-        ScoreLabel.Text = $"已生效 / 共 {s.Total} 项 · 待优化 {s.Pending}";
+        PendingCount.Text = s.Pending.ToString();
+        AppliedText.Text = $"已生效 {s.Applied} / {s.Total} 项";
+        StatusHeadline.Text = s.Pending == 0 ? "当前没有待优化项" : "还有可应用的优化项";
+        StatusDetail.Text = s.Pending == 0
+            ? "推荐项均已生效。可以打开优化项手动复查，或预览当前配置。"
+            : $"{recommended.Count} 项低风险推荐项可直接应用；应用前自动备份原值，可在「备份还原」中撤销。";
+        ApplyRecommendedButton.Content = recommended.Count > 0 ? $"应用 {recommended.Count} 项" : "暂无推荐项";
+        ApplyRecommendedButton.IsEnabled = recommended.Count > 0;
+
+        var machine = string.IsNullOrWhiteSpace(snap.Machine) ? "本机" : snap.Machine;
+        var gpus = snap.Gpus.Where(g => !g.Basic && !g.Virtual).Select(g => g.Name).Where(n => !string.IsNullOrWhiteSpace(n)).ToList();
+        var os = snap.Diagnostics.FirstOrDefault(d => d.Name == "操作系统")?.Value;
+        IdentityDevice.Text = $"{machine} · {(snap.IsLaptop ? "笔记本" : "台式机")}";
+        IdentityGpu.Text = gpus.Count > 0 ? string.Join(" + ", gpus) : "未识别到显卡";
+        IdentityOs.Text = string.IsNullOrWhiteSpace(os) ? "未检测到" : os;
+
         PendingBar.IsOpen = snap.PendingReboot?.Pending == true;
         if (snap.PendingReboot?.Pending == true)
             PendingBar.Message = "检测到系统等待重启：" + string.Join("、", snap.PendingReboot.Reasons) +
@@ -99,7 +147,6 @@ public sealed partial class OverviewPage : Page, IThemeAware
             .Take(8)
             .ToList();
         HardwareUpdated.Text = $"更新于 {snap.Time?.Replace('T', ' ')}";
-        ActionHint.Text = $"{gpus.Count} 张显卡 · {snap.Nics.Count} 个网络适配器 · 推荐项只包含低风险、可还原的改动";
     }
 
     private async Task SampleAsync()

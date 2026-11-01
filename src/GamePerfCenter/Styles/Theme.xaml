@@ -15,9 +15,8 @@
             <SolidColorBrush x:Key="BorderStrongBrush" Color="#31425D" />
             <SolidColorBrush x:Key="TextBrush" Color="#E6EDF7" />
             <SolidColorBrush x:Key="SubTextBrush" Color="#9AA9BE" />
-            <SolidColorBrush x:Key="MutedTextBrush" Color="#64748B" />
+            <SolidColorBrush x:Key="MutedTextBrush" Color="#7C8CA3" />
             <SolidColorBrush x:Key="AccentBrush" Color="#22D3EE" />
-            <SolidColorBrush x:Key="Accent2Brush" Color="#818CF8" />
             <SolidColorBrush x:Key="AccentSoftBrush" Color="#15303D" />
             <SolidColorBrush x:Key="AccentForegroundBrush" Color="#04141A" />
             <SolidColorBrush x:Key="OkBrush" Color="#22C55E" />
@@ -36,6 +35,11 @@
             <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="#15303D" />
             <SolidColorBrush x:Key="NavigationViewItemBackgroundPointerOver" Color="#1A2436" />
             <SolidColorBrush x:Key="NavigationViewSelectionIndicatorForeground" Color="#22D3EE" />
+            <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#1A2436" />
+            <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="#15303D" />
+            <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="#1A3A48" />
+            <SolidColorBrush x:Key="ListViewItemForegroundPointerOver" Color="#E6EDF7" />
+            <SolidColorBrush x:Key="ListViewItemForegroundSelected" Color="#E6EDF7" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Light">
             <SolidColorBrush x:Key="AppBgBrush" Color="#F4F7FB" />
@@ -48,9 +52,8 @@
             <SolidColorBrush x:Key="BorderStrongBrush" Color="#C6D3E3" />
             <SolidColorBrush x:Key="TextBrush" Color="#0F172A" />
             <SolidColorBrush x:Key="SubTextBrush" Color="#475569" />
-            <SolidColorBrush x:Key="MutedTextBrush" Color="#94A3B8" />
+            <SolidColorBrush x:Key="MutedTextBrush" Color="#5B6B80" />
             <SolidColorBrush x:Key="AccentBrush" Color="#00738C" />
-            <SolidColorBrush x:Key="Accent2Brush" Color="#4F46E5" />
             <SolidColorBrush x:Key="AccentSoftBrush" Color="#E0F5FA" />
             <SolidColorBrush x:Key="AccentForegroundBrush" Color="#FFFFFF" />
             <SolidColorBrush x:Key="OkBrush" Color="#15803D" />
@@ -69,6 +72,11 @@
             <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="#E0F5FA" />
             <SolidColorBrush x:Key="NavigationViewItemBackgroundPointerOver" Color="#F7FAFD" />
             <SolidColorBrush x:Key="NavigationViewSelectionIndicatorForeground" Color="#00738C" />
+            <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#F7FAFD" />
+            <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="#E0F5FA" />
+            <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="#D4F0F7" />
+            <SolidColorBrush x:Key="ListViewItemForegroundPointerOver" Color="#0F172A" />
+            <SolidColorBrush x:Key="ListViewItemForegroundSelected" Color="#0F172A" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 
@@ -84,15 +92,7 @@
 
     <Style x:Key="PageTitleStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource DisplayFontFamily}" />
-        <Setter Property="FontSize" Value="28" />
-        <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Foreground" Value="{ThemeResource TextBrush}" />
-        <Setter Property="TextWrapping" Value="NoWrap" />
-    </Style>
-
-    <Style x:Key="HeroTitleStyle" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{StaticResource DisplayFontFamily}" />
-        <Setter Property="FontSize" Value="32" />
+        <Setter Property="FontSize" Value="30" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{ThemeResource TextBrush}" />
         <Setter Property="TextWrapping" Value="NoWrap" />
@@ -131,16 +131,9 @@
         <Setter Property="Foreground" Value="{ThemeResource SubTextBrush}" />
     </Style>
 
-    <Style x:Key="EyebrowTextStyle" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
-        <Setter Property="FontSize" Value="11" />
-        <Setter Property="CharacterSpacing" Value="120" />
-        <Setter Property="Foreground" Value="{ThemeResource AccentBrush}" />
-    </Style>
-
     <Style x:Key="MetricValueStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource DisplayFontFamily}" />
-        <Setter Property="FontSize" Value="30" />
+        <Setter Property="FontSize" Value="26" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{ThemeResource TextBrush}" />
         <Setter Property="TextWrapping" Value="NoWrap" />
@@ -158,16 +151,36 @@
         <Setter Property="Background" Value="{ThemeResource CardBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource BorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="16" />
-        <Setter Property="Padding" Value="20" />
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="Padding" Value="18" />
     </Style>
 
     <Style x:Key="HeroBorderStyle" TargetType="Border">
         <Setter Property="Background" Value="{ThemeResource CardBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource BorderStrongBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="20" />
-        <Setter Property="Padding" Value="28" />
+        <Setter Property="CornerRadius" Value="18" />
+        <Setter Property="Padding" Value="24" />
+    </Style>
+
+    <!-- 扁平行：用分隔线组织密集数据，不再逐行包卡 -->
+    <Style x:Key="DataRowStyle" TargetType="Border">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{ThemeResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="Padding" Value="0,11" />
+    </Style>
+
+    <Style x:Key="DataRowLastStyle" TargetType="Border">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0,11,0,2" />
+    </Style>
+
+    <Style x:Key="DividerStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource BorderBrush}" />
+        <Setter Property="Height" Value="1" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
     </Style>
 
     <Style x:Key="PillBorderStyle" TargetType="Border">
@@ -220,6 +233,19 @@
         <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
 
+    <Style x:Key="DangerGhostButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{ThemeResource DangerBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
     <Style x:Key="DangerButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="{ThemeResource DangerSoftBrush}" />
         <Setter Property="Foreground" Value="{ThemeResource DangerBrush}" />
@@ -250,8 +276,8 @@
     <Style x:Key="CardListViewItemStyle" TargetType="ListViewItem">
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="Padding" Value="0" />
-        <Setter Property="Margin" Value="0,0,0,10" />
-        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="Margin" Value="0,0,0,6" />
+        <Setter Property="CornerRadius" Value="10" />
         <Setter Property="MinHeight" Value="0" />
     </Style>
 
@@ -260,6 +286,14 @@
         <Setter Property="Padding" Value="0" />
         <Setter Property="Margin" Value="0,0,0,6" />
         <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="MinHeight" Value="0" />
+    </Style>
+
+    <Style x:Key="DenseListViewItemStyle" TargetType="ListViewItem">
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="CornerRadius" Value="0" />
         <Setter Property="MinHeight" Value="0" />
     </Style>
 

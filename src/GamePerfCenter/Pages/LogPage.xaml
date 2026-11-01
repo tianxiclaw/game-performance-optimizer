@@ -13,20 +13,19 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid>
-            <StackPanel Spacing="5">
-                <TextBlock Text="RUNTIME LOG · ENGINE OUTPUT" Style="{StaticResource EyebrowTextStyle}" />
+        <StackPanel Spacing="10">
+            <StackPanel Spacing="4">
                 <TextBlock Text="运行日志" Style="{StaticResource PageTitleStyle}" />
-                <TextBlock Text="引擎输出与界面操作记录 · 只保留本机，不上传"
+                <TextBlock Text="刚才发生了什么：引擎输出与界面操作记录，只留在本机。"
                            Style="{StaticResource SecondaryTextStyle}" />
             </StackPanel>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="10">
+            <StackPanel Orientation="Horizontal" Spacing="10">
                 <ToggleSwitch x:Name="AutoRefresh" OffContent="自动刷新" OnContent="自动刷新" IsOn="True"
                               MinWidth="0" Toggled="AutoRefresh_Toggled" />
                 <Button Content="打开日志目录" Style="{StaticResource GhostButtonStyle}" Click="OpenFolder_Click" />
                 <Button Content="刷新" Style="{StaticResource AccentButtonStyle}" Click="Refresh_Click" />
             </StackPanel>
-        </Grid>
+        </StackPanel>
 
         <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Padding="14,10">
             <Grid ColumnSpacing="12">
