@@ -10,6 +10,8 @@ public sealed partial class LogPage : Page, IThemeAware
 {
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(3) };
     private bool _loaded;
+    private bool _cleared;
+    private bool _clearing;
     private string _lastText = "";
 
     public LogPage()
@@ -40,10 +42,13 @@ public sealed partial class LogPage : Page, IThemeAware
         {
             if (!File.Exists(AppPaths.AppLogPath))
             {
-                LogMetaText.Text = "日志文件尚未生成";
+                LogText.Text = "";
+                _lastText = "";
+                LogMetaText.Text = _cleared ? "日志已清理 · 新的记录会自动写入" : "日志文件尚未生成";
                 return;
             }
 
+            _cleared = false;
             var info = new FileInfo(AppPaths.AppLogPath);
             var lines = ReadTail(AppPaths.AppLogPath, 900);
             var text = string.Join(Environment.NewLine, lines);
@@ -103,6 +108,41 @@ public sealed partial class LogPage : Page, IThemeAware
             });
         }
         catch { }
+    }
+
+    private async void Clear_Click(object sender, RoutedEventArgs e)
+    {
+        if (_clearing) return;
+        _clearing = true;
+        try
+        {
+            var dialog = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                Title = "清理运行日志？",
+                Content = "将删除 data 目录下的 winui.log 与 winui.log.1，清理后无法恢复。备份、游戏库与优化记录不受影响。",
+                PrimaryButtonText = "清理日志",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Close
+            };
+
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+
+            if (!AppLog.Clear())
+            {
+                LogMetaText.Text = "清理失败：日志文件可能被占用，请稍后重试";
+                return;
+            }
+
+            _cleared = true;
+            _lastText = "";
+            LogText.Text = "";
+            Reload();
+        }
+        finally
+        {
+            _clearing = false;
+        }
     }
 
     private void Copy_Click(object sender, RoutedEventArgs e)

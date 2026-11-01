@@ -24,6 +24,8 @@
                               MinWidth="0" Toggled="AutoRefresh_Toggled" />
                 <Button Content="打开日志目录" Style="{StaticResource GhostButtonStyle}" Click="OpenFolder_Click" />
                 <Button Content="刷新" Style="{StaticResource AccentButtonStyle}" Click="Refresh_Click" />
+                <Button Content="清理日志" Style="{StaticResource DangerGhostButtonStyle}" Click="Clear_Click"
+                        ToolTipService.ToolTip="删除本机运行日志，不影响备份与优化记录" />
             </StackPanel>
         </StackPanel>
 

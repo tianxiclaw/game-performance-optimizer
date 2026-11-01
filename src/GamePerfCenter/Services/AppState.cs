@@ -205,4 +205,21 @@ public static class AppLog
         }
         catch { }
     }
+
+    /// <summary>删除当前日志与轮转备份，返回是否成功。日志只用于排查问题。</summary>
+    public static bool Clear()
+    {
+        try
+        {
+            lock (Gate)
+            {
+                foreach (var file in new[] { AppPaths.AppLogPath, AppPaths.AppLogPath + ".1" })
+                {
+                    if (File.Exists(file)) File.Delete(file);
+                }
+            }
+            return true;
+        }
+        catch { return false; }
+    }
 }
