@@ -28,7 +28,8 @@
 | 双备份与回滚 | 应用前生成 `backups/backup_*.json` 与 `backups/reg_*/` 快照；支持单项、最近一次、全部回放 |
 | 游戏库 | 自动识别 Steam / Epic / WeGame，也可手动添加任意 exe；每个游戏单独保存优先级、亲和性、全屏优化、高性能 GPU、管理员启动与启动参数 |
 | 只读诊断 | VBS / HVCI、内存 XMP / EXPO、PCIe 链路、NVMe 健康、系统盘空间、电源方案；可导出诊断包 |
-| GUI 与 CLI 共用引擎 | 图形界面、交互式控制台、命令行参数行为一致，排查问题时可复现同一套逻辑 |
+| 驱动中心 | 设备与驱动仓库逐项比对；可重新绑定当前驱动、切换仓库驱动包、清理旧包，操作前后自动恢复音频静音状态 |
+| GUI 与 CLI 共用引擎 | 图形界面、PowerShell 控制台与 `gpc` 单文件 CLI 共用核心逻辑，排查问题时可复现同一套行为 |
 
 ## 界面
 
@@ -101,7 +102,7 @@ WinUI 3 界面会按系统缩放自动适配，无需额外设置；如果异常
 
 ## 命令行
 
-图形界面与命令行共用同一套引擎，适合批量处理或排查问题。
+图形界面、PowerShell 引擎与新版 `gpc` CLI 共用同一套核心逻辑，适合批量处理或排查问题。`gpc` 是自包含单文件，发布脚本会单独生成 `gpc.exe` 压缩包（内含引擎脚本），不需要另装运行时。
 
 ```powershell
 # 交互式控制台
@@ -135,21 +136,70 @@ powershell -ExecutionPolicy Bypass -File .\游戏性能优化.ps1 -RestoreAll
 | `-Yes` | 跳过确认 |
 | `-NoElevate` | 不自动提权（只读查询时常用） |
 
+新版 `gpc` CLI（与桌面界面共用 Core 执行内核）：
+
+```powershell
+# 列出本机适用的优化项，并检测当前状态
+gpc items list --status
+
+# 预览推荐项，不写入系统
+gpc items apply --dry-run
+
+# 写入系统并生成备份；可选先创建系统还原点
+gpc items apply --yes --restore-point
+
+# 校验备份能否还原，再实际还原
+gpc items restore --latest --dry-run
+gpc items restore --latest
+
+# 驱动清单与操作（写操作默认需要 --yes）
+gpc drivers scan
+gpc drivers reinstall "设备名" --dry-run
+gpc drivers switch oem42.inf --device "设备名" --yes
+gpc drivers delete oem42.inf --device "设备名" --yes
+
+# 查看活动音频端点；restore 恢复本次捕获到的静音状态
+gpc audio restore
+```
+
+驱动操作会先捕获音频端点静音状态，结束后自动恢复，避免重新枚举设备后麦克风或扬声器被静音。
+
 ## 项目结构
 
 | 文件 | 作用 |
 | --- | --- |
 | `src/GamePerfCenter/` | WinUI 3 桌面界面（.NET 10，自包含发布） |
 | `src/GamePerfCenter/engine-bridge.ps1` | 界面与 PowerShell 引擎的常驻进程桥 |
-| `游戏性能优化.ps1` | 引擎：优化项定义、状态检查、应用 / 还原、诊断、快照 |
+| `src/GamePerfCenter.Core/` | 共享核心：驱动清单 / 操作、优化项执行、备份还原、音频静音保护 |
+| `src/GamePerfCenter.Cli/` | `gpc` 单文件 CLI，复用 Core 能力 |
+| `游戏性能优化.ps1` | 引擎：优化项定义、硬件检测、状态检查、诊断与快照 |
 | `游戏性能优化-GUI.ps1` | WinForms 旧版界面（便携包内作为备用） |
 | `启动优化脚本.bat` | WinForms 备用启动器（自动提权） |
 | `启动控制台版.bat` | 控制台入口 |
 | `赞赏码.png` | 支持作者（可选） |
 | `使用说明.txt` | 随包分发的说明 |
 | `docs/` | README 截图 |
+| `scripts/publish.ps1` | 构建 WinUI 便携包与单文件 CLI，生成 SHA256，可选代码签名 |
 | `scripts/install-local.ps1` | 把最新构建同步到桌面快捷方式指向的安装目录 |
 | `LICENSE` | MIT 许可证 |
+
+## 发布产物
+
+发布件固定输出到仓库根目录的 `发布` 文件夹：
+
+| 文件 | 用途 |
+| --- | --- |
+| `游戏性能优化中心_便携版_最新.zip` | 固定名称，始终是最新构建，适合直接分享 |
+| `游戏性能优化中心_v<版本>_便携版.zip` | 带版本号，便于归档和回滚 |
+| `游戏性能优化中心_CLI_v<版本>_win-x64.zip` | 单文件 CLI |
+
+构建中间产物统一放在 `dist\.build`，可以随时删除。
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish.ps1
+```
+
+需要换位置时用 `-OutputDir` 指定；不指定时始终是 `发布`。
 
 ## 本地安装
 
@@ -159,7 +209,7 @@ powershell -ExecutionPolicy Bypass -File .\游戏性能优化.ps1 -RestoreAll
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-local.ps1
 ```
 
-脚本会把 `dist` 下版本号最高的构建覆盖到该目录，保留 `data`、`backups`、`diagnostics` 与 `gui-settings.json`，并校正快捷方式指向。更新前需先关闭程序。
+脚本会从 `发布` 或 `dist\.build` 里挑选版本号最高的构建覆盖到该目录，保留 `data`、`backups`、`diagnostics` 与 `gui-settings.json`，并校正快捷方式指向。更新前需先关闭程序。
 
 ## 兼容性
 

@@ -345,6 +345,53 @@ public sealed class DriverHistRow
     }
 }
 
+/// <summary>驱动中心页面使用的设备行，数据来自 GamePerfCenter.Core。</summary>
+public sealed class DriverInventoryRow
+{
+    public string Name { get; init; } = "";
+    public string Category { get; init; } = "";
+    public string ClassName { get; init; } = "";
+    public string DeviceId { get; init; } = "";
+    public string InfName { get; init; } = "";
+    public string Version { get; init; } = "";
+    public string Provider { get; init; } = "";
+    public string Date { get; init; } = "";
+    public string StatusText { get; init; } = "";
+    public bool StatusOk { get; init; }
+    public int UpdateCount { get; init; }
+    public int OldCount { get; init; }
+    public int PackageCount { get; init; }
+    public string FlagsText { get; init; } = "";
+    public string Level { get; init; } = "green";
+    public string Vendor { get; init; } = "";
+    public bool CanOpenVendor { get; init; }
+
+    [JsonIgnore]
+    public string StatusGlyph => StatusOk ? "\uE73E" : "\uE7BA";
+
+    [JsonIgnore]
+    public string MetaText
+    {
+        get
+        {
+            var parts = new List<string>();
+            if (!string.IsNullOrEmpty(Provider)) parts.Add(Provider);
+            if (!string.IsNullOrEmpty(Date)) parts.Add(Date);
+            if (!string.IsNullOrEmpty(InfName)) parts.Add(InfName);
+            return parts.Count == 0 ? "驱动信息未知" : string.Join(" · ", parts);
+        }
+    }
+
+    [JsonIgnore]
+    public string PackageText => PackageCount == 0
+        ? "驱动仓库无匹配包"
+        : $"仓库 {PackageCount} 包 · 旧版本 {OldCount} · 更新 {UpdateCount}";
+
+    [JsonIgnore]
+    public GamePerfCenter.Core.Models.DriverDeviceInfo? Device { get; init; }
+}
+
+
 public sealed class DiagGroup
 {
     public string? Name { get; set; }

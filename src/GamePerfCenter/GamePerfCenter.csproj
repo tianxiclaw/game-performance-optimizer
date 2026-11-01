@@ -17,9 +17,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <Version>6.1.1</Version>
-    <FileVersion>6.1.1.0</FileVersion>
-    <AssemblyVersion>6.1.1.0</AssemblyVersion>
+    <Version>6.3.0</Version>
+    <FileVersion>6.3.0.0</FileVersion>
+    <AssemblyVersion>6.3.0.0</AssemblyVersion>
     <Company>天禧性能实验室</Company>
     <Product>游戏性能优化中心</Product>
     <Copyright>Copyright © 2026 天禧性能实验室</Copyright>
@@ -30,6 +30,10 @@
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260921001" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.4948" />
     <PackageReference Include="System.Management" Version="10.0.14" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GamePerfCenter.Core\GamePerfCenter.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -7,21 +7,50 @@ namespace GamePerfCenter.Services;
 
 public sealed class EngineException : Exception
 {
-    public EngineException(string message) : base(message) { }
+    public string? Detail { get; }
+
+    public EngineException(string message, string? detail = null) : base(message)
+    {
+        Detail = detail;
+    }
+}
+
+/// <summary>一次引擎故障的快照，供报告和诊断使用。</summary>
+public sealed class EngineFailure
+{
+    public string Summary { get; init; } = "引擎进程已退出";
+    public string? Command { get; init; }
+    public int? ExitCode { get; init; }
+    public string? StderrTail { get; init; }
+    public string? StdoutTail { get; init; }
+    public string? LaunchError { get; init; }
+    public string? PowerShellPath { get; init; }
+    public DateTime StartedAt { get; init; }
+    public DateTime ExitedAt { get; init; }
 }
 
 public sealed class EngineBridge : IAsyncDisposable
 {
+    private const int TailLimit = 200;
+
     private Process? _proc;
     private readonly SemaphoreSlim _startLock = new(1, 1);
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly ConcurrentDictionary<string, TaskCompletionSource<JsonElement>> _pending = new();
+    private readonly ConcurrentQueue<string> _stderrTail = new();
+    private readonly ConcurrentQueue<string> _stdoutTail = new();
     private int _seq;
     private bool _disposed;
+    private volatile bool _stopping;
+    private DateTime _startedAt;
+    private string _powershellPath = "";
+    private string? _lastCommand;
+    private EngineFailure? _lastFailure;
 
     public bool IsRunning => _proc is { HasExited: false };
+    public EngineFailure? LastFailure => _lastFailure;
     public event Action<string>? LogReceived;
-    public event Action<string>? Faulted;
+    public event Action<EngineFailure>? Crashed;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -36,26 +65,39 @@ public sealed class EngineBridge : IAsyncDisposable
         try
         {
             if (IsRunning) return;
+            _stopping = false;
             DisposeProcess();
+            ResetTail();
+
             if (!File.Exists(AppPaths.BridgePath))
-                throw new EngineException($"引擎桥接脚本缺失: {AppPaths.BridgePath}");
+                throw FailStart($"引擎桥接脚本缺失: {AppPaths.BridgePath}");
             if (!File.Exists(AppPaths.EnginePath))
-                throw new EngineException($"引擎脚本缺失: {AppPaths.EnginePath}");
+                throw FailStart($"引擎脚本缺失: {AppPaths.EnginePath}");
+            if (!Directory.Exists(AppPaths.BaseDir))
+                throw FailStart($"程序目录不存在: {AppPaths.BaseDir}");
+
+            var powershell = ResolvePowerShell(out var pathError);
+            if (powershell is null)
+                throw FailStart(pathError ?? "找不到 Windows PowerShell");
+            _powershellPath = powershell;
 
             var psi = new ProcessStartInfo
             {
-                FileName = "powershell.exe",
+                FileName = powershell,
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 WindowStyle = ProcessWindowStyle.Hidden,
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
+                StandardInputEncoding = new UTF8Encoding(false),
                 StandardOutputEncoding = new UTF8Encoding(false),
                 StandardErrorEncoding = new UTF8Encoding(false),
                 WorkingDirectory = AppPaths.BaseDir
             };
+            psi.ArgumentList.Add("-NoLogo");
             psi.ArgumentList.Add("-NoProfile");
+            psi.ArgumentList.Add("-NonInteractive");
             psi.ArgumentList.Add("-ExecutionPolicy");
             psi.ArgumentList.Add("Bypass");
             psi.ArgumentList.Add("-STA");
@@ -69,26 +111,46 @@ public sealed class EngineBridge : IAsyncDisposable
                 psi.ArgumentList.Add(AppPaths.UserSid);
             }
 
+            _startedAt = DateTime.Now;
             var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
-            proc.Exited += (_, _) =>
-            {
-                var msg = "引擎进程已退出";
-                Faulted?.Invoke(msg);
-                FailPending(msg);
-            };
-            if (!proc.Start()) throw new EngineException("无法启动引擎进程");
+            proc.Exited += (_, _) => _ = OnProcessExitedAsync(proc);
+            if (!proc.Start())
+                throw FailStart("无法启动 Windows PowerShell 进程");
             _proc = proc;
             _ = Task.Run(ReadStdoutAsync);
             _ = Task.Run(ReadStderrAsync);
 
             var data = await RequestCoreAsync("ping", null, TimeSpan.FromMinutes(3), ct).ConfigureAwait(false);
             if (data.ValueKind == JsonValueKind.Object && data.TryGetProperty("pong", out _))
-                LogReceived?.Invoke("引擎已就绪");
+            {
+                var version = data.TryGetProperty("engine", out var ver) ? ver.GetString() : "";
+                _lastFailure = null;
+                LogReceived?.Invoke($"引擎已就绪 · PowerShell {version}".TrimEnd());
+            }
         }
         finally
         {
             _startLock.Release();
         }
+    }
+
+    /// <summary>停掉当前进程重新连接，供错误报告里的“重新连接”使用。</summary>
+    public async Task RestartAsync(CancellationToken ct = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        await _startLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            _stopping = true;
+            DisposeProcess();
+            _stopping = false;
+            _lastFailure = null;
+        }
+        finally
+        {
+            _startLock.Release();
+        }
+        await StartAsync(ct).ConfigureAwait(false);
     }
 
     public async Task<JsonElement> RequestAsync(string cmd, object? args = null,
@@ -104,15 +166,33 @@ public sealed class EngineBridge : IAsyncDisposable
     {
         var data = await RequestAsync(cmd, args, timeout, ct).ConfigureAwait(false);
         var result = data.Deserialize<T>(JsonOptions);
-        if (result is null) throw new EngineException("引擎返回了空数据");
+        if (result is null) throw new EngineException("引擎返回了空数据", DescribeLastFailure());
         return result;
+    }
+
+    private EngineException FailStart(string message)
+    {
+        var failure = new EngineFailure
+        {
+            Summary = message,
+            Command = "启动",
+            LaunchError = message,
+            PowerShellPath = _powershellPath,
+            StartedAt = _startedAt == default ? DateTime.Now : _startedAt,
+            ExitedAt = DateTime.Now
+        };
+        _lastFailure = failure;
+        AppLog.Write("引擎启动失败: " + message);
+        return new EngineException(message, DescribeFailure(failure));
     }
 
     private async Task<JsonElement> RequestCoreAsync(string cmd, object? args, TimeSpan timeout, CancellationToken ct)
     {
         var proc = _proc;
-        if (proc is null || proc.HasExited) throw new EngineException("引擎未运行");
+        if (proc is null || proc.HasExited)
+            throw new EngineException("引擎未运行", DescribeLastFailure());
 
+        _lastCommand = cmd;
         var id = Interlocked.Increment(ref _seq).ToString();
         var tcs = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
         _pending[id] = tcs;
@@ -139,7 +219,8 @@ public sealed class EngineBridge : IAsyncDisposable
             }
             catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
-                throw new EngineException($"引擎响应超时: {cmd}");
+                throw new EngineException($"引擎响应超时: {cmd}", DescribeLastFailure(
+                    $"命令 {cmd} 超过 {timeout.TotalSeconds:0} 秒没有返回。引擎可能卡在硬件查询或系统调用上。"));
             }
         }
         finally
@@ -167,6 +248,7 @@ public sealed class EngineBridge : IAsyncDisposable
                 }
                 catch
                 {
+                    EnqueueTail(_stdoutTail, line);
                     LogReceived?.Invoke(line);
                     continue;
                 }
@@ -192,15 +274,33 @@ public sealed class EngineBridge : IAsyncDisposable
                     else
                     {
                         var err = root.TryGetProperty("error", out var e) ? e.GetString() : "未知错误";
-                        tcs.TrySetException(new EngineException(err ?? "未知错误"));
+                        var detail = ReadErrorDetail(root);
+                        tcs.TrySetException(new EngineException(err ?? "未知错误", detail));
                     }
                 }
             }
         }
         catch (Exception ex)
         {
+            EnqueueTail(_stdoutTail, "[stdout] " + ex.Message);
             LogReceived?.Invoke($"[stdout] {ex.Message}");
         }
+    }
+
+    private static string? ReadErrorDetail(JsonElement root)
+    {
+        if (!root.TryGetProperty("errorDetail", out var d) || d.ValueKind != JsonValueKind.Object)
+            return null;
+        var lines = new List<string>();
+        foreach (var name in new[] { "type", "id", "category", "line", "position", "stack" })
+        {
+            if (d.TryGetProperty(name, out var v) && v.ValueKind != JsonValueKind.Null)
+            {
+                var text = v.GetString();
+                if (!string.IsNullOrWhiteSpace(text)) lines.Add($"{name}: {text}");
+            }
+        }
+        return lines.Count == 0 ? null : string.Join(Environment.NewLine, lines);
     }
 
     private static IEnumerable<string> ReadLogs(JsonElement root)
@@ -224,19 +324,141 @@ public sealed class EngineBridge : IAsyncDisposable
             {
                 var line = await proc.StandardError.ReadLineAsync().ConfigureAwait(false);
                 if (line is null) break;
-                if (!string.IsNullOrWhiteSpace(line)) LogReceived?.Invoke("[stderr] " + line.Trim());
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    var text = line.Trim();
+                    EnqueueTail(_stderrTail, text);
+                    LogReceived?.Invoke("[stderr] " + text);
+                }
             }
         }
         catch { }
     }
 
-    private void FailPending(string message)
+    private async Task OnProcessExitedAsync(Process proc)
+    {
+        if (_stopping) return;
+        // stderr 可能比 Exited 事件晚到，稍等一下再生成报告。
+        try { await Task.Delay(150).ConfigureAwait(false); } catch { }
+
+        int? exitCode = null;
+        try { if (proc.HasExited) exitCode = proc.ExitCode; } catch { }
+
+        var stderr = string.Join(Environment.NewLine, _stderrTail);
+        var stdout = string.Join(Environment.NewLine, _stdoutTail);
+        var summary = exitCode is null
+            ? "引擎进程已退出"
+            : $"引擎进程异常退出（代码 {exitCode} / 0x{exitCode:X8}）";
+
+        var failure = new EngineFailure
+        {
+            Summary = summary,
+            Command = _lastCommand,
+            ExitCode = exitCode,
+            StderrTail = stderr,
+            StdoutTail = stdout,
+            PowerShellPath = _powershellPath,
+            StartedAt = _startedAt,
+            ExitedAt = DateTime.Now
+        };
+        _lastFailure = failure;
+
+        AppLog.Write($"{summary} · 最后命令: {_lastCommand ?? "—"} · {_powershellPath}");
+        if (!string.IsNullOrWhiteSpace(stderr))
+        {
+            var tail = string.Join(" | ", stderr.Split('\n').TakeLast(5).Select(s => s.Trim()));
+            AppLog.Write("引擎 stderr: " + tail);
+        }
+
+        Crashed?.Invoke(failure);
+        FailPending(summary, DescribeFailure(failure));
+    }
+
+    private void FailPending(string message, string? detail = null)
     {
         foreach (var kv in _pending)
         {
             if (_pending.TryRemove(kv.Key, out var tcs))
-                tcs.TrySetException(new EngineException(message));
+                tcs.TrySetException(new EngineException(message, detail));
         }
+    }
+
+    private string DescribeLastFailure(string? prefix = null)
+    {
+        var failure = _lastFailure;
+        if (failure is null) return prefix ?? "引擎没有返回更多信息。";
+        return DescribeFailure(failure, prefix);
+    }
+
+    private static string DescribeFailure(EngineFailure failure, string? prefix = null)
+    {
+        var lines = new List<string>();
+        if (!string.IsNullOrWhiteSpace(prefix)) lines.Add(prefix);
+        lines.Add($"时间: {failure.ExitedAt:yyyy-MM-dd HH:mm:ss}");
+        if (failure.ExitCode is int code)
+            lines.Add($"退出代码: {code} (0x{code:X8})");
+        if (!string.IsNullOrWhiteSpace(failure.Command))
+            lines.Add($"最后命令: {failure.Command}");
+        if (!string.IsNullOrWhiteSpace(failure.LaunchError))
+            lines.Add($"启动错误: {failure.LaunchError}");
+        if (!string.IsNullOrWhiteSpace(failure.PowerShellPath))
+            lines.Add($"PowerShell: {failure.PowerShellPath}");
+        if (!string.IsNullOrWhiteSpace(failure.StderrTail))
+        {
+            lines.Add("stderr:");
+            lines.AddRange(failure.StderrTail.Split('\n').TakeLast(12).Select(s => "  " + s.TrimEnd()));
+        }
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private void ResetTail()
+    {
+        while (_stderrTail.TryDequeue(out _)) { }
+        while (_stdoutTail.TryDequeue(out _)) { }
+    }
+
+    private static void EnqueueTail(ConcurrentQueue<string> queue, string line)
+    {
+        queue.Enqueue(line);
+        while (queue.Count > TailLimit) queue.TryDequeue(out _);
+    }
+
+    internal static string? ResolvePowerShell(out string? error)
+    {
+        var candidates = new List<string>();
+        var system = Environment.GetFolderPath(Environment.SpecialFolder.System);
+        if (!string.IsNullOrWhiteSpace(system))
+            candidates.Add(Path.Combine(system, "WindowsPowerShell", "v1.0", "powershell.exe"));
+        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        if (!string.IsNullOrWhiteSpace(windows))
+            candidates.Add(Path.Combine(windows, "Sysnative", "WindowsPowerShell", "v1.0", "powershell.exe"));
+
+        foreach (var candidate in candidates)
+        {
+            if (File.Exists(candidate))
+            {
+                error = null;
+                return candidate;
+            }
+        }
+
+        var path = Environment.GetEnvironmentVariable("PATH") ?? "";
+        foreach (var dir in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+        {
+            try
+            {
+                var candidate = Path.Combine(dir.Trim(), "powershell.exe");
+                if (File.Exists(candidate))
+                {
+                    error = null;
+                    return candidate;
+                }
+            }
+            catch { }
+        }
+
+        error = "找不到 powershell.exe。Windows PowerShell 可能被安全软件删除、被组策略禁用，或系统组件损坏。";
+        return null;
     }
 
     private void DisposeProcess()
@@ -260,6 +482,7 @@ public sealed class EngineBridge : IAsyncDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _stopping = true;
         try
         {
             if (IsRunning)

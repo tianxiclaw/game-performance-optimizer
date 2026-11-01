@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
+using GamePerfCenter.Helpers;
 using GamePerfCenter.Pages;
 using GamePerfCenter.Services;
 
@@ -13,8 +14,10 @@ namespace GamePerfCenter;
 public sealed partial class MainWindow : Window
 {
     private readonly Microsoft.UI.Dispatching.DispatcherQueue _dispatcher;
+    private readonly SemaphoreSlim _engineReportLock = new(1, 1);
     private TrayIcon? _tray;
     private bool _initialized;
+    private EngineFailure? _shownFailure;
 
     public MainWindow()
     {
@@ -32,6 +35,7 @@ public sealed partial class MainWindow : Window
 
         App.Services.State.StatusChanged += OnStatusChanged;
         App.Services.State.Changed += OnStateChanged;
+        App.Services.Engine.Crashed += OnEngineCrashed;
         Nav.Loaded += Nav_Loaded;
         AppWindow.Closing += OnAppWindowClosing;
         Closed += OnClosed;
@@ -141,8 +145,107 @@ public sealed partial class MainWindow : Window
         {
             EngineStateText.Text = "引擎连接失败";
             SetStatus("引擎连接失败", false);
-            ShowError("无法连接优化引擎", ex.Message);
             AppLog.Write("初始化失败: " + ex);
+            await ShowEngineFailureAsync(App.Services.Engine.LastFailure, ex);
+        }
+    }
+
+    /// <summary>引擎进程意外退出时由 EngineBridge 触发，整理报告并弹出可操作的故障说明。</summary>
+    private void OnEngineCrashed(EngineFailure failure)
+    {
+        _dispatcher.TryEnqueue(() =>
+        {
+            EngineStateText.Text = "引擎已断开";
+            SetStatus("引擎连接中断，正在整理故障报告...", true);
+            _ = ShowEngineFailureAsync(failure, null);
+        });
+    }
+
+    /// <summary>
+    /// 同一时间只允许一个故障弹窗。用户点“重新连接”后若仍失败，就地把新报告再展示一次，
+    /// 而不是叠出第二个 ContentDialog。
+    /// </summary>
+    private async Task ShowEngineFailureAsync(EngineFailure? failure, Exception? error)
+    {
+        if (!_engineReportLock.Wait(0)) return;
+        try
+        {
+            failure ??= App.Services.Engine.LastFailure;
+            // Exited 事件比管道关闭稍晚，等一小会儿才能拿到退出代码与 stderr。
+            for (var i = 0; i < 10 && failure is null; i++)
+            {
+                await Task.Delay(100);
+                failure = App.Services.Engine.LastFailure;
+            }
+            if (failure is not null && ReferenceEquals(failure, _shownFailure)) return;
+            _shownFailure = failure;
+
+            var result = await ShowReportAsync(failure, error);
+            while (result == ContentDialogResult.Primary)
+            {
+                if (await ReconnectEngineAsync()) return;
+                failure = App.Services.Engine.LastFailure;
+                error = null;
+                result = await ShowReportAsync(failure, error);
+            }
+
+            EngineStateText.Text = App.Services.Engine.IsRunning ? "引擎已连接" : "引擎未连接";
+            SetStatus(App.Services.Engine.IsRunning ? "就绪" : "引擎未连接", false);
+        }
+        finally
+        {
+            _engineReportLock.Release();
+        }
+    }
+
+    private async Task<ContentDialogResult> ShowReportAsync(EngineFailure? failure, Exception? error)
+    {
+        EngineReport report;
+        try
+        {
+            report = await EngineDiagnostics.BuildAsync(failure, error);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("故障报告生成失败: " + ex);
+            report = new EngineReport
+            {
+                Summary = failure?.Summary ?? "优化引擎没有正常工作",
+                Cause = error?.Message ?? failure?.Summary ?? ex.Message,
+                Suggestions = new[]
+                {
+                    "点击“重新连接”会重启引擎。",
+                    "仍失败时，到“运行日志”页查看最近输出。"
+                },
+                Details = "故障报告生成失败：" + ex
+            };
+        }
+
+        SetStatus("引擎异常，请查看故障报告", false);
+        if (RootGrid.XamlRoot is null) return ContentDialogResult.None;
+        return await EngineErrorDialog.ShowAsync(RootGrid.XamlRoot, report);
+    }
+
+    private async Task<bool> ReconnectEngineAsync()
+    {
+        EngineStateText.Text = "正在重连...";
+        SetStatus("正在重新连接优化引擎...", true);
+        try
+        {
+            await App.Services.Engine.RestartAsync();
+            SetStatus("正在读取硬件信息...", true);
+            await App.Services.State.EnsureSnapshotAsync(force: true);
+            EngineStateText.Text = "引擎已连接";
+            SetStatus("就绪", false);
+            _shownFailure = null;
+            AppLog.Write("引擎重新连接成功");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            EngineStateText.Text = "引擎连接失败";
+            AppLog.Write("重新连接失败: " + ex);
+            return false;
         }
     }
 

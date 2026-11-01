@@ -4,15 +4,16 @@
 
 .DESCRIPTION
     发布的便携包是带版本号的目录，而桌面快捷方式只能指向一个固定路径。
-    每次发版后运行本脚本，把 dist 里最新的“游戏性能优化中心_v*”目录覆盖到
-    %LOCALAPPDATA%\Programs\游戏性能优化中心，用户数据（data、backups、
-    diagnostics、gui-settings.json）保持不动，快捷方式始终打开新版本。
+    每次发版后运行本脚本，把发布目录或 dist\.build 里最新的
+    “游戏性能优化中心_v*”目录覆盖到 %LOCALAPPDATA%\Programs\游戏性能优化中心，
+    用户数据（data、backups、diagnostics、gui-settings.json）保持不动，
+    快捷方式始终打开新版本。
 
 .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install-local.ps1
 
 .EXAMPLE
-    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install-local.ps1 -Source "dist\游戏性能优化中心_v6.1.1"
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install-local.ps1 -Source "dist\.build\游戏性能优化中心_v6.3.0"
 #>
 [CmdletBinding()]
 param(
@@ -32,8 +33,17 @@ function Get-BuildVersion([string]$folder) {
 }
 
 if (-not $Source) {
-    $candidates = @(Get-ChildItem -LiteralPath (Join-Path $repo 'dist') -Directory -Filter '游戏性能优化中心_v*' -ErrorAction SilentlyContinue)
-    if ($candidates.Count -eq 0) { throw 'dist 下没有构建产物，请先执行 dotnet publish。' }
+    $searchRoots = @(
+        (Join-Path $repo '发布'),
+        (Join-Path $repo 'dist\.build'),
+        (Join-Path $repo 'dist')
+    )
+    $candidates = @(foreach ($root in $searchRoots) {
+        if (Test-Path -LiteralPath $root) {
+            Get-ChildItem -LiteralPath $root -Directory -Filter '游戏性能优化中心_v*' -ErrorAction SilentlyContinue
+        }
+    })
+    if ($candidates.Count -eq 0) { throw '没有找到构建产物，请先执行 scripts\publish.ps1。' }
     $Source = ($candidates | Sort-Object { Get-BuildVersion $_.FullName } -Descending | Select-Object -First 1).FullName
 }
 $Source = (Resolve-Path -LiteralPath $Source).Path

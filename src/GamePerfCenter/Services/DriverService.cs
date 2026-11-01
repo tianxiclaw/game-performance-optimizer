@@ -227,6 +227,9 @@ public sealed class DriverService
         return "OTHER";
     }
 
+    /// <summary>供驱动中心页面按名称/设备 ID 判断厂商，复用同一套判定规则。</summary>
+    public static string DetectVendorName(string name, string pnp) => DetectVendor(name, pnp);
+
     private static bool IsIntegrated(string name, string vendor, long vram)
     {
         var n = name.ToLowerInvariant();

@@ -6,14 +6,43 @@ param(
     [string]$Sid
 )
 
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
+try { [Console]::InputEncoding = [System.Text.Encoding]::UTF8 } catch {}
+try { $OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 $ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'
 
+$script:DataDir = Join-Path $PSScriptRoot 'data'
+$script:EngineLog = Join-Path $script:DataDir 'engine.log'
+
+# 引擎镜像日志：即使 PowerShell 进程崩溃，界面上也还能看到最后执行到哪一步。
+function Write-EngineLog {
+    param(
+        [string]$Level,
+        [string]$Message
+    )
+    try {
+        if (-not (Test-Path -LiteralPath $script:DataDir)) {
+            New-Item -ItemType Directory -Path $script:DataDir -Force | Out-Null
+        }
+        if ((Test-Path -LiteralPath $script:EngineLog) -and
+            (Get-Item -LiteralPath $script:EngineLog -ErrorAction SilentlyContinue).Length -gt 2MB) {
+            Move-Item -LiteralPath $script:EngineLog -Destination ($script:EngineLog + '.1') -Force
+        }
+        $line = '{0:yyyy-MM-dd HH:mm:ss} [{1}] {2}' -f (Get-Date), $Level, $Message
+        Add-Content -LiteralPath $script:EngineLog -Value $line -Encoding UTF8 -ErrorAction SilentlyContinue
+    } catch {}
+}
+
+trap {
+    try { Write-EngineLog 'FATAL' ($_ | Out-String) } catch {}
+    try { [Console]::Error.WriteLine($_.Exception.Message) } catch {}
+    exit 1
+}
+
 $script:LogBuf = New-Object System.Collections.ArrayList
 
-# 接管引擎内的 Write-Host，避免污染 stdout 的 JSON 协议
+# 接管引擎内的 Write-Host，避免污染 stdout 的 JSON 协议；同时落盘，崩溃后仍可追溯。
 function Write-Host {
     [CmdletBinding()]
     param(
@@ -27,12 +56,17 @@ function Write-Host {
     process {
         if ($null -eq $Object) { return }
         $text = [string]$Object
-        if ($text.Length -gt 0) { [void]$script:LogBuf.Add($text) }
+        if ($text.Length -gt 0) {
+            [void]$script:LogBuf.Add($text)
+            Write-EngineLog 'INFO' $text
+        }
     }
 }
 
+
 $engine = Join-Path $PSScriptRoot '游戏性能优化.ps1'
 if (-not (Test-Path -LiteralPath $engine)) {
+    Write-EngineLog 'FATAL' "引擎缺失: $engine"
     @{ id = 'boot'; ok = $false; error = "引擎缺失: $engine" } | ConvertTo-Json -Compress | Write-Output
     return
 }
@@ -43,10 +77,54 @@ try {
             $Sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
         } catch { $Sid = '' }
     }
+    Write-EngineLog 'BOOT' "加载引擎 $engine (PID $PID, PS $($PSVersionTable.PSVersion))"
     $null = . $engine -EngineOnly -NoElevate -Sid $Sid
+    if (-not (Get-Command Get-TxSnapshot -ErrorAction SilentlyContinue)) {
+        throw '引擎脚本已停止执行：核心函数未加载，可能被系统策略、安全软件或语法错误中断'
+    }
+    if (@($script:O).Count -eq 0) {
+        throw '引擎初始化未完成：优化项目录为空，可能被系统策略或安全软件中断'
+    }
+    Write-EngineLog 'BOOT' "引擎加载完成"
 } catch {
+    Write-EngineLog 'FATAL' "引擎加载失败: $($_ | Out-String)"
     @{ id = 'boot'; ok = $false; error = "引擎加载失败: $($_.Exception.Message)" } | ConvertTo-Json -Compress | Write-Output
     return
+}
+
+# 引擎脚本内也有 trap，dot-source 会覆盖上面的同名处理；加载完成后重新挂回桥接层的兜底。
+trap {
+    try { Write-EngineLog 'FATAL' ($_ | Out-String) } catch {}
+    try { [Console]::Error.WriteLine($_.Exception.Message) } catch {}
+    exit 1
+}
+
+# 把 PowerShell 的 ErrorRecord 拆成界面能读懂的结构，写入 JSON 的 errorDetail。
+function Get-ErrorDetail {
+    param($ErrorRecord)
+    $detail = [ordered]@{}
+    try {
+        $ex = $ErrorRecord.Exception
+        if ($ex) {
+            $detail.type = $ex.GetType().FullName
+            if ($ex.InnerException) {
+                $detail.inner = $ex.InnerException.GetType().FullName + ': ' + $ex.InnerException.Message
+            }
+        }
+        if ($ErrorRecord.FullyQualifiedErrorId) { $detail.id = [string]$ErrorRecord.FullyQualifiedErrorId }
+        if ($ErrorRecord.CategoryInfo -and $ErrorRecord.CategoryInfo.Category) {
+            $detail.category = [string]$ErrorRecord.CategoryInfo.Category
+        }
+        $inv = $ErrorRecord.InvocationInfo
+        if ($inv) {
+            if ($inv.ScriptName) { $detail.script = [string]$inv.ScriptName }
+            if ($inv.ScriptLineNumber) { $detail.line = [string]$inv.ScriptLineNumber }
+            if ($null -ne $inv.OffsetInLine) { $detail.position = [string]$inv.OffsetInLine }
+            if ($inv.Line) { $detail.code = ([string]$inv.Line).Trim() }
+        }
+        if ($ErrorRecord.ScriptStackTrace) { $detail.stack = [string]$ErrorRecord.ScriptStackTrace }
+    } catch {}
+    return $detail
 }
 
 function Send-Response {
@@ -55,7 +133,8 @@ function Send-Response {
         [bool]$Ok,
         $Data = $null,
         [string]$ErrorText = '',
-        $Logs = $null
+        $Logs = $null,
+        $Detail = $null
     )
     $obj = [ordered]@{ id = $Id; ok = $Ok }
     if ($Ok) {
@@ -65,6 +144,7 @@ function Send-Response {
         }
     } else {
         $obj.error = $ErrorText
+        if ($Detail -and @($Detail.Keys).Count -gt 0) { $obj.errorDetail = $Detail }
     }
     if ($Logs -and @($Logs).Count -gt 0) { $obj.logs = @($Logs) }
     $json = $obj | ConvertTo-Json -Depth 14 -Compress
@@ -90,11 +170,13 @@ while ($true) {
     $script:LogBuf.Clear()
     $id = ''
     $cmd = ''
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
         $req = $line | ConvertFrom-Json
         $id = [string](ArgVal $req 'id' '')
         $cmd = [string](ArgVal $req 'cmd' '')
         $a = ArgVal $req 'args' $null
+        Write-EngineLog 'CMD' "$cmd (id $id)"
 
         switch ($cmd) {
             'ping' {
@@ -240,6 +322,7 @@ while ($true) {
                 Send-Response $id $true $r '' $script:LogBuf
             }
             'bye' {
+                Write-EngineLog 'EXIT' '收到 bye，桥接进程退出'
                 $obj = [ordered]@{ id = $id; ok = $true; data = [ordered]@{ bye = $true } }
                 [Console]::Out.WriteLine(($obj | ConvertTo-Json -Compress))
                 [Console]::Out.Flush()
@@ -249,14 +332,22 @@ while ($true) {
                 throw "未知命令: $cmd"
             }
         }
+        Write-EngineLog 'OK' "$cmd 完成，用时 $($sw.ElapsedMilliseconds) ms"
     } catch {
+        $detail = Get-ErrorDetail $_
+        Write-EngineLog 'ERROR' "$cmd 失败: $($_ | Out-String)"
         try {
-            Send-Response $id $false $null $_.Exception.Message $script:LogBuf
+            Send-Response $id $false $null $_.Exception.Message $script:LogBuf $detail
         } catch {
             try {
                 [Console]::Out.WriteLine((@{ id = $id; ok = $false; error = $_.Exception.Message } | ConvertTo-Json -Compress))
                 [Console]::Out.Flush()
             } catch {}
         }
+    } finally {
+        $sw.Stop()
     }
 }
+
+Write-EngineLog 'EXIT' 'stdin 已关闭，桥接进程退出'
+

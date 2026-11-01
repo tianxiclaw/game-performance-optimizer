@@ -44,7 +44,7 @@
                             <StackPanel Orientation="Horizontal" Spacing="10">
                                 <TextBlock Text="游戏性能优化中心" Style="{StaticResource SectionTitleStyle}" />
                                 <Border Style="{StaticResource PillBorderStyle}" Padding="9,2">
-                                    <TextBlock x:Name="VersionBadge" Text="v6.0.0" Style="{StaticResource CaptionTextStyle}" />
+                                    <TextBlock x:Name="VersionBadge" Text="v6.2.0" Style="{StaticResource CaptionTextStyle}" />
                                 </Border>
                             </StackPanel>
                             <TextBlock Text="面向 Windows 的游戏性能调优与系统状态核查工具。所有优化均记录原值，支持一键回滚；数据只在本机采集，不联网、不上传。"

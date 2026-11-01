@@ -8,7 +8,7 @@
 ;       消除提示需要购买受信任的代码签名证书，并使用 signtool 对产物签名。
 
 #define MyAppName "游戏性能优化中心"
-#define MyAppVersion "6.0.4"
+#define MyAppVersion "6.3.0"
 #define MyAppPublisher "tianxiclaw"
 #define MyAppURL "https://github.com/tianxiclaw/game-performance-optimizer"
 

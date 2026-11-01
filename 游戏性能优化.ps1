@@ -81,6 +81,8 @@ param(
     [switch]$RestoreAll,
     [switch]$Yes,
     [switch]$RestorePoint,
+    [switch]$Catalog,
+    [string]$CatalogOut,
     [string]$Profile,
     [string]$OutFile,
     [string]$Sid
@@ -88,11 +90,29 @@ param(
 
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 $ErrorActionPreference = 'Continue'
+$script:AppVersion   = '6.3.0'
 $script:TxEngineOnly = [bool]$EngineOnly
 $script:TxNoPrompt   = [bool]($EngineOnly -or $Gui)
 $script:DRY          = $false
 trap {
     Write-Host "`n[严重错误] $($_.Exception.Message)" -ForegroundColor Red
+    if ($script:TxEngineOnly) {
+        # 桥接进程的 Write-Host 已写入 data\engine.log，这里补上位置与调用栈，方便定位。
+        try {
+            $logDir = Join-Path $PSScriptRoot 'data'
+            if (-not (Test-Path -LiteralPath $logDir)) {
+                New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+            }
+            $stamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
+            $trace = @(
+                "       类型: $($_.Exception.GetType().FullName)",
+                "       位置: $($_.InvocationInfo.ScriptName):$($_.InvocationInfo.ScriptLineNumber) 第 $($_.InvocationInfo.OffsetInLine) 列",
+                "       代码: $(([string]$_.InvocationInfo.Line).Trim())",
+                "       栈: $($_.ScriptStackTrace)"
+            ) -join [Environment]::NewLine
+            Add-Content -LiteralPath (Join-Path $logDir 'engine.log') -Value ($stamp + ' [FATAL]' + [Environment]::NewLine + $trace) -Encoding UTF8 -ErrorAction SilentlyContinue
+        } catch {}
+    }
     if (-not $script:TxNoPrompt -and $Host.Name -eq 'ConsoleHost') { Read-Host "`n按回车关闭窗口" }
     break
 }
@@ -3884,6 +3904,43 @@ function Export-TxDiagnosticBundle {
     } finally {
         try { if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue } } catch {}
     }
+}
+
+# ── 优化项目录导出 (v6.2: 供 C# Core / CLI 读取完整定义) ──
+# 检测与硬件分支仍由 PowerShell 维护，执行/备份/还原由 Core 统一完成。
+if ($Catalog) {
+    try {
+        $catalogData = [PSCustomObject]@{
+            Version = $script:AppVersion
+            Time    = (Get-Date).ToString('s')
+            Context = [PSCustomObject]@{
+                Machine         = $(if ($CI) { "$($CI.Manufacturer) $($CI.Model)".Trim() } else { 'Unknown' })
+                IsLaptop        = [bool]$IL
+                HasDedicatedGpu = [bool]$HAS_DGPU
+                HasIntegratedGpu= [bool]$HAS_IGPU
+                HasWifi         = [bool]$HAS_WIFI
+                IsIntel         = [bool]$II
+                IsCombo         = [bool]$CMB
+                OsBuild         = [Environment]::OSVersion.Version.Build
+                UserSid         = $Sid
+                IntelKey        = $ISK
+                GpuPreferencesPath = $URP
+            }
+            Items   = @($O)
+        }
+        $json = $catalogData | ConvertTo-Json -Depth 12
+        if ($CatalogOut) {
+            $dir = Split-Path -Parent $CatalogOut
+            if ($dir -and -not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+            [System.IO.File]::WriteAllText($CatalogOut, $json, (New-Object System.Text.UTF8Encoding($false)))
+            Write-Host "目录已写入: $CatalogOut" -ForegroundColor Green
+        } else {
+            Write-Output $json
+        }
+    } catch {
+        Write-Host "目录导出失败: $($_.Exception.Message)" -ForegroundColor Red
+    }
+    return
 }
 
 # ── 命令行 / GUI 入口 ─────────────────────────────────────

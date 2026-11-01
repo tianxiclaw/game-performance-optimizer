@@ -22,7 +22,7 @@ try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 # 设置文件默认放在脚本目录; TX_GUI_SETTINGS 仅用于测试时指向临时文件
 $script:GuiSettingsFile = Join-Path $PSScriptRoot 'gui-settings.json'
 if ($env:TX_GUI_SETTINGS) { $script:GuiSettingsFile = [string]$env:TX_GUI_SETTINGS }
-$script:AppVersion = '6.0.0'
+$script:AppVersion = '6.3.0'
 $script:RepoSlug   = 'tianxiclaw/game-performance-optimizer'
 $script:GuiCfg = [ordered]@{
     ExperimentalDpi = $false
