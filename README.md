@@ -148,7 +148,18 @@ powershell -ExecutionPolicy Bypass -File .\游戏性能优化.ps1 -RestoreAll
 | `赞赏码.png` | 支持作者（可选） |
 | `使用说明.txt` | 随包分发的说明 |
 | `docs/` | README 截图 |
+| `scripts/install-local.ps1` | 把最新构建同步到桌面快捷方式指向的安装目录 |
 | `LICENSE` | MIT 许可证 |
+
+## 本地安装
+
+桌面快捷方式固定指向 `%LOCALAPPDATA%\Programs\游戏性能优化中心`。发布新版本后执行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-local.ps1
+```
+
+脚本会把 `dist` 下版本号最高的构建覆盖到该目录，保留 `data`、`backups`、`diagnostics` 与 `gui-settings.json`，并校正快捷方式指向。更新前需先关闭程序。
 
 ## 兼容性
 
