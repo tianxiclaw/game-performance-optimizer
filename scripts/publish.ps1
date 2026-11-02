@@ -4,7 +4,7 @@
 
 .DESCRIPTION
     - 构建中间产物统一放在 dist\.build，不再散落在 dist 根目录
-    - 最终发布件固定输出到仓库根目录的「发布」文件夹
+    - 最终发布件固定输出到「发布\游戏性能优化中心」，与程序目录放在一起
     - 每次同时生成带版本号的 zip 和固定名称的「游戏性能优化中心_便携版_最新.zip」
     - 备用 WinForms 入口一并放入“备用-WinForms”
     - CLI 以单文件方式发布，附带引擎脚本
@@ -46,7 +46,7 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 $dist = Join-Path $repo 'dist'
 $build = Join-Path $dist '.build'
-if (-not $OutputDir) { $OutputDir = Join-Path $repo '发布' }
+if (-not $OutputDir) { $OutputDir = Join-Path $repo '发布\游戏性能优化中心' }
 if (-not [IO.Path]::IsPathRooted($OutputDir)) { $OutputDir = Join-Path $repo $OutputDir }
 $OutputDir = [IO.Path]::GetFullPath($OutputDir)
 $proj = Join-Path $repo 'src\GamePerfCenter\GamePerfCenter.csproj'

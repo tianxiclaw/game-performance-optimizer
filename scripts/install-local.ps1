@@ -5,9 +5,9 @@
 .DESCRIPTION
     发布的便携包是带版本号的目录，而桌面快捷方式只能指向一个固定路径。
     每次发版后运行本脚本，把发布目录或 dist\.build 里最新的
-    “游戏性能优化中心_v*”目录覆盖到 %LOCALAPPDATA%\Programs\游戏性能优化中心，
+    “游戏性能优化中心_v*”目录覆盖到仓库的 发布\游戏性能优化中心，
     用户数据（data、backups、diagnostics、gui-settings.json）保持不动，
-    快捷方式始终打开新版本。
+    快捷方式始终打开新版本。便携 zip 与程序文件同放在 发布\游戏性能优化中心。
 
 .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install-local.ps1
@@ -18,12 +18,13 @@
 [CmdletBinding()]
 param(
     [string]$Source,
-    [string]$Target = (Join-Path $env:LOCALAPPDATA 'Programs\游戏性能优化中心'),
+    [string]$Target,
     [string]$ShortcutName = '游戏性能优化中心'
 )
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
+if (-not $Target) { $Target = Join-Path $repo '发布\游戏性能优化中心' }
 
 function Get-BuildVersion([string]$folder) {
     $exe = Join-Path $folder 'GamePerfCenter.exe'
