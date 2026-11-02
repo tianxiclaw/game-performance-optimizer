@@ -21,6 +21,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Windows PowerShell 5.1 会按系统 ANSI 代码页读取无 BOM 的 .ps1；
+      # 中文脚本缺少 BOM 时，在 GBK/1252 系统上会把引擎文件名读成乱码。
+      - name: Verify script encoding
+        shell: pwsh
+        run: |
+          $bad = @()
+          Get-ChildItem -Path . -Recurse -Filter *.ps1 -File |
+            Where-Object { $_.FullName -notmatch '[\\/](obj|bin|dist|发布)[\\/]' } |
+            ForEach-Object {
+              $bytes = [IO.File]::ReadAllBytes($_.FullName)
+              $hasBom = $bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF
+              if (-not $hasBom) { $bad += $_.FullName }
+            }
+          if ($bad.Count -gt 0) { throw ('以下脚本缺少 UTF-8 BOM: ' + ($bad -join '; ')) }
+          Write-Output '脚本编码检查通过'
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
