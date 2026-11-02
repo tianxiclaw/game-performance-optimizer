@@ -1,4 +1,4 @@
-# 游戏性能优化中心 · WinUI 3 引擎桥
+﻿# 游戏性能优化中心 · WinUI 3 引擎桥
 # 通过标准输入输出接收 JSON 命令，复用 游戏性能优化.ps1 的全部引擎逻辑。
 # 该进程由 GUI 以隐藏窗口启动，不直接面向用户。
 
@@ -66,6 +66,14 @@ function Write-Host {
 
 $engine = Join-Path $PSScriptRoot '游戏性能优化.ps1'
 if (-not (Test-Path -LiteralPath $engine)) {
+    # 兜底：脚本若被另存为无 BOM 的 UTF-8，在非 UTF-8 代码页上中文文件名会解码成乱码。
+    # 此时直接枚举同目录下的引擎脚本，避免仅因文件名乱码而误报“引擎缺失”。
+    $candidate = Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.ps1' -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -ne 'engine-bridge.ps1' -and $_.Length -gt 10000 } |
+        Select-Object -First 1
+    if ($candidate) { $engine = $candidate.FullName }
+}
+if (-not (Test-Path -LiteralPath $engine)) {
     Write-EngineLog 'FATAL' "引擎缺失: $engine"
     @{ id = 'boot'; ok = $false; error = "引擎缺失: $engine" } | ConvertTo-Json -Compress | Write-Output
     return
@@ -77,7 +85,7 @@ try {
             $Sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
         } catch { $Sid = '' }
     }
-    Write-EngineLog 'BOOT' "加载引擎 $engine (PID $PID, PS $($PSVersionTable.PSVersion))"
+    Write-EngineLog 'BOOT' "加载引擎 $engine (PID $PID, PS $($PSVersionTable.PSVersion), ACP $([System.Text.Encoding]::Default.CodePage))"
     $null = . $engine -EngineOnly -NoElevate -Sid $Sid
     if (-not (Get-Command Get-TxSnapshot -ErrorAction SilentlyContinue)) {
         throw '引擎脚本已停止执行：核心函数未加载，可能被系统策略、安全软件或语法错误中断'

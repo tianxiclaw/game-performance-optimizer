@@ -85,6 +85,22 @@ function Invoke-SignTool([string]$SignTool, [string]$File) {
     Write-Ok "已签名 $(Split-Path -Leaf $File)"
 }
 
+# Windows PowerShell 5.1 在没有 BOM 时按系统 ANSI 代码页读取 .ps1。
+# 中文脚本被存成无 BOM UTF-8 后，在中文/英文系统上会解码成乱码，引擎文件名随之失效。
+function Ensure-Utf8Bom([string]$Path) {
+    $bytes = [IO.File]::ReadAllBytes($Path)
+    if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+        return $false
+    }
+    $merged = [byte[]]::new($bytes.Length + 3)
+    $merged[0] = 0xEF
+    $merged[1] = 0xBB
+    $merged[2] = 0xBF
+    [Array]::Copy($bytes, 0, $merged, 3, $bytes.Length)
+    [IO.File]::WriteAllBytes($Path, $merged)
+    return $true
+}
+
 if (-not $Version) {
     [xml]$xml = [IO.File]::ReadAllText($proj, [Text.Encoding]::UTF8)
     $Version = [string]$xml.Project.PropertyGroup.Version
@@ -156,6 +172,13 @@ if (-not $SkipWinUI) {
     }
     Copy-Item -LiteralPath (Join-Path $repo 'README.md') -Destination $stage -Force
     Copy-Item -LiteralPath (Join-Path $repo 'LICENSE') -Destination $stage -Force
+
+    Write-Step '检查脚本编码'
+    $fixed = 0
+    foreach ($script in (Get-ChildItem -LiteralPath $stage -Filter '*.ps1' -File -Recurse)) {
+        if (Ensure-Utf8Bom $script.FullName) { $fixed++ }
+    }
+    Write-Ok "脚本均为 UTF-8 BOM（本次修正 $fixed 个）"
 
     Write-Step '生成 SHA256.txt'
     $root = (Get-Item -LiteralPath $stage).FullName

@@ -62,6 +62,10 @@ public static class EngineDiagnostics
         checks.Add(new Check(bridgeOk, "桥接脚本", bridgeOk ? AppPaths.BridgePath : "缺失：" + AppPaths.BridgePath));
         checks.Add(new Check(engineOk, "引擎脚本", engineOk ? $"{AppPaths.EnginePath}（{SizeText(AppPaths.EnginePath)}）" : "缺失：" + AppPaths.EnginePath));
 
+        var encodingIssue = FindScriptEncodingIssue();
+        checks.Add(new Check(encodingIssue is null, "脚本编码",
+            encodingIssue ?? "UTF-8 BOM 正常"));
+
         var writeOk = CanWrite(AppPaths.DataDir, out var writeError);
         checks.Add(new Check(writeOk, "数据目录可写", writeOk ? AppPaths.DataDir : writeError));
 
@@ -76,9 +80,9 @@ public static class EngineDiagnostics
 
         var exitCode = failure?.ExitCode;
         var cause = DetermineCause(failure, error, powershell, psProbe, languageMode, executionPolicy,
-            wmiProbe, writeOk);
+            wmiProbe, writeOk, encodingIssue);
         AddSuggestions(suggestions, failure, error, powershell, psProbe, languageMode, executionPolicy,
-            wmiProbe, writeOk, elevated);
+            wmiProbe, writeOk, elevated, encodingIssue);
 
         var summary = failure?.Summary
             ?? (error is not null ? "优化引擎没有正常工作" : "引擎连接中断");
@@ -125,7 +129,8 @@ public static class EngineDiagnostics
         """;
 
     private static string DetermineCause(EngineFailure? failure, Exception? error, string? powershell,
-        ProbeResult? psProbe, string languageMode, string executionPolicy, ProbeResult? wmiProbe, bool writeOk)
+        ProbeResult? psProbe, string languageMode, string executionPolicy, ProbeResult? wmiProbe,
+        bool writeOk, string? encodingIssue)
     {
         if (powershell is null)
             return "找不到 Windows PowerShell，引擎根本没有机会启动。常见原因是安全软件删除系统组件，或系统镜像经过精简。";
@@ -139,6 +144,8 @@ public static class EngineDiagnostics
             return "PowerShell 执行策略禁止运行本地脚本，引擎在加载时被系统拒绝。";
         if (!writeOk)
             return "程序目录不可写，引擎无法创建日志或备份文件，启动过程中被迫退出。";
+        if (encodingIssue is not null)
+            return "脚本文件缺少 UTF-8 BOM。Windows PowerShell 会按系统 ANSI 代码页读取它，中文文件名变成乱码，引擎因此加载失败。";
         if (wmiProbe is not null && !wmiProbe.Output.Contains("WMI=OK", StringComparison.Ordinal))
             return "本机 WMI 查询失败。引擎读取硬件、显卡和网卡信息都依赖 WMI，这个组件损坏会直接导致退出。";
 
@@ -171,7 +178,7 @@ public static class EngineDiagnostics
 
     private static void AddSuggestions(List<string> suggestions, EngineFailure? failure, Exception? error,
         string? powershell, ProbeResult? psProbe, string languageMode, string executionPolicy,
-        ProbeResult? wmiProbe, bool writeOk, bool elevated)
+        ProbeResult? wmiProbe, bool writeOk, bool elevated, string? encodingIssue)
     {
         if (powershell is null)
         {
@@ -189,6 +196,8 @@ public static class EngineDiagnostics
         }
         if (!writeOk)
             suggestions.Add("把程序移动到当前用户可写的目录（例如桌面或 D 盘），不要放在受保护的系统目录。");
+        if (encodingIssue is not null)
+            suggestions.Add("重新下载官方便携包；如果用编辑器改过脚本，请保存为“UTF-8 带 BOM”，不要保存成 ANSI 或无 BOM UTF-8。");
         if (wmiProbe is not null && !wmiProbe.Output.Contains("WMI=OK", StringComparison.Ordinal))
             suggestions.Add("用管理员 PowerShell 执行：winmgmt /verifyrepository；若提示损坏，再执行 winmgmt /salvagerepository。");
         if (failure?.ExitCode is -1073741819)
@@ -403,6 +412,28 @@ public static class EngineDiagnostics
     {
         try { return $"{new FileInfo(path).Length / 1024.0:0.0} KB"; }
         catch { return "大小未知"; }
+    }
+
+    /// <summary>
+    /// 中文脚本若无 UTF-8 BOM，Windows PowerShell 5.1 会按系统 ANSI 代码页解码；
+    /// 中文文件名会变成乱码，桥接层因此找不到引擎。这里提前把问题点出来。
+    /// </summary>
+    private static string? FindScriptEncodingIssue()
+    {
+        foreach (var path in new[] { AppPaths.BridgePath, AppPaths.EnginePath })
+        {
+            try
+            {
+                if (!File.Exists(path)) continue;
+                var bytes = File.ReadAllBytes(path);
+                var hasBom = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF;
+                if (hasBom) continue;
+                if (bytes.Any(b => b >= 0x80))
+                    return $"{Path.GetFileName(path)} 缺少 UTF-8 BOM";
+            }
+            catch { }
+        }
+        return null;
     }
 
     private static string Tail(string text, int lines)
