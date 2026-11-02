@@ -90,7 +90,7 @@ param(
 
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 $ErrorActionPreference = 'Continue'
-$script:AppVersion   = '6.3.0'
+$script:AppVersion   = '6.3.1'
 $script:TxEngineOnly = [bool]$EngineOnly
 $script:TxNoPrompt   = [bool]($EngineOnly -or $Gui)
 $script:DRY          = $false
@@ -3698,6 +3698,101 @@ function Remove-TxGameProfile([string]$exe) {
     return $res
 }
 
+# ── CPU 拓扑（游戏启动亲和性用） ─────────────────────────
+# “仅物理核心”应当每个物理核心只保留一个逻辑线程，而不是简单取前 N 个逻辑处理器。
+# 通过 GetLogicalProcessorInformation 读取 RelationProcessorCore 的掩码，再取每核最低位。
+function Get-TxPhysicalCoreMask {
+    $r = [PSCustomObject]@{ Ok = $false; Mask = [long]0; Cores = 0; Logical = 0; Reason = '' }
+    try {
+        $cores = 0; $logical = 0
+        foreach ($cpu in @(Get-CimInstance -ClassName Win32_Processor -ErrorAction SilentlyContinue)) {
+            $cores += [int]$cpu.NumberOfCores
+            $logical += [int]$cpu.NumberOfLogicalProcessors
+        }
+        $r.Cores = $cores
+        $r.Logical = $logical
+        if ($cores -lt 1 -or $logical -lt 1) { $r.Reason = 'WMI_UNAVAILABLE'; return $r }
+        if ($logical -le $cores) { $r.Reason = 'SMT_OFF'; return $r }
+        if ($logical -gt 63 -or [IntPtr]::Size -ne 8) { $r.Reason = 'UNSUPPORTED'; return $r }
+
+        if (-not ([System.Management.Automation.PSTypeName]'TxCpuTopology').Type) {
+            Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+public static class TxCpuTopology
+{
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Slpi64
+    {
+        public UIntPtr ProcessorMask;
+        public int Relationship;
+        public int Padding;
+        public long Data0;
+        public long Data1;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetLogicalProcessorInformation(IntPtr buffer, ref uint length);
+
+    public static ulong GetPhysicalCoreMask(out int coreCount, out int logicalCount)
+    {
+        coreCount = 0;
+        logicalCount = 0;
+        uint length = 0;
+        GetLogicalProcessorInformation(IntPtr.Zero, ref length);
+        if (length == 0) return 0;
+
+        IntPtr buffer = Marshal.AllocHGlobal((int)length);
+        try
+        {
+            if (!GetLogicalProcessorInformation(buffer, ref length)) return 0;
+            int size = Marshal.SizeOf(typeof(Slpi64));
+            int count = (int)length / size;
+            ulong mask = 0;
+            for (int i = 0; i < count; i++)
+            {
+                IntPtr ptr = new IntPtr(buffer.ToInt64() + (long)i * size);
+                Slpi64 info = (Slpi64)Marshal.PtrToStructure(ptr, typeof(Slpi64));
+                if (info.Relationship != 0) continue;
+                ulong m = info.ProcessorMask.ToUInt64();
+                if (m == 0) continue;
+                coreCount++;
+                logicalCount += PopCount(m);
+                mask |= m & (~m + 1);
+            }
+            return mask;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    private static int PopCount(ulong value)
+    {
+        int count = 0;
+        while (value != 0) { value &= value - 1; count++; }
+        return count;
+    }
+}
+'@
+        }
+
+        $detectedCores = 0; $detectedLogical = 0
+        $mask = [TxCpuTopology]::GetPhysicalCoreMask([ref]$detectedCores, [ref]$detectedLogical)
+        if ($mask -eq 0 -or $detectedCores -lt 1) { $r.Reason = 'TOPO_FAILED'; return $r }
+        $r.Ok = $true
+        $r.Mask = [long]$mask
+        $r.Cores = $detectedCores
+        $r.Logical = $detectedLogical
+        return $r
+    } catch {
+        $r.Reason = 'ERROR: ' + $_.Exception.Message
+        return $r
+    }
+}
+
 function Start-TxGame([string]$exe, $profile) {
     $r = [PSCustomObject]@{ Ok = $false; Pid = 0; Msg = ''; Message = '' }
     try {
@@ -3726,12 +3821,16 @@ function Start-TxGame([string]$exe, $profile) {
         } catch { $prio = '默认(设置失败)' }
         if ($profile.Affinity -eq 'Physical') {
             try {
-                $n = 0
-                foreach ($cpu in @(Get-CimInstance -ClassName Win32_Processor -ErrorAction SilentlyContinue)) { $n += [int]$cpu.NumberOfCores }
-                if ($n -ge 1 -and $n -lt 63) {
-                    $mask = [long](([long]1 -shl $n) - 1)
-                    $p.ProcessorAffinity = [IntPtr]$mask
-                    $aff = "前 $n 个逻辑处理器"
+                $topo = Get-TxPhysicalCoreMask
+                if ($topo.Ok) {
+                    $p.ProcessorAffinity = [IntPtr]$topo.Mask
+                    $aff = "$($topo.Cores) 个物理核心（每核 1 线程）"
+                } elseif ($topo.Reason -eq 'SMT_OFF') {
+                    $aff = '本机无超线程，保持全部核心'
+                } elseif ($topo.Reason -eq 'UNSUPPORTED') {
+                    $aff = 'CPU 拓扑超出支持范围，保持全部核心'
+                } else {
+                    $aff = 'CPU 拓扑检测失败，保持全部核心'
                 }
             } catch { $aff = '全部核心(设置失败)' }
         }

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Text.Json;
+using GamePerfCenter.Helpers;
 using GamePerfCenter.Models;
 using GamePerfCenter.Services;
 using Microsoft.UI;
@@ -159,8 +160,30 @@ public sealed partial class GamesPage : Page, IThemeAware
 
         var affinity = new ComboBox { MinHeight = 34, HorizontalAlignment = HorizontalAlignment.Stretch };
         affinity.Items.Add("全部核心");
-        affinity.Items.Add("仅物理核心（关闭超线程）");
+        affinity.Items.Add("仅物理核心（每核保留 1 线程）");
         affinity.SelectedIndex = game.Profile?.Affinity == "Physical" ? 1 : 0;
+
+        var affinityHint = new TextBlock
+        {
+            FontSize = 11,
+            Opacity = 0.55,
+            TextWrapping = TextWrapping.Wrap,
+            Visibility = Visibility.Collapsed
+        };
+        void UpdateAffinityHint()
+        {
+            if (affinity.SelectedIndex != 1)
+            {
+                affinityHint.Visibility = Visibility.Collapsed;
+                return;
+            }
+            affinityHint.Text = CpuTopology.HasSmt
+                ? $"本机 {CpuTopology.PhysicalCores} 核 {CpuTopology.LogicalProcessors} 线程：每个物理核心只保留一个线程。可能改善调度，也可能降低多线程性能。"
+                : $"本机 {CpuTopology.PhysicalCores} 核 {CpuTopology.LogicalProcessors} 线程，没有超线程；此选项不会改变核心数量，建议保持“全部核心”。";
+            affinityHint.Visibility = Visibility.Visible;
+        }
+        affinity.SelectionChanged += (_, _) => UpdateAffinityHint();
+        UpdateAffinityHint();
 
         var fsOff = new CheckBox { Content = "请求全屏独占（禁用全屏优化）", IsChecked = game.Profile?.FsOff ?? false };
         var gpuHigh = new CheckBox { Content = "为该游戏指定高性能 GPU", IsChecked = game.Profile?.GpuHigh ?? false };
@@ -174,6 +197,7 @@ public sealed partial class GamesPage : Page, IThemeAware
         panel.Children.Add(priority);
         panel.Children.Add(new TextBlock { Text = "CPU 亲和性", FontSize = 12, Opacity = 0.72 });
         panel.Children.Add(affinity);
+        panel.Children.Add(affinityHint);
         panel.Children.Add(fsOff);
         panel.Children.Add(gpuHigh);
         panel.Children.Add(admin);
