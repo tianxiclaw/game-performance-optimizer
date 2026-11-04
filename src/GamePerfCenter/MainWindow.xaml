@@ -7,7 +7,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <Grid x:Name="RootGrid" Background="{ThemeResource AppBgBrush}">
+    <Grid x:Name="RootGrid" Background="{ThemeResource AppBackdropBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="48" />
             <RowDefinition Height="*" />
@@ -32,6 +32,8 @@
                     <FontIcon Glyph="&#xE774;" FontSize="15" />
                 </Button>
             </StackPanel>
+            <Border Height="1" VerticalAlignment="Bottom" Background="{ThemeResource AccentGradientBrush}"
+                    Opacity="0.3" IsHitTestVisible="False" />
         </Grid>
 
         <!-- 主导航 -->
@@ -90,16 +92,27 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
+                <!-- 星空背景：只做视觉层，不参与布局与命中测试 -->
+                <Grid Grid.RowSpan="2" IsHitTestVisible="False">
+                    <Ellipse x:Name="NebulaGlow" Width="960" Height="760"
+                             HorizontalAlignment="Right" VerticalAlignment="Top"
+                             Margin="0,-300,-280,0"
+                             Fill="{ThemeResource NebulaBrush}" />
+                    <Canvas x:Name="StarLayer" />
+                </Grid>
+
                 <InfoBar x:Name="EngineInfoBar" Grid.Row="0" IsOpen="False" Severity="Error"
                          Margin="20,10,20,0" Title="引擎错误" IsClosable="True" />
-                <Frame x:Name="ContentFrame" Grid.Row="1" Background="{ThemeResource AppBgBrush}" />
+                <Frame x:Name="ContentFrame" Grid.Row="1" Background="Transparent" />
             </Grid>
         </NavigationView>
 
         <!-- 底部状态栏 -->
-        <Border Grid.Row="2" Background="{ThemeResource SurfaceBrush}"
-                BorderBrush="{ThemeResource BorderBrush}" BorderThickness="0,1,0,0" Padding="16,0">
+        <Border Grid.Row="2" Background="{ThemeResource SurfaceBrush}" Padding="16,0">
             <Grid>
+                <Border Height="1" VerticalAlignment="Top" Margin="-16,0"
+                        Background="{ThemeResource AccentGradientBrush}" Opacity="0.28"
+                        IsHitTestVisible="False" />
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <ProgressRing x:Name="StatusRing" Width="13" Height="13" IsActive="False"
                                   Foreground="{ThemeResource AccentBrush}" />

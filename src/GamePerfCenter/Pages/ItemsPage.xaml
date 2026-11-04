@@ -175,7 +175,7 @@
         <InfoBar x:Name="PageInfo" Grid.Row="4" IsOpen="False" IsClosable="True" Margin="0,0,0,4" />
 
         <!-- 操作栏 -->
-        <Border Grid.Row="5" Background="{ThemeResource CardBrush}" BorderBrush="{ThemeResource BorderBrush}"
+        <Border Grid.Row="5" Background="{ThemeResource CardSurfaceBrush}" BorderBrush="{ThemeResource BorderBrush}"
                 BorderThickness="1" CornerRadius="12" Padding="14,10">
             <StackPanel Spacing="8">
                 <StackPanel Spacing="1">

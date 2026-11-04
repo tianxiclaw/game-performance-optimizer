@@ -10,6 +10,10 @@
             <SolidColorBrush x:Key="SurfaceBrush" Color="#111827" />
             <SolidColorBrush x:Key="Surface2Brush" Color="#172033" />
             <SolidColorBrush x:Key="CardBrush" Color="#131C2B" />
+            <LinearGradientBrush x:Key="CardSurfaceBrush" StartPoint="0,0" EndPoint="0.35,1">
+                <GradientStop Color="#16202F" Offset="0" />
+                <GradientStop Color="#111A27" Offset="1" />
+            </LinearGradientBrush>
             <SolidColorBrush x:Key="CardHoverBrush" Color="#1A2436" />
             <SolidColorBrush x:Key="BorderBrush" Color="#243249" />
             <SolidColorBrush x:Key="BorderStrongBrush" Color="#31425D" />
@@ -23,6 +27,28 @@
                 <GradientStop Color="#22D3EE" Offset="0" />
                 <GradientStop Color="#3B82F6" Offset="1" />
             </LinearGradientBrush>
+            <LinearGradientBrush x:Key="AppBackdropBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#060A12" Offset="0" />
+                <GradientStop Color="#0B1424" Offset="0.55" />
+                <GradientStop Color="#080C15" Offset="1" />
+            </LinearGradientBrush>
+            <RadialGradientBrush x:Key="NebulaBrush">
+                <GradientStop Color="#3022D3EE" Offset="0" />
+                <GradientStop Color="#000B1424" Offset="1" />
+            </RadialGradientBrush>
+            <RadialGradientBrush x:Key="GaugeGlowBrush">
+                <GradientStop Color="#3D22D3EE" Offset="0" />
+                <GradientStop Color="#00101A28" Offset="1" />
+            </RadialGradientBrush>
+            <LinearGradientBrush x:Key="HeroSurfaceBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#172838" Offset="0" />
+                <GradientStop Color="#101A28" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="HeroBorderBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#2B4A63" Offset="0" />
+                <GradientStop Color="#1E3146" Offset="1" />
+            </LinearGradientBrush>
+            <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
             <SolidColorBrush x:Key="OkBrush" Color="#22C55E" />
             <SolidColorBrush x:Key="OkSoftBrush" Color="#12301F" />
             <SolidColorBrush x:Key="WarnBrush" Color="#F59E0B" />
@@ -36,9 +62,15 @@
             <SolidColorBrush x:Key="NavigationViewItemForeground" Color="#9AA9BE" />
             <SolidColorBrush x:Key="NavigationViewItemForegroundSelected" Color="#22D3EE" />
             <SolidColorBrush x:Key="NavigationViewItemForegroundPointerOver" Color="#E6EDF7" />
-            <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="#15303D" />
+            <LinearGradientBrush x:Key="NavigationViewItemBackgroundSelected" StartPoint="0,0" EndPoint="1,0">
+                <GradientStop Color="#173B49" Offset="0" />
+                <GradientStop Color="#162B45" Offset="1" />
+            </LinearGradientBrush>
             <SolidColorBrush x:Key="NavigationViewItemBackgroundPointerOver" Color="#1A2436" />
-            <SolidColorBrush x:Key="NavigationViewSelectionIndicatorForeground" Color="#22D3EE" />
+            <LinearGradientBrush x:Key="NavigationViewSelectionIndicatorForeground" StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Color="#22D3EE" Offset="0" />
+                <GradientStop Color="#3B82F6" Offset="1" />
+            </LinearGradientBrush>
             <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#1A2436" />
             <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="#15303D" />
             <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="#1A3A48" />
@@ -51,6 +83,10 @@
             <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF" />
             <SolidColorBrush x:Key="Surface2Brush" Color="#EEF3FA" />
             <SolidColorBrush x:Key="CardBrush" Color="#FFFFFF" />
+            <LinearGradientBrush x:Key="CardSurfaceBrush" StartPoint="0,0" EndPoint="0.35,1">
+                <GradientStop Color="#FFFFFF" Offset="0" />
+                <GradientStop Color="#FAFCFE" Offset="1" />
+            </LinearGradientBrush>
             <SolidColorBrush x:Key="CardHoverBrush" Color="#F7FAFD" />
             <SolidColorBrush x:Key="BorderBrush" Color="#DCE5F0" />
             <SolidColorBrush x:Key="BorderStrongBrush" Color="#C6D3E3" />
@@ -64,6 +100,28 @@
                 <GradientStop Color="#00738C" Offset="0" />
                 <GradientStop Color="#1D4ED8" Offset="1" />
             </LinearGradientBrush>
+            <LinearGradientBrush x:Key="AppBackdropBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#F6F9FD" Offset="0" />
+                <GradientStop Color="#EDF3FA" Offset="0.55" />
+                <GradientStop Color="#F4F7FB" Offset="1" />
+            </LinearGradientBrush>
+            <RadialGradientBrush x:Key="NebulaBrush">
+                <GradientStop Color="#1A00738C" Offset="0" />
+                <GradientStop Color="#00EDF3FA" Offset="1" />
+            </RadialGradientBrush>
+            <RadialGradientBrush x:Key="GaugeGlowBrush">
+                <GradientStop Color="#1F00738C" Offset="0" />
+                <GradientStop Color="#00F6FBFF" Offset="1" />
+            </RadialGradientBrush>
+            <LinearGradientBrush x:Key="HeroSurfaceBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#FFFFFF" Offset="0" />
+                <GradientStop Color="#F6FBFF" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="HeroBorderBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#CFE4F1" Offset="0" />
+                <GradientStop Color="#DEE8F3" Offset="1" />
+            </LinearGradientBrush>
+            <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
             <SolidColorBrush x:Key="OkBrush" Color="#15803D" />
             <SolidColorBrush x:Key="OkSoftBrush" Color="#E6F6EC" />
             <SolidColorBrush x:Key="WarnBrush" Color="#B45309" />
@@ -77,9 +135,15 @@
             <SolidColorBrush x:Key="NavigationViewItemForeground" Color="#475569" />
             <SolidColorBrush x:Key="NavigationViewItemForegroundSelected" Color="#00738C" />
             <SolidColorBrush x:Key="NavigationViewItemForegroundPointerOver" Color="#0F172A" />
-            <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="#E0F5FA" />
+            <LinearGradientBrush x:Key="NavigationViewItemBackgroundSelected" StartPoint="0,0" EndPoint="1,0">
+                <GradientStop Color="#DDF4FA" Offset="0" />
+                <GradientStop Color="#E4ECFB" Offset="1" />
+            </LinearGradientBrush>
             <SolidColorBrush x:Key="NavigationViewItemBackgroundPointerOver" Color="#F7FAFD" />
-            <SolidColorBrush x:Key="NavigationViewSelectionIndicatorForeground" Color="#00738C" />
+            <LinearGradientBrush x:Key="NavigationViewSelectionIndicatorForeground" StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Color="#00738C" Offset="0" />
+                <GradientStop Color="#1D4ED8" Offset="1" />
+            </LinearGradientBrush>
             <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#F7FAFD" />
             <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="#E0F5FA" />
             <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="#D4F0F7" />
@@ -156,7 +220,7 @@
     </Style>
 
     <Style x:Key="CardBorderStyle" TargetType="Border">
-        <Setter Property="Background" Value="{ThemeResource CardBrush}" />
+        <Setter Property="Background" Value="{ThemeResource CardSurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource BorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="14" />
@@ -164,11 +228,19 @@
     </Style>
 
     <Style x:Key="HeroBorderStyle" TargetType="Border">
-        <Setter Property="Background" Value="{ThemeResource CardBrush}" />
-        <Setter Property="BorderBrush" Value="{ThemeResource BorderStrongBrush}" />
+        <Setter Property="Background" Value="{ThemeResource HeroSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource HeroBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="18" />
         <Setter Property="Padding" Value="24" />
+    </Style>
+
+    <Style x:Key="FeaturedCardBorderStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource HeroSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource HeroBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="18" />
+        <Setter Property="Padding" Value="22,20" />
     </Style>
 
     <!-- 扁平行：用分隔线组织密集数据，不再逐行包卡 -->
@@ -201,7 +273,7 @@
     </Style>
 
     <Style x:Key="AccentButtonStyle" TargetType="Button">
-        <Setter Property="Background" Value="{ThemeResource AccentBrush}" />
+        <Setter Property="Background" Value="{ThemeResource AccentGradientBrush}" />
         <Setter Property="Foreground" Value="{ThemeResource AccentForegroundBrush}" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="CornerRadius" Value="10" />

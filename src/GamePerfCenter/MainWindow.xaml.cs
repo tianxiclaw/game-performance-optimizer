@@ -18,6 +18,8 @@ public sealed partial class MainWindow : Window
     private TrayIcon? _tray;
     private bool _initialized;
     private EngineFailure? _shownFailure;
+    private double _starWidth;
+    private double _starHeight;
 
     public MainWindow()
     {
@@ -37,6 +39,8 @@ public sealed partial class MainWindow : Window
         App.Services.State.Changed += OnStateChanged;
         App.Services.Engine.Crashed += OnEngineCrashed;
         Nav.Loaded += Nav_Loaded;
+        StarLayer.Loaded += (_, _) => BuildStarfield();
+        StarLayer.SizeChanged += (_, _) => BuildStarfield();
         AppWindow.Closing += OnAppWindowClosing;
         Closed += OnClosed;
 
@@ -95,7 +99,46 @@ public sealed partial class MainWindow : Window
             _ => "\uE708"
         };
         ToolTipService.SetToolTip(ThemeButton, $"当前：{ThemeService.DisplayName(theme)}，点击切换");
+        StarLayer.Opacity = ThemeService.IsDark ? 0.9 : 0.28;
+        NebulaGlow.Opacity = ThemeService.IsDark ? 1 : 0.5;
         UpdateCaptionButtons();
+    }
+
+    /// <summary>
+    /// 生成一层稀疏星点。位置与尺寸固定随机种子，窗口尺寸变化时才重建，避免无意义抖动。
+    /// </summary>
+    private void BuildStarfield()
+    {
+        try
+        {
+            var width = StarLayer.ActualWidth;
+            var height = StarLayer.ActualHeight;
+            if (width < 240 || height < 240) return;
+            if (Math.Abs(width - _starWidth) < 32 && Math.Abs(height - _starHeight) < 32) return;
+
+            _starWidth = width;
+            _starHeight = height;
+            StarLayer.Children.Clear();
+
+            var brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 155, 231, 245));
+            var random = new Random(20261104);
+            var count = Math.Clamp((int)(width * height / 13000), 48, 120);
+            for (var i = 0; i < count; i++)
+            {
+                var size = 0.7 + random.NextDouble() * 1.8;
+                var star = new Microsoft.UI.Xaml.Shapes.Ellipse
+                {
+                    Width = size,
+                    Height = size,
+                    Fill = brush,
+                    Opacity = 0.08 + random.NextDouble() * 0.34
+                };
+                Canvas.SetLeft(star, random.NextDouble() * width);
+                Canvas.SetTop(star, random.NextDouble() * height);
+                StarLayer.Children.Add(star);
+            }
+        }
+        catch { }
     }
 
     private void UpdateCaptionButtons()
