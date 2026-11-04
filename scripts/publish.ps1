@@ -200,13 +200,9 @@ if (-not $SkipWinUI) {
         Write-Ok "最新：$latestZip"
     }
 
-    # 桌面快捷方式指向这里，每次发布同步程序文件；gui-settings.json、data、backups 与历史包保持不动。
+    # 桌面快捷方式指向稳定安装目录，复用安装脚本同步程序文件并修正快捷方式。
     Write-Step '同步本地程序目录'
-    Copy-Item -Path (Join-Path $stage '*') -Destination $OutputDir -Recurse -Force
-    Get-ChildItem -LiteralPath $OutputDir -Filter *.pdb -File -Recurse |
-        Where-Object { $_.FullName -notmatch '[\\/](data|backups|历史版本)[\\/]' } |
-        Remove-Item -Force
-    Write-Ok $OutputDir
+    & (Join-Path $PSScriptRoot 'install-local.ps1') -Source $stage | ForEach-Object { Write-Ok $_ }
 }
 
 if (-not $SkipCli) {
