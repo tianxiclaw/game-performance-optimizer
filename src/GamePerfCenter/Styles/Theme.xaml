@@ -19,6 +19,10 @@
             <SolidColorBrush x:Key="AccentBrush" Color="#22D3EE" />
             <SolidColorBrush x:Key="AccentSoftBrush" Color="#15303D" />
             <SolidColorBrush x:Key="AccentForegroundBrush" Color="#04141A" />
+            <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#22D3EE" Offset="0" />
+                <GradientStop Color="#3B82F6" Offset="1" />
+            </LinearGradientBrush>
             <SolidColorBrush x:Key="OkBrush" Color="#22C55E" />
             <SolidColorBrush x:Key="OkSoftBrush" Color="#12301F" />
             <SolidColorBrush x:Key="WarnBrush" Color="#F59E0B" />
@@ -56,6 +60,10 @@
             <SolidColorBrush x:Key="AccentBrush" Color="#00738C" />
             <SolidColorBrush x:Key="AccentSoftBrush" Color="#E0F5FA" />
             <SolidColorBrush x:Key="AccentForegroundBrush" Color="#FFFFFF" />
+            <LinearGradientBrush x:Key="AccentGradientBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#00738C" Offset="0" />
+                <GradientStop Color="#1D4ED8" Offset="1" />
+            </LinearGradientBrush>
             <SolidColorBrush x:Key="OkBrush" Color="#15803D" />
             <SolidColorBrush x:Key="OkSoftBrush" Color="#E6F6EC" />
             <SolidColorBrush x:Key="WarnBrush" Color="#B45309" />

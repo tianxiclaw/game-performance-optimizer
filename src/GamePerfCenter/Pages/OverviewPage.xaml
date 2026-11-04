@@ -50,31 +50,51 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <StackPanel x:Name="StatusMain" Spacing="4" VerticalAlignment="Center">
-                            <TextBlock x:Name="StatusHeadline" Text="正在读取本机状态..."
-                                       Style="{StaticResource SectionTitleStyle}" />
-                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,2,0,0">
-                                <TextBlock x:Name="PendingCount" Text="--" FontFamily="{StaticResource DisplayFontFamily}"
-                                           FontSize="44" FontWeight="SemiBold" Foreground="{ThemeResource TextBrush}"
-                                           TextWrapping="NoWrap" VerticalAlignment="Center" />
-                                <StackPanel Spacing="1" VerticalAlignment="Bottom" Margin="0,0,0,8">
-                                    <TextBlock Text="项待优化" FontSize="14" FontWeight="SemiBold"
-                                               Foreground="{ThemeResource TextBrush}" />
-                                    <TextBlock x:Name="AppliedText" Text="已生效 -- 项"
-                                               Style="{StaticResource CaptionTextStyle}" />
+                        <Grid x:Name="StatusMain" ColumnSpacing="18" VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- 完成度轨道：数字来自真实 applied / total，外圈只做低对比度轨道母题 -->
+                            <Grid x:Name="StatusGauge" Width="132" Height="132" VerticalAlignment="Center"
+                                  ToolTipService.ToolTip="优化完成度：已生效项占可优化项的比例">
+                                <Ellipse Width="126" Height="126" Stroke="{ThemeResource BorderBrush}"
+                                         StrokeThickness="1" Opacity="0.5"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Ellipse Width="108" Height="108" Stroke="{ThemeResource BorderBrush}"
+                                         StrokeThickness="6" Opacity="0.55"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Path x:Name="ProgressArc" Width="108" Height="108" Stretch="None"
+                                      Stroke="{ThemeResource AccentGradientBrush}" StrokeThickness="6"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="0">
+                                    <TextBlock x:Name="PendingCount" Text="--" FontFamily="{StaticResource DisplayFontFamily}"
+                                               FontSize="32" FontWeight="SemiBold" Foreground="{ThemeResource TextBrush}"
+                                               TextWrapping="NoWrap" HorizontalAlignment="Center" />
+                                    <TextBlock Text="项待优化" FontSize="12.5" FontWeight="SemiBold"
+                                               Foreground="{ThemeResource TextBrush}" HorizontalAlignment="Center" />
+                                </StackPanel>
+                            </Grid>
+
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <TextBlock x:Name="StatusHeadline" Text="正在读取本机状态..."
+                                           Style="{StaticResource SectionTitleStyle}" />
+                                <TextBlock x:Name="AppliedText" Text="已生效 -- 项"
+                                           Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock x:Name="StatusDetail" Text="正在采集硬件与优化项状态。"
+                                           Style="{StaticResource SecondaryTextStyle}" MaxWidth="520"
+                                           HorizontalAlignment="Left" TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+                                    <Button Content="预览变更" Style="{StaticResource SubtleButtonStyle}" Click="Preview_Click"
+                                            ToolTipService.ToolTip="只读预演，不写入系统" />
+                                    <Button x:Name="ApplyRecommendedButton" Content="应用推荐项"
+                                            Style="{StaticResource AccentButtonStyle}" Click="ApplyRecommended_Click"
+                                            ToolTipService.ToolTip="应用全部低风险推荐项，应用前自动备份原值" />
                                 </StackPanel>
                             </StackPanel>
-                            <TextBlock x:Name="StatusDetail" Text="正在采集硬件与优化项状态。"
-                                       Style="{StaticResource SecondaryTextStyle}" MaxWidth="560"
-                                       HorizontalAlignment="Left" TextWrapping="Wrap" />
-                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
-                                <Button Content="预览变更" Style="{StaticResource SubtleButtonStyle}" Click="Preview_Click"
-                                        ToolTipService.ToolTip="只读预演，不写入系统" />
-                                <Button x:Name="ApplyRecommendedButton" Content="应用推荐项"
-                                        Style="{StaticResource AccentButtonStyle}" Click="ApplyRecommended_Click"
-                                        ToolTipService.ToolTip="应用全部低风险推荐项，应用前自动备份原值" />
-                            </StackPanel>
-                        </StackPanel>
+                        </Grid>
 
                         <Border x:Name="StatusDivider" Grid.Column="1" Width="1"
                                 Background="{ThemeResource BorderBrush}" Margin="0,4" />

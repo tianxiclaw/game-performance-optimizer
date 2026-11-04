@@ -90,7 +90,7 @@ param(
 
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 $ErrorActionPreference = 'Continue'
-$script:AppVersion   = '6.3.2'
+$script:AppVersion   = '6.3.3'
 $script:TxEngineOnly = [bool]$EngineOnly
 $script:TxNoPrompt   = [bool]($EngineOnly -or $Gui)
 $script:DRY          = $false

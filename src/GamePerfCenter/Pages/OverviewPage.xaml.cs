@@ -2,6 +2,8 @@ using System.Diagnostics;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using Windows.Foundation;
 using GamePerfCenter.Models;
 using GamePerfCenter.Services;
 using GamePerfCenter.Helpers;
@@ -97,14 +99,14 @@ public sealed partial class OverviewPage : Page, IThemeAware
                 ? "正在采集硬件与优化项状态。"
                 : App.Services.State.StatusText;
             PendingCount.Text = "--";
-            AppliedText.Text = "已生效 -- 项";
+            UpdateOrbitGauge(0, 0, 0, 0);
             return;
         }
 
         var recommended = GetRecommendedIds();
         var s = snap.Summary;
         PendingCount.Text = s.Pending.ToString();
-        AppliedText.Text = $"已生效 {s.Applied} / {s.Total} 项";
+        UpdateOrbitGauge(s.Applied, s.Total, s.NotApplicable, s.Checking);
         StatusHeadline.Text = s.Pending == 0 ? "当前没有待优化项" : "还有可应用的优化项";
         StatusDetail.Text = s.Pending == 0
             ? "推荐项均已生效。可以打开优化项手动复查，或预览当前配置。"
@@ -147,6 +149,67 @@ public sealed partial class OverviewPage : Page, IThemeAware
             .Take(8)
             .ToList();
         HardwareUpdated.Text = $"更新于 {snap.Time?.Replace('T', ' ')}";
+    }
+
+    /// <summary>
+    /// 按真实已生效比例绘制完成度弧。分母排除“不适用”项，保证已生效 + 待优化 + 不适用与总数一致。
+    /// 0 项时不画弧，100% 时画整圆，避免圆头线帽重叠。
+    /// </summary>
+    private void UpdateOrbitGauge(int applied, int total, int notApplicable, int checking)
+    {
+        var effective = Math.Max(0, total - notApplicable);
+        var fraction = effective > 0 ? Math.Clamp((double)applied / effective, 0d, 1d) : 0d;
+
+        var line = effective > 0
+            ? $"已生效 {applied} / {effective} 项可优化项"
+            : "已生效 -- 项";
+        if (notApplicable > 0) line += $" · {notApplicable} 项不适用";
+        if (checking > 0) line += $" · {checking} 项检测中";
+        AppliedText.Text = line;
+
+        var description = effective > 0
+            ? $"优化完成度 {fraction:P0}：已生效 {applied} / {effective} 项可优化项"
+            : "优化完成度：正在读取本机状态";
+        if (notApplicable > 0)
+            description += $"，另有 {notApplicable} 项不适用";
+        ToolTipService.SetToolTip(StatusGauge, description);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(StatusGauge, description);
+
+        if (fraction <= 0)
+        {
+            ProgressArc.Data = null;
+            return;
+        }
+
+        if (fraction >= 1)
+        {
+            ProgressArc.Data = new EllipseGeometry
+            {
+                Center = new Point(54, 54),
+                RadiusX = 50,
+                RadiusY = 50
+            };
+            return;
+        }
+
+        var angle = fraction * 360;
+        var radians = (angle - 90) * Math.PI / 180;
+        var figure = new PathFigure
+        {
+            StartPoint = new Point(54, 4),
+            IsClosed = false,
+            IsFilled = false
+        };
+        figure.Segments.Add(new ArcSegment
+        {
+            Point = new Point(54 + 50 * Math.Cos(radians), 54 + 50 * Math.Sin(radians)),
+            Size = new Size(50, 50),
+            SweepDirection = SweepDirection.Clockwise,
+            IsLargeArc = angle > 180
+        });
+        var geometry = new PathGeometry();
+        geometry.Figures.Add(figure);
+        ProgressArc.Data = geometry;
     }
 
     private async Task SampleAsync()
