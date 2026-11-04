@@ -14,20 +14,24 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <StackPanel Spacing="10">
+        <Grid ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
             <StackPanel Spacing="4">
                 <TextBlock Text="备份还原" Style="{StaticResource PageTitleStyle}" />
                 <TextBlock Text="怎么安全回退：每次应用前都记录原值，可选择任意时间点恢复。"
-                           Style="{StaticResource SecondaryTextStyle}" />
+                           Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" />
             </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="6">
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <Button Content="打开备份目录" Style="{StaticResource GhostButtonStyle}" Click="OpenFolder_Click" />
                 <Button Content="创建还原点" Style="{StaticResource SubtleButtonStyle}" Click="RestorePoint_Click"
                         ToolTipService.ToolTip="调用系统还原点功能，耗时较长" />
                 <Button Content="恢复全部" Style="{StaticResource DangerButtonStyle}" Click="RestoreAll_Click"
                         ToolTipService.ToolTip="把所有已记录项目恢复为原值" />
             </StackPanel>
-        </StackPanel>
+        </Grid>
 
         <InfoBar x:Name="PageInfo" Grid.Row="1" IsOpen="False" IsClosable="True" />
 

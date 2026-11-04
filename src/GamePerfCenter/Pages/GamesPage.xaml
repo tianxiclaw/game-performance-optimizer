@@ -11,98 +11,266 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <StackPanel Spacing="10">
+        <Grid ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
             <StackPanel Spacing="4">
                 <TextBlock Text="游戏库" Style="{StaticResource PageTitleStyle}" />
-                <TextBlock Text="这个游戏该用什么方案：识别本地游戏，为每个游戏单独保存启动配置。"
+                <TextBlock Text="选中一个游戏，查看它的启动方案；方案只对该游戏生效，可随时还原。"
                            Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" />
             </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="6">
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <Button Content="手动添加" Style="{StaticResource SubtleButtonStyle}" Click="AddGame_Click"
                         ToolTipService.ToolTip="选择任意 exe 加入游戏库" />
-                <Button x:Name="EditSelectedButton" Content="编辑方案" Style="{StaticResource GhostButtonStyle}"
-                        Click="EditSelected_Click" IsEnabled="False"
-                        ToolTipService.ToolTip="编辑并保存当前选中游戏的启动方案" />
-                <Button Content="重新扫描" Style="{StaticResource AccentButtonStyle}" Click="Scan_Click" />
+                <Button Content="重新扫描" Style="{StaticResource SubtleButtonStyle}" Click="Scan_Click"
+                        ToolTipService.ToolTip="重新扫描 Steam / Epic / WeGame / Xbox 游戏" />
             </StackPanel>
-        </StackPanel>
+        </Grid>
 
         <InfoBar x:Name="PageInfo" Grid.Row="1" IsOpen="False" IsClosable="True" />
 
-        <Border Grid.Row="2" Style="{StaticResource CardBorderStyle}" Padding="14">
-            <Grid ColumnSpacing="10">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <TextBox x:Name="SearchBox" PlaceholderText="搜索游戏名称或路径..." MinHeight="34"
-                         TextChanged="SearchBox_TextChanged" />
-                <TextBlock x:Name="CountText" Grid.Column="1" Style="{StaticResource CaptionTextStyle}"
-                           VerticalAlignment="Center" />
-            </Grid>
-        </Border>
+        <Grid Grid.Row="2" ColumnSpacing="16" RowSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="LibraryColumn" Width="340" />
+                <ColumnDefinition x:Name="DetailColumn" Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition x:Name="LibraryRow" Height="*" />
+                <RowDefinition x:Name="DetailRow" Height="0" />
+            </Grid.RowDefinitions>
 
-        <Border Grid.Row="3" Style="{StaticResource CardBorderStyle}" Padding="14,4">
-            <Grid>
-                <ListView x:Name="GameList" SelectionMode="Single"
-                          SelectionChanged="GameList_SelectionChanged"
-                          ItemContainerStyle="{StaticResource DenseListViewItemStyle}">
-                    <ListView.ItemTemplate>
-                        <DataTemplate x:DataType="models:GameInfo">
-                            <Border Style="{StaticResource DataRowStyle}" Padding="6,11"
-                                    DoubleTapped="Row_DoubleTapped">
-                                <Grid ColumnSpacing="12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
+            <!-- 左：本机游戏列表 -->
+            <Border x:Name="LibraryCard" Style="{StaticResource CardBorderStyle}" Padding="14,12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
-                                    <StackPanel Spacing="2" VerticalAlignment="Center">
-                                        <TextBlock Text="{x:Bind Name}" FontSize="13.5" FontWeight="SemiBold"
-                                                   Foreground="{ThemeResource TextBrush}" MaxLines="1"
-                                                   TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
-                                                   ToolTipService.ToolTip="{x:Bind Name}" />
-                                        <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="NoWrap">
-                                            <Run Text="{x:Bind SourceText}" />
-                                            <Run Text="  ·  " />
-                                            <Run Text="{x:Bind StateText}" />
-                                        </TextBlock>
-                                        <TextBlock Text="{x:Bind Exe}" Style="{StaticResource MonoTextStyle}" FontSize="11"
-                                                   TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
-                                                   ToolTipService.ToolTip="{x:Bind Exe}" />
-                                        <TextBlock Text="{x:Bind ProfileText}" Style="{StaticResource CaptionTextStyle}"
-                                                   MaxLines="1" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
-                                                   ToolTipService.ToolTip="{x:Bind ProfileText}" />
-                                    </StackPanel>
+                    <Grid>
+                        <TextBlock Text="本机游戏" Style="{StaticResource BodyTextStyle}" FontWeight="SemiBold" />
+                        <TextBlock x:Name="CountText" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                    </Grid>
+                    <TextBox x:Name="SearchBox" Grid.Row="1" PlaceholderText="搜索名称或路径..."
+                             MinHeight="34" Margin="0,10,0,0" TextChanged="SearchBox_TextChanged" />
 
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6"
-                                                VerticalAlignment="Center">
-                                        <Button Content="编辑" Style="{StaticResource GhostButtonStyle}"
-                                                Click="EditProfile_Click"
-                                                ToolTipService.ToolTip="编辑并保存该游戏的启动方案" />
-                                        <Button Content="启动" Style="{StaticResource SubtleButtonStyle}" Click="Start_Click"
-                                                ToolTipService.ToolTip="按该游戏保存的方案启动" />
-                                    </StackPanel>
-                                </Grid>
+                    <Grid Grid.Row="2" Margin="0,8,0,0">
+                        <ListView x:Name="GameList" SelectionMode="Single"
+                                  SelectionChanged="GameList_SelectionChanged"
+                                  ItemContainerStyle="{StaticResource DenseListViewItemStyle}">
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="models:GameInfo">
+                                    <Border Style="{StaticResource DataRowStyle}" Padding="4,9"
+                                            DoubleTapped="Row_DoubleTapped"
+                                            ToolTipService.ToolTip="选中后在右侧查看方案；双击直接编辑">
+                                        <Grid ColumnSpacing="9">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <Border Width="30" Height="30" CornerRadius="8"
+                                                    Background="{ThemeResource Surface2Brush}"
+                                                    BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock Text="{x:Bind Initial}" FontSize="13" FontWeight="SemiBold"
+                                                           Foreground="{ThemeResource SubTextBrush}"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+
+                                            <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{x:Bind Name}" FontSize="13" FontWeight="SemiBold"
+                                                           Foreground="{ThemeResource TextBrush}" MaxLines="1"
+                                                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                                <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="NoWrap"
+                                                           TextTrimming="CharacterEllipsis">
+                                                    <Run Text="{x:Bind SourceText}" />
+                                                    <Run Text="  ·  " />
+                                                    <Run Text="{x:Bind StateText}" />
+                                                </TextBlock>
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2"
+                                                        VerticalAlignment="Center">
+                                                <Button Width="28" Height="28" Padding="0" Background="Transparent"
+                                                        BorderThickness="0" CornerRadius="6"
+                                                        Click="EditProfile_Click"
+                                                        AutomationProperties.Name="编辑该游戏的启动方案"
+                                                        ToolTipService.ToolTip="编辑该游戏的启动方案">
+                                                    <FontIcon Glyph="&#xE70F;" FontSize="12"
+                                                              Foreground="{ThemeResource SubTextBrush}" />
+                                                </Button>
+                                                <Button Width="28" Height="28" Padding="0" Background="Transparent"
+                                                        BorderThickness="0" CornerRadius="6"
+                                                        Click="Start_Click"
+                                                        AutomationProperties.Name="按该游戏方案启动"
+                                                        ToolTipService.ToolTip="按该游戏方案启动">
+                                                    <FontIcon Glyph="&#xE768;" FontSize="12"
+                                                              Foreground="{ThemeResource AccentBrush}" />
+                                                </Button>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+
+                        <StackPanel x:Name="EmptyHint" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                    Spacing="6" Visibility="Collapsed">
+                            <FontIcon Glyph="&#xE7FC;" FontSize="28" Foreground="{ThemeResource MutedTextBrush}" />
+                            <TextBlock Text="没有检测到游戏" Style="{StaticResource SecondaryTextStyle}"
+                                       TextAlignment="Center" />
+                            <TextBlock Text="支持 Steam / Epic / WeGame / Xbox；也可以手动选择任意 exe。"
+                                       Style="{StaticResource CaptionTextStyle}" TextAlignment="Center"
+                                       TextWrapping="Wrap" MaxWidth="260" />
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <!-- 右：选中游戏的方案与动作 -->
+            <Border x:Name="DetailPanel" Grid.Column="1" Style="{StaticResource CardBorderStyle}" Padding="24,22">
+                <Grid>
+                    <Grid x:Name="DetailContent" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" VerticalScrollMode="Auto"
+                                  HorizontalContentAlignment="Stretch" Padding="0,0,6,0">
+                    <StackPanel Spacing="0">
+                        <Button x:Name="DetailBackButton" Content="返回游戏列表"
+                                Style="{StaticResource GhostButtonStyle}" Click="DetailBack_Click"
+                                Margin="0,0,0,10" Visibility="Collapsed" />
+                        <Grid ColumnSpacing="14">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Width="58" Height="58" CornerRadius="14"
+                                    Background="{ThemeResource AccentSoftBrush}"
+                                    BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1">
+                                <TextBlock x:Name="DetailMonogram" Text="?" FontSize="23" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource AccentBrush}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
                             </Border>
-                        </DataTemplate>
-                    </ListView.ItemTemplate>
-                </ListView>
+                            <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+                                <TextBlock x:Name="DetailName" Text="游戏" FontSize="20" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource TextBrush}" TextWrapping="Wrap"
+                                           MaxLines="2" TextTrimming="CharacterEllipsis" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Border Style="{StaticResource PillBorderStyle}">
+                                        <TextBlock x:Name="DetailSource" Text="本地"
+                                                   Style="{StaticResource CaptionTextStyle}" />
+                                    </Border>
+                                    <Border Style="{StaticResource PillBorderStyle}">
+                                        <TextBlock x:Name="DetailState" Text="可启动"
+                                                   Style="{StaticResource CaptionTextStyle}" />
+                                    </Border>
+                                    <Border x:Name="DetailManualPill" Style="{StaticResource PillBorderStyle}"
+                                            Visibility="Collapsed">
+                                        <TextBlock Text="手动添加" Style="{StaticResource CaptionTextStyle}" />
+                                    </Border>
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
 
-                <StackPanel x:Name="EmptyHint" VerticalAlignment="Center" HorizontalAlignment="Center"
-                            Spacing="6" Visibility="Collapsed">
-                    <FontIcon Glyph="&#xE7FC;" FontSize="28" Foreground="{ThemeResource MutedTextBrush}" />
-                    <TextBlock Text="没有检测到游戏" Style="{StaticResource SecondaryTextStyle}" />
-                    <TextBlock Text="支持 Steam / Epic / WeGame / Xbox；也可以手动选择任意 exe。"
-                               Style="{StaticResource CaptionTextStyle}" TextAlignment="Center" TextWrapping="Wrap" />
-                    <Button Content="手动添加游戏" Style="{StaticResource SubtleButtonStyle}" Click="AddGame_Click"
-                            Margin="0,4,0,0" />
-                </StackPanel>
-            </Grid>
-        </Border>
+                        <TextBlock x:Name="DetailPath" Text="—" Style="{StaticResource PathTextStyle}"
+                                   Margin="0,14,0,0" MaxLines="2" TextWrapping="Wrap" />
+
+                        <Border Height="1" Background="{ThemeResource BorderBrush}" Margin="0,18,0,0" />
+
+                        <TextBlock Text="当前启动方案" Style="{StaticResource BodyTextStyle}" FontWeight="SemiBold"
+                                   Margin="0,16,0,0" />
+                        <Border Style="{StaticResource PillBorderStyle}" HorizontalAlignment="Stretch"
+                                Margin="0,8,0,0" Padding="11,8">
+                            <TextBlock x:Name="DetailProfileText" Text="尚未保存方案"
+                                       Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" />
+                        </Border>
+                        <TextBlock x:Name="DetailProfileHint" Text="尚未保存专属方案，启动时使用系统默认策略。"
+                                   Style="{StaticResource CaptionTextStyle}" Margin="0,7,0,0" />
+
+                        <Border Height="1" Background="{ThemeResource BorderBrush}" Margin="0,18,0,0" />
+
+                        <TextBlock Text="启动设置" Style="{StaticResource BodyTextStyle}" FontWeight="SemiBold"
+                                   Margin="0,16,0,0" />
+                        <Grid ColumnSpacing="16" RowSpacing="10" Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="核心亲和" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock x:Name="DetailAffinityFact" Text="—" Style="{StaticResource BodyTextStyle}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Text="CPU 优先级" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock x:Name="DetailPriorityFact" Text="—" Style="{StaticResource BodyTextStyle}" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Spacing="2">
+                                <TextBlock Text="全屏独占" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock x:Name="DetailFsFact" Text="—" Style="{StaticResource BodyTextStyle}" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="2">
+                                <TextBlock Text="高性能 GPU" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock x:Name="DetailGpuFact" Text="—" Style="{StaticResource BodyTextStyle}" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Spacing="2">
+                                <TextBlock Text="管理员启动" Style="{StaticResource CaptionTextStyle}" />
+                                <TextBlock x:Name="DetailAdminFact" Text="—" Style="{StaticResource BodyTextStyle}" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock x:Name="DetailArgsLine" Text="启动参数：—"
+                                   Style="{StaticResource CaptionTextStyle}" Margin="0,10,0,0"
+                                   TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    </ScrollViewer>
+
+                        <StackPanel Grid.Row="1" Spacing="10" Margin="0,16,0,0">
+                        <Border Height="1" Background="{ThemeResource BorderBrush}" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button x:Name="DetailLaunchButton" Content="启动游戏"
+                                    Style="{StaticResource AccentButtonStyle}" Click="DetailLaunch_Click" />
+                            <Button x:Name="DetailEditButton" Content="编辑方案"
+                                    Style="{StaticResource SubtleButtonStyle}" Click="DetailEdit_Click" />
+                            <Button x:Name="DetailFolderButton" Content="打开目录"
+                                    Style="{StaticResource GhostButtonStyle}" Click="DetailFolder_Click"
+                                    ToolTipService.ToolTip="在资源管理器中定位该游戏的可执行文件" />
+                            <Button x:Name="DetailRemoveButton" Content="从库移除"
+                                    Style="{StaticResource DangerGhostButtonStyle}" Click="DetailRemove_Click"
+                                    Visibility="Collapsed" />
+                        </StackPanel>
+
+                            <TextBlock Text="方案仅对该游戏生效。修改前会记录原值，可在「备份还原」中恢复系统设置。"
+                                       Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Grid>
+
+                    <StackPanel x:Name="DetailEmpty" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                Spacing="8" MaxWidth="340">
+                        <FontIcon Glyph="&#xE7FC;" FontSize="30" Foreground="{ThemeResource MutedTextBrush}" />
+                        <TextBlock Text="选择左侧的游戏" Style="{StaticResource BodyTextStyle}"
+                                   FontWeight="SemiBold" HorizontalAlignment="Center" />
+                        <TextBlock Text="选中后会显示它的启动方案、路径与快捷操作。双击列表项可直接编辑。"
+                                   Style="{StaticResource SecondaryTextStyle}" TextAlignment="Center" />
+                        <Button Content="手动添加游戏" Style="{StaticResource SubtleButtonStyle}"
+                                Click="AddGame_Click" Margin="0,4,0,0" HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </Page>

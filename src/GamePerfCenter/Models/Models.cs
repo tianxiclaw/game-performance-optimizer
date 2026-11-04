@@ -190,6 +190,16 @@ public sealed class GameInfo
     public GameProfile Profile { get; set; } = new();
 
     [JsonIgnore]
+    public string Initial
+    {
+        get
+        {
+            var name = (Name ?? "").Trim();
+            return name.Length == 0 ? "?" : name.Substring(0, 1).ToUpperInvariant();
+        }
+    }
+
+    [JsonIgnore]
     public string SourceText => (Source ?? "").Trim().ToLowerInvariant() switch
     {
         "steam" => "Steam",

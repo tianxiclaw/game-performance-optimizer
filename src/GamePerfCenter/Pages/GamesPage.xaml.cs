@@ -19,12 +19,51 @@ public sealed partial class GamesPage : Page, IThemeAware
     private GameInfo? _selected;
     private bool _loaded;
     private bool _syncingSelection;
+    private bool _narrow;
 
     public GamesPage()
     {
         InitializeComponent();
         GameList.ItemsSource = _view;
         Loaded += OnLoaded;
+        Responsive.Watch(this, 920, ApplyWidth);
+    }
+
+    /// <summary>宽窗口左列表右详情；窄窗口选中后整页显示详情，并可返回列表。</summary>
+    private void ApplyWidth(bool narrow)
+    {
+        _narrow = narrow;
+        Grid.SetColumnSpan(LibraryCard, narrow ? 2 : 1);
+        Grid.SetRow(LibraryCard, 0);
+        Grid.SetColumn(LibraryCard, 0);
+        LibraryColumn.Width = narrow
+            ? new GridLength(1, GridUnitType.Star)
+            : new GridLength(340);
+        LibraryRow.Height = new GridLength(1, GridUnitType.Star);
+
+        Grid.SetRow(DetailPanel, 0);
+        Grid.SetColumn(DetailPanel, narrow ? 0 : 1);
+        Grid.SetColumnSpan(DetailPanel, narrow ? 2 : 1);
+        DetailRow.Height = new GridLength(0);
+        UpdateNarrowVisibility();
+    }
+
+    private void UpdateNarrowVisibility()
+    {
+        var showDetail = _narrow && _selected is not null;
+        LibraryCard.Visibility = showDetail ? Visibility.Collapsed : Visibility.Visible;
+        DetailPanel.Visibility = !_narrow || showDetail ? Visibility.Visible : Visibility.Collapsed;
+        DetailBackButton.Visibility = showDetail ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void DetailBack_Click(object sender, RoutedEventArgs e)
+    {
+        _selected = null;
+        _syncingSelection = true;
+        GameList.SelectedItem = null;
+        _syncingSelection = false;
+        UpdateDetail(null);
+        UpdateNarrowVisibility();
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -74,13 +113,14 @@ public sealed partial class GamesPage : Page, IThemeAware
         var target = keepExe is null
             ? null
             : _view.FirstOrDefault(g => string.Equals(g.Exe, keepExe, StringComparison.OrdinalIgnoreCase));
-        target ??= _view.FirstOrDefault();
+        var narrowNow = _narrow || (ActualWidth > 0 && ActualWidth < 920);
+        if (!narrowNow) target ??= _view.FirstOrDefault();
 
         _syncingSelection = true;
         GameList.SelectedItem = target;
         _syncingSelection = false;
         _selected = target;
-        EditSelectedButton.IsEnabled = target is not null;
+        UpdateDetail(target);
     }
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e) => ApplyFilter();
@@ -91,40 +131,114 @@ public sealed partial class GamesPage : Page, IThemeAware
     {
         if (_syncingSelection) return;
         _selected = GameList.SelectedItem as GameInfo;
-        EditSelectedButton.IsEnabled = _selected is not null;
-    }
-
-    private async void EditSelected_Click(object sender, RoutedEventArgs e)
-    {
-        if (_selected is null)
-        {
-            ShowInfo("请先选择游戏", "从列表中选择一个游戏后再编辑方案。", InfoBarSeverity.Informational);
-            return;
-        }
-        await EditProfileAsync(_selected);
+        UpdateDetail(_selected);
     }
 
     private async void EditProfile_Click(object sender, RoutedEventArgs e)
     {
         if (((FrameworkElement)sender).DataContext is not GameInfo game) return;
-        _syncingSelection = true;
-        GameList.SelectedItem = game;
-        _syncingSelection = false;
-        _selected = game;
-        EditSelectedButton.IsEnabled = true;
+        SelectGame(game);
         await EditProfileAsync(game);
     }
 
     private async void Row_DoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
     {
         if (((FrameworkElement)sender).DataContext is not GameInfo game) return;
+        SelectGame(game);
+        await EditProfileAsync(game);
+    }
+
+    private void SelectGame(GameInfo game)
+    {
         _syncingSelection = true;
         GameList.SelectedItem = game;
         _syncingSelection = false;
         _selected = game;
-        EditSelectedButton.IsEnabled = true;
-        await EditProfileAsync(game);
+        UpdateDetail(game);
     }
+
+    private async void DetailLaunch_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selected is { } game) await LaunchGameAsync(game);
+    }
+
+    private async void DetailEdit_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selected is { } game) await EditProfileAsync(game);
+    }
+
+    private async void DetailRemove_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selected is { } game) await RemoveManualGame(game);
+    }
+
+    private void DetailFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selected?.Exe is not { Length: > 0 } exe) return;
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                Arguments = $"/select,\"{exe}\"",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            ShowInfo("打开目录失败", ex.Message, InfoBarSeverity.Error);
+        }
+    }
+
+    /// <summary>右侧详情只做展示与动作，所有字段来自当前选中项。</summary>
+    private void UpdateDetail(GameInfo? game)
+    {
+        var has = game is not null;
+        DetailContent.Visibility = has ? Visibility.Visible : Visibility.Collapsed;
+        DetailEmpty.Visibility = has ? Visibility.Collapsed : Visibility.Visible;
+        if (!has)
+        {
+            DetailLaunchButton.IsEnabled = false;
+            DetailEditButton.IsEnabled = false;
+            DetailFolderButton.IsEnabled = false;
+            DetailRemoveButton.Visibility = Visibility.Collapsed;
+            UpdateNarrowVisibility();
+            return;
+        }
+
+        var name = string.IsNullOrWhiteSpace(game!.Name) ? "未命名游戏" : game.Name;
+        DetailMonogram.Text = game.Initial;
+        DetailName.Text = name;
+        DetailSource.Text = game.SourceText;
+        DetailState.Text = game.StateText;
+        DetailState.Foreground = ThemeResources.Get(game.Exists ? "OkBrush" : "DangerBrush");
+        DetailManualPill.Visibility = game.Manual ? Visibility.Visible : Visibility.Collapsed;
+        DetailPath.Text = string.IsNullOrWhiteSpace(game.Exe) ? "未记录可执行文件路径" : game.Exe;
+        DetailProfileText.Text = game.ProfileText;
+        DetailProfileHint.Text = game.Profile?.HasSaved == true
+            ? "点击「编辑方案」调整 CPU 优先级、亲和性、全屏与启动参数。"
+            : "点击「编辑方案」为该游戏单独设置亲和性、优先级与启动参数。";
+        DetailPriorityFact.Text = game.Profile?.Priority switch
+        {
+            "High" => "高",
+            "AboveNormal" => "高于正常",
+            _ => "默认"
+        };
+        DetailAffinityFact.Text = game.Profile?.Affinity == "Physical" ? "仅物理核心" : "全部核心";
+        DetailFsFact.Text = game.Profile?.FsOff == true ? "开启" : "关闭";
+        DetailGpuFact.Text = game.Profile?.GpuHigh == true ? "开启" : "关闭";
+        DetailAdminFact.Text = game.Profile?.RunAsAdmin == true ? "开启" : "关闭";
+        DetailArgsLine.Text = string.IsNullOrWhiteSpace(game.Profile?.Args)
+            ? "启动参数：无"
+            : "启动参数：" + game.Profile!.Args;
+
+        DetailLaunchButton.IsEnabled = game.Exists;
+        DetailEditButton.IsEnabled = true;
+        DetailFolderButton.IsEnabled = !string.IsNullOrWhiteSpace(game.Exe) && game.Exists;
+        DetailRemoveButton.Visibility = game.Manual ? Visibility.Visible : Visibility.Collapsed;
+        UpdateNarrowVisibility();
+    }
+
 
     private async Task EditProfileAsync(GameInfo game)
     {
@@ -295,7 +409,11 @@ public sealed partial class GamesPage : Page, IThemeAware
 
     private async void Start_Click(object sender, RoutedEventArgs e)
     {
-        if (((FrameworkElement)sender).DataContext is not GameInfo game) return;
+        if (((FrameworkElement)sender).DataContext is GameInfo game) await LaunchGameAsync(game);
+    }
+
+    private async Task LaunchGameAsync(GameInfo game)
+    {
         try
         {
             App.Services.State.SetStatus("正在启动游戏...");

@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 using GamePerfCenter.Helpers;
+using GamePerfCenter.Models;
 using GamePerfCenter.Pages;
 using GamePerfCenter.Services;
 
@@ -15,11 +16,19 @@ public sealed partial class MainWindow : Window
 {
     private readonly Microsoft.UI.Dispatching.DispatcherQueue _dispatcher;
     private readonly SemaphoreSlim _engineReportLock = new(1, 1);
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _metricsTimer;
     private TrayIcon? _tray;
     private bool _initialized;
+    private bool _metricsBusy;
     private EngineFailure? _shownFailure;
     private double _starWidth;
     private double _starHeight;
+
+    /// <summary>最近一次实时采样。概览页进入时先拿这里的数据，不用等下一个采样周期。</summary>
+    public LiveMetrics? LatestMetrics { get; private set; }
+
+    /// <summary>外壳统一采样，页面只订阅结果，避免同一时刻跑多份 CPU / WMI 查询。</summary>
+    public event Action<LiveMetrics>? MetricsUpdated;
 
     public MainWindow()
     {
@@ -43,6 +52,12 @@ public sealed partial class MainWindow : Window
         StarLayer.SizeChanged += (_, _) => BuildStarfield();
         AppWindow.Closing += OnAppWindowClosing;
         Closed += OnClosed;
+
+        _metricsTimer = _dispatcher.CreateTimer();
+        _metricsTimer.Interval = TimeSpan.FromSeconds(2);
+        _metricsTimer.Tick += async (_, _) => await SampleMetricsAsync();
+        _metricsTimer.Start();
+        _ = SampleMetricsAsync();
 
         try { VersionText.Text = $"v{AppPaths.Version}"; } catch { }
 
@@ -99,10 +114,57 @@ public sealed partial class MainWindow : Window
             _ => "\uE708"
         };
         ToolTipService.SetToolTip(ThemeButton, $"当前：{ThemeService.DisplayName(theme)}，点击切换");
-        StarLayer.Opacity = ThemeService.IsDark ? 0.9 : 0.28;
-        NebulaGlow.Opacity = ThemeService.IsDark ? 1 : 0.5;
         UpdateCaptionButtons();
+        UpdateEngineBadge(App.Services.Engine.IsRunning);
+        ApplyMaterial();
     }
+
+    /// <summary>
+    /// 窗口材质：深空沿用自带渐变，云母与液态玻璃交给 Windows 11 合成层。
+    /// 卡片仍是实色，材质只出现在窗口背景、导航与留白处，保证正文对比度。
+    /// </summary>
+    private void ApplyMaterial()
+    {
+        var material = MaterialService.Normalize(App.Services.Settings.Material);
+        if (!MaterialService.IsSupported(material)) material = "deep";
+
+        try
+        {
+            SystemBackdrop = null;
+            switch (material)
+            {
+                case "mica":
+                    SystemBackdrop = new MicaBackdrop();
+                    RootGrid.Background = ThemeResources.Get("MicaTintBrush");
+                    GlassLayer.Background = ThemeResources.Get("MicaSheenBrush");
+                    GlassLayer.Opacity = 0.55;
+                    StarLayer.Opacity = 0;
+                    break;
+                case "glass":
+                    SystemBackdrop = new DesktopAcrylicBackdrop();
+                    RootGrid.Background = ThemeResources.Get("GlassTintBrush");
+                    GlassLayer.Background = ThemeResources.Get("GlassSheenBrush");
+                    GlassLayer.Opacity = 1;
+                    StarLayer.Opacity = 0;
+                    break;
+                default:
+                    RootGrid.Background = ThemeResources.Get("AppBackdropBrush");
+                    GlassLayer.Opacity = 0;
+                    StarLayer.Opacity = ThemeService.IsDark ? 0.5 : 0.16;
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("窗口材质应用失败: " + ex.Message);
+            SystemBackdrop = null;
+            RootGrid.Background = ThemeResources.Get("AppBackdropBrush");
+            GlassLayer.Opacity = 0;
+            StarLayer.Opacity = ThemeService.IsDark ? 0.5 : 0.16;
+        }
+    }
+
+    public void RefreshMaterial() => ApplyMaterial();
 
     /// <summary>
     /// 生成一层稀疏星点。位置与尺寸固定随机种子，窗口尺寸变化时才重建，避免无意义抖动。
@@ -122,16 +184,16 @@ public sealed partial class MainWindow : Window
 
             var brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 155, 231, 245));
             var random = new Random(20261104);
-            var count = Math.Clamp((int)(width * height / 13000), 48, 120);
+            var count = Math.Clamp((int)(width * height / 26000), 24, 64);
             for (var i = 0; i < count; i++)
             {
-                var size = 0.7 + random.NextDouble() * 1.8;
+                var size = 0.6 + random.NextDouble() * 1.2;
                 var star = new Microsoft.UI.Xaml.Shapes.Ellipse
                 {
                     Width = size,
                     Height = size,
                     Fill = brush,
-                    Opacity = 0.08 + random.NextDouble() * 0.34
+                    Opacity = 0.05 + random.NextDouble() * 0.18
                 };
                 Canvas.SetLeft(star, random.NextDouble() * width);
                 Canvas.SetTop(star, random.NextDouble() * height);
@@ -178,15 +240,19 @@ public sealed partial class MainWindow : Window
         try
         {
             SetStatus("正在连接优化引擎...", true);
+            PaneEngineText.Text = "正在连接优化引擎";
             await App.Services.Engine.StartAsync();
             EngineStateText.Text = "引擎已连接";
+            UpdateEngineBadge(true);
             SetStatus("正在读取硬件信息...", true);
             await App.Services.State.EnsureSnapshotAsync(force: true);
+            UpdateShellInfo();
             SetStatus("就绪", false);
         }
         catch (Exception ex)
         {
             EngineStateText.Text = "引擎连接失败";
+            UpdateEngineBadge(false);
             SetStatus("引擎连接失败", false);
             AppLog.Write("初始化失败: " + ex);
             await ShowEngineFailureAsync(App.Services.Engine.LastFailure, ex);
@@ -199,6 +265,7 @@ public sealed partial class MainWindow : Window
         _dispatcher.TryEnqueue(() =>
         {
             EngineStateText.Text = "引擎已断开";
+            UpdateEngineBadge(false);
             SetStatus("引擎连接中断，正在整理故障报告...", true);
             _ = ShowEngineFailureAsync(failure, null);
         });
@@ -233,6 +300,7 @@ public sealed partial class MainWindow : Window
             }
 
             EngineStateText.Text = App.Services.Engine.IsRunning ? "引擎已连接" : "引擎未连接";
+            UpdateEngineBadge(App.Services.Engine.IsRunning);
             SetStatus(App.Services.Engine.IsRunning ? "就绪" : "引擎未连接", false);
         }
         finally
@@ -279,6 +347,8 @@ public sealed partial class MainWindow : Window
             SetStatus("正在读取硬件信息...", true);
             await App.Services.State.EnsureSnapshotAsync(force: true);
             EngineStateText.Text = "引擎已连接";
+            UpdateEngineBadge(true);
+            UpdateShellInfo();
             SetStatus("就绪", false);
             _shownFailure = null;
             AppLog.Write("引擎重新连接成功");
@@ -299,8 +369,73 @@ public sealed partial class MainWindow : Window
 
     private void OnStateChanged()
     {
-        _dispatcher.TryEnqueue(() => StatusRing.IsActive = App.Services.State.IsBusy);
+        _dispatcher.TryEnqueue(() =>
+        {
+            StatusRing.IsActive = App.Services.State.IsBusy;
+            UpdateShellInfo();
+        });
     }
+
+    /// <summary>外壳常驻采样：左侧实时负载与概览页共用同一份结果。</summary>
+    private async Task SampleMetricsAsync()
+    {
+        if (_metricsBusy) return;
+        _metricsBusy = true;
+        try
+        {
+            var m = await Task.Run(() => App.Services.Metrics.Sample());
+            LatestMetrics = m;
+
+            PaneCpuValue.Text = m.Cpu.ToString("0") + "%";
+            PaneCpuBar.Value = m.Cpu;
+            var gpuAvailable = App.Services.Metrics.GpuAvailable;
+            PaneGpuValue.Text = gpuAvailable ? m.Gpu.ToString("0") + "%" : "--";
+            PaneGpuBar.Value = gpuAvailable ? m.Gpu : 0;
+            PaneRamValue.Text = m.RamPercent.ToString("0") + "%";
+            PaneRamBar.Value = m.RamPercent;
+
+            MetricsUpdated?.Invoke(m);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("实时采样失败: " + ex.Message);
+        }
+        finally
+        {
+            _metricsBusy = false;
+        }
+    }
+
+    /// <summary>设备名与待优化数量。状态变化频繁，这里保持廉价，只改文本与可见性。</summary>
+    private void UpdateShellInfo()
+    {
+        var snap = App.Services.State.Snapshot;
+        if (snap is not null && !string.IsNullOrWhiteSpace(snap.Machine))
+        {
+            PaneDeviceName.Text = snap.Machine;
+            ToolTipService.SetToolTip(PaneDeviceName, snap.Machine);
+        }
+
+        var pending = snap?.Summary.Pending ?? 0;
+        TopPendingText.Text = $"待优化 {pending} 项";
+        PendingButton.Visibility = pending > 0 ? Visibility.Visible : Visibility.Collapsed;
+        PendingButton.IsEnabled = pending > 0;
+
+        var kind = snap is null ? "" : snap.IsLaptop ? "笔记本" : "台式机";
+        var engine = App.Services.Engine.IsRunning ? "引擎已连接" : "引擎未连接";
+        PaneEngineText.Text = string.IsNullOrEmpty(kind) ? engine : $"{kind} · {engine}";
+    }
+
+    private void UpdateEngineBadge(bool connected)
+    {
+        try
+        {
+            PaneEngineDot.Fill = ThemeResources.Get(connected ? "OkBrush" : "WarnBrush");
+        }
+        catch { }
+    }
+
+    private void PendingButton_Click(object sender, RoutedEventArgs e) => NavigateTo("items");
 
     private void SetStatus(string text, bool busy)
     {

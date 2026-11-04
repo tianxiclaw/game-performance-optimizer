@@ -13,15 +13,19 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <StackPanel Spacing="10">
+        <Grid ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
             <StackPanel Spacing="4">
                 <TextBlock Text="设置" Style="{StaticResource PageTitleStyle}" />
                 <TextBlock Text="怎么改变程序行为：外观、托盘与配置文件，修改后立即保存。"
-                           Style="{StaticResource SecondaryTextStyle}" />
+                           Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" />
             </StackPanel>
-            <Button Content="打开程序目录" Style="{StaticResource SubtleButtonStyle}" HorizontalAlignment="Left"
-                    Click="OpenConfig_Click" />
-        </StackPanel>
+            <Button Grid.Column="1" Content="打开程序目录" Style="{StaticResource SubtleButtonStyle}"
+                    VerticalAlignment="Center" Click="OpenConfig_Click" />
+        </Grid>
 
         <InfoBar x:Name="PageInfo" Grid.Row="1" IsOpen="False" IsClosable="True" />
 
@@ -61,6 +65,24 @@
                                                      Checked="Theme_Checked" />
                                         <RadioButton x:Name="SystemOption" Content="跟随系统" GroupName="Theme" MinWidth="0"
                                                      Checked="Theme_Checked" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingsRowStyle}" BorderThickness="0">
+                                <StackPanel Spacing="12">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="窗口材质" Style="{StaticResource BodyTextStyle}" />
+                                        <TextBlock Text="云母与液态玻璃使用 Windows 11 系统合成层；系统不支持时自动回退深空。卡片保持实色，不牺牲正文可读性。"
+                                                   Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="18">
+                                        <RadioButton x:Name="MaterialDeepOption" Content="深空" GroupName="Material"
+                                                     MinWidth="0" Checked="Material_Checked" />
+                                        <RadioButton x:Name="MaterialMicaOption" Content="云母" GroupName="Material"
+                                                     MinWidth="0" Checked="Material_Checked" />
+                                        <RadioButton x:Name="MaterialGlassOption" Content="液态玻璃" GroupName="Material"
+                                                     MinWidth="0" Checked="Material_Checked" />
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
@@ -116,14 +138,26 @@
                             <TextBlock Text="存储与配置" Style="{StaticResource SectionTitleStyle}" />
 
                             <StackPanel Spacing="5">
-                                <TextBlock Text="程序目录" Style="{StaticResource CaptionTextStyle}" />
+                                <Grid ColumnSpacing="8">
+                                    <TextBlock Text="程序目录" Style="{StaticResource CaptionTextStyle}"
+                                               VerticalAlignment="Center" />
+                                    <Button x:Name="CopyBaseDirButton" Content="复制" HorizontalAlignment="Right"
+                                            Style="{StaticResource GhostButtonStyle}" Click="CopyPath_Click"
+                                            ToolTipService.ToolTip="复制完整路径" />
+                                </Grid>
                                 <TextBlock x:Name="BaseDirText" Style="{StaticResource MonoTextStyle}" FontSize="11.5"
-                                           TextWrapping="Wrap" />
+                                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                             </StackPanel>
                             <StackPanel Spacing="5">
-                                <TextBlock Text="配置文件" Style="{StaticResource CaptionTextStyle}" />
+                                <Grid ColumnSpacing="8">
+                                    <TextBlock Text="配置文件" Style="{StaticResource CaptionTextStyle}"
+                                               VerticalAlignment="Center" />
+                                    <Button x:Name="CopyConfigButton" Content="复制" HorizontalAlignment="Right"
+                                            Style="{StaticResource GhostButtonStyle}" Click="CopyPath_Click"
+                                            ToolTipService.ToolTip="复制完整路径" />
+                                </Grid>
                                 <TextBlock x:Name="ConfigPathText" Style="{StaticResource MonoTextStyle}" FontSize="11.5"
-                                           TextWrapping="Wrap" />
+                                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                             </StackPanel>
 
                             <StackPanel Orientation="Horizontal" Spacing="8">

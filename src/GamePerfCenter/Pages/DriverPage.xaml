@@ -36,13 +36,17 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <StackPanel Spacing="10">
+        <Grid ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
             <StackPanel Spacing="4">
                 <TextBlock Text="驱动中心" Style="{StaticResource PageTitleStyle}" />
                 <TextBlock Text="扫描本机设备与驱动仓库，核对版本与残留；更新判断只读取 Windows Update，不自动安装。"
                            Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" />
             </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="8">
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <Button x:Name="RefreshButton" Content="刷新本地" Style="{StaticResource AccentButtonStyle}"
                         Click="Refresh_Click" ToolTipService.ToolTip="重新枚举设备与驱动仓库，不访问网络" />
                 <Button x:Name="UpdateButton" Content="检测更新" Style="{StaticResource SubtleButtonStyle}"
@@ -54,7 +58,7 @@
                 <TextBlock x:Name="BusyText" Style="{StaticResource CaptionTextStyle}"
                            VerticalAlignment="Center" />
             </StackPanel>
-        </StackPanel>
+        </Grid>
 
         <InfoBar x:Name="PageInfo" Grid.Row="1" IsOpen="False" IsClosable="True" />
 

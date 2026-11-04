@@ -12,6 +12,7 @@ public sealed class AppServices
     public DriverOperationService DriverOperations { get; } = new();
     public OptimizationCatalogService OptimizationCatalog { get; }
     public OptimizationExecutionService OptimizationExecution { get; }
+    public LiveMetricsService Metrics { get; } = new();
 
     public AppServices()
     {

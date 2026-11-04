@@ -23,6 +23,8 @@ public sealed partial class ItemsPage : Page, IThemeAware
         NavigationCacheMode = Microsoft.UI.Xaml.Navigation.NavigationCacheMode.Required;
         App.Services.State.Changed += OnStateChanged;
         Loaded += OnLoaded;
+        Responsive.Watch(this, 640, narrow =>
+            ViewCountText.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible);
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)

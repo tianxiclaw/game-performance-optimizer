@@ -41,6 +41,8 @@
 
 ![游戏库](docs/games.png)
 
+设置页可在“深空 / 云母 / 液态玻璃”三种窗口材质间切换；云母与液态玻璃使用 Windows 11 系统合成层，系统不支持时自动回退深空，卡片始终保持实色以保证正文对比度。
+
 ## 30 秒上手
 
 1. 打开 [Releases](https://github.com/tianxiclaw/game-performance-optimizer/releases/latest)，下载最新的「便携版」zip。

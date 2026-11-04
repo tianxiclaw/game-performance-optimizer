@@ -4,6 +4,7 @@ using GamePerfCenter.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Windows.Storage.Pickers;
+using Windows.ApplicationModel.DataTransfer;
 
 namespace GamePerfCenter.Pages;
 
@@ -51,6 +52,8 @@ public sealed partial class SettingsPage : Page, IThemeAware
         LoadIntoUi();
         BaseDirText.Text = AppPaths.BaseDir;
         ConfigPathText.Text = AppPaths.SettingsPath;
+        ToolTipService.SetToolTip(BaseDirText, AppPaths.BaseDir);
+        ToolTipService.SetToolTip(ConfigPathText, AppPaths.SettingsPath);
         VersionText.Text = $"游戏性能优化中心 v{AppPaths.Version}";
     }
 
@@ -63,6 +66,21 @@ public sealed partial class SettingsPage : Page, IThemeAware
             DarkOption.IsChecked = settings.Theme == "dark";
             LightOption.IsChecked = settings.Theme == "light";
             SystemOption.IsChecked = settings.Theme == "system";
+            var material = MaterialService.Normalize(settings.Material);
+            var micaSupported = MaterialService.IsSupported("mica");
+            var glassSupported = MaterialService.IsSupported("glass");
+            // 配置可能来自另一台机器；本机不支持时窗口已回退深空，选项也要显示真实状态。
+            if ((material == "mica" && !micaSupported) || (material == "glass" && !glassSupported))
+                material = "deep";
+            MaterialDeepOption.IsChecked = material == "deep";
+            MaterialMicaOption.IsChecked = material == "mica";
+            MaterialGlassOption.IsChecked = material == "glass";
+            MaterialMicaOption.IsEnabled = micaSupported;
+            MaterialGlassOption.IsEnabled = glassSupported;
+            ToolTipService.SetToolTip(MaterialMicaOption,
+                MaterialMicaOption.IsEnabled ? "使用 Windows 11 云母背景" : "当前系统不支持云母材质");
+            ToolTipService.SetToolTip(MaterialGlassOption,
+                MaterialGlassOption.IsEnabled ? "使用系统亚克力与高光层模拟液态玻璃" : "当前系统不支持液态玻璃");
             TraySwitch.IsOn = settings.MinimizeToTray;
             DriverNotifySwitch.IsOn = settings.NotifyDriver;
         }
@@ -84,6 +102,36 @@ public sealed partial class SettingsPage : Page, IThemeAware
         ShowInfo("主题已切换", ThemeService.DisplayName(theme) + " 已应用。", InfoBarSeverity.Success);
     }
 
+    private void Material_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_loading || MaterialDeepOption is null) return;
+        var material = ReferenceEquals(sender, MaterialMicaOption) ? "mica"
+            : ReferenceEquals(sender, MaterialGlassOption) ? "glass" : "deep";
+        if (App.Services.Settings.Material == material) return;
+
+        if (!MaterialService.IsSupported(material))
+        {
+            ShowInfo("当前系统不支持", "云母与液态玻璃需要 Windows 11 的系统合成层，已保留当前材质。",
+                InfoBarSeverity.Warning);
+            RevertMaterialSelection(App.Services.Settings.Material);
+            return;
+        }
+
+        App.Services.Settings.Material = material;
+        Save();
+        if (App.MainWindow is MainWindow main) main.RefreshMaterial();
+        ShowInfo("材质已切换", MaterialService.DisplayName(material) + " 已应用。", InfoBarSeverity.Success);
+    }
+
+    private void RevertMaterialSelection(string material)
+    {
+        _loading = true;
+        MaterialDeepOption.IsChecked = material == "deep";
+        MaterialMicaOption.IsChecked = material == "mica";
+        MaterialGlassOption.IsChecked = material == "glass";
+        _loading = false;
+    }
+
     private void Setting_Toggled(object sender, RoutedEventArgs e)
     {
         if (_loading || TraySwitch is null || DriverNotifySwitch is null) return;
@@ -100,6 +148,23 @@ public sealed partial class SettingsPage : Page, IThemeAware
     }
 
     private void OpenConfig_Click(object sender, RoutedEventArgs e) => OpenFolder(AppPaths.BaseDir);
+
+    private void CopyPath_Click(object sender, RoutedEventArgs e)
+    {
+        var text = ReferenceEquals(sender, CopyConfigButton) ? AppPaths.SettingsPath : AppPaths.BaseDir;
+        try
+        {
+            var package = new DataPackage();
+            package.SetText(text);
+            Clipboard.SetContent(package);
+            Clipboard.Flush();
+            ShowInfo("已复制路径", text, InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowInfo("复制失败", ex.Message, InfoBarSeverity.Error);
+        }
+    }
 
     private async void Export_Click(object sender, RoutedEventArgs e)
     {
@@ -230,7 +295,7 @@ public sealed partial class SettingsPage : Page, IThemeAware
             Title = "恢复默认设置",
             Content = new TextBlock
             {
-                Text = "将外观与行为设置恢复为默认值（深色主题、关闭托盘、开启驱动提醒）。\n\n备份、日志与游戏库不会受影响。",
+                Text = "将外观与行为设置恢复为默认值（深色主题、深空材质、关闭托盘、开启驱动提醒）。\n\n备份、日志与游戏库不会受影响。",
                 TextWrapping = TextWrapping.Wrap,
                 LineHeight = 22
             },
@@ -242,6 +307,7 @@ public sealed partial class SettingsPage : Page, IThemeAware
 
         var settings = App.Services.Settings;
         settings.Theme = "dark";
+        settings.Material = "deep";
         settings.MinimizeToTray = false;
         settings.NotifyDriver = true;
         Save();
@@ -258,5 +324,6 @@ public sealed partial class SettingsPage : Page, IThemeAware
         PageInfo.IsOpen = true;
     }
 
-    public void OnThemeChanged() { }
+    // 顶栏也能切换主题；回到本页时同步单选项，避免界面显示与已保存设置不一致。
+    public void OnThemeChanged() => LoadIntoUi();
 }

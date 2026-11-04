@@ -9,6 +9,7 @@ public sealed class SettingsService
     private JsonObject _root = new();
 
     public string Theme { get; set; } = "dark";
+    public string Material { get; set; } = "deep";
     public bool MinimizeToTray { get; set; }
     public bool NotifyDriver { get; set; } = true;
 
@@ -27,6 +28,8 @@ public sealed class SettingsService
             _root = JsonNode.Parse(text) as JsonObject ?? new JsonObject();
             var theme = GetString("Theme", "dark").ToLowerInvariant();
             Theme = theme is "light" or "system" ? theme : "dark";
+            var material = GetString("Material", "deep").ToLowerInvariant();
+            Material = material is "mica" or "glass" ? material : "deep";
             MinimizeToTray = GetBool("MinimizeToTray", false);
             NotifyDriver = GetBool("NotifyDriver", true);
         }
@@ -42,6 +45,7 @@ public sealed class SettingsService
             _root.Remove("ExperimentalDpi");
             _root.Remove("ShowRenderInfo");
             _root["Theme"] = Theme;
+            _root["Material"] = Material;
             _root["MinimizeToTray"] = MinimizeToTray;
             _root["NotifyDriver"] = NotifyDriver;
             _root["Updated"] = DateTime.Now.ToString("s");

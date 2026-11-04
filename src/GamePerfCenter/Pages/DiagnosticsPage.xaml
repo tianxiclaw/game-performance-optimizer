@@ -15,20 +15,24 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <StackPanel Spacing="10">
+        <Grid ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
             <StackPanel Spacing="4">
                 <TextBlock Text="诊断报告" Style="{StaticResource PageTitleStyle}" />
                 <TextBlock Text="当前有哪些风险：硬件、电源、驱动、服务与安全状态的一次性核查。"
-                           Style="{StaticResource SecondaryTextStyle}" />
+                           Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" />
             </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="6">
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <Button Content="打开诊断目录" Style="{StaticResource GhostButtonStyle}" Click="OpenFolder_Click" />
                 <Button Content="导出诊断包" Style="{StaticResource SubtleButtonStyle}" Click="ExportBundle_Click"
                         ToolTipService.ToolTip="打包日志、配置与诊断文本，便于反馈问题" />
                 <Button Content="导出报告" Style="{StaticResource SubtleButtonStyle}" Click="ExportReport_Click" />
                 <Button Content="重新诊断" Style="{StaticResource AccentButtonStyle}" Click="Run_Click" />
             </StackPanel>
-        </StackPanel>
+        </Grid>
 
         <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Padding="16,12">
             <Grid ColumnSpacing="12">

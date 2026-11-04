@@ -32,6 +32,26 @@
                 <GradientStop Color="#0B1424" Offset="0.55" />
                 <GradientStop Color="#080C15" Offset="1" />
             </LinearGradientBrush>
+            <LinearGradientBrush x:Key="MicaTintBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#80090E17" Offset="0" />
+                <GradientStop Color="#730D1726" Offset="0.55" />
+                <GradientStop Color="#80080D16" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="MicaSheenBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#1FFFFFFF" Offset="0" />
+                <GradientStop Color="#08FFFFFF" Offset="0.45" />
+                <GradientStop Color="#000B1424" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="GlassTintBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#8C08111F" Offset="0" />
+                <GradientStop Color="#800B1A2E" Offset="0.55" />
+                <GradientStop Color="#8C060B14" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="GlassSheenBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#38FFFFFF" Offset="0" />
+                <GradientStop Color="#12FFFFFF" Offset="0.32" />
+                <GradientStop Color="#001FD4EE" Offset="1" />
+            </LinearGradientBrush>
             <RadialGradientBrush x:Key="NebulaBrush">
                 <GradientStop Color="#3022D3EE" Offset="0" />
                 <GradientStop Color="#000B1424" Offset="1" />
@@ -104,6 +124,26 @@
                 <GradientStop Color="#F6F9FD" Offset="0" />
                 <GradientStop Color="#EDF3FA" Offset="0.55" />
                 <GradientStop Color="#F4F7FB" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="MicaTintBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#B8F6F9FD" Offset="0" />
+                <GradientStop Color="#A9EDF3FA" Offset="0.55" />
+                <GradientStop Color="#B8F4F7FB" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="MicaSheenBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#66FFFFFF" Offset="0" />
+                <GradientStop Color="#14FFFFFF" Offset="0.45" />
+                <GradientStop Color="#00FFFFFF" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="GlassTintBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#C2FFFFFF" Offset="0" />
+                <GradientStop Color="#B3F2F7FD" Offset="0.55" />
+                <GradientStop Color="#C2F7FAFE" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="GlassSheenBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#A6FFFFFF" Offset="0" />
+                <GradientStop Color="#26FFFFFF" Offset="0.32" />
+                <GradientStop Color="#001D4ED8" Offset="1" />
             </LinearGradientBrush>
             <RadialGradientBrush x:Key="NebulaBrush">
                 <GradientStop Color="#1A00738C" Offset="0" />
@@ -217,6 +257,40 @@
         <Setter Property="Foreground" Value="{ThemeResource MutedTextBrush}" />
         <Setter Property="VerticalAlignment" Value="Bottom" />
         <Setter Property="Margin" Value="4,0,0,5" />
+    </Style>
+
+    <!-- 仪表盘大数字：只给实时负载与待处理数量，正文不参与 -->
+    <Style x:Key="LiveValueStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource DisplayFontFamily}" />
+        <Setter Property="FontSize" Value="40" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{ThemeResource TextBrush}" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+        <Setter Property="TextAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="LiveUnitStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{ThemeResource SubTextBrush}" />
+        <Setter Property="VerticalAlignment" Value="Bottom" />
+        <Setter Property="Margin" Value="2,0,0,8" />
+    </Style>
+
+    <Style x:Key="PendingValueStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource DisplayFontFamily}" />
+        <Setter Property="FontSize" Value="28" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{ThemeResource TextBrush}" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+
+    <Style x:Key="PathTextStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{ThemeResource SubTextBrush}" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
     </Style>
 
     <Style x:Key="CardBorderStyle" TargetType="Border">

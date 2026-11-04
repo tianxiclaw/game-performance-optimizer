@@ -13,7 +13,7 @@
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install-local.ps1
 
 .EXAMPLE
-    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install-local.ps1 -Source "dist\.build\游戏性能优化中心_v6.3.4"
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install-local.ps1 -Source "dist\.build\游戏性能优化中心_v6.4.0"
 #>
 [CmdletBinding()]
 param(
