@@ -5,10 +5,12 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
+using GamePerfCenter.Controls;
 using GamePerfCenter.Helpers;
 using GamePerfCenter.Models;
 using GamePerfCenter.Pages;
 using GamePerfCenter.Services;
+using Rectangle = Microsoft.UI.Xaml.Shapes.Rectangle;
 
 namespace GamePerfCenter;
 
@@ -47,9 +49,11 @@ public sealed partial class MainWindow : Window
         App.Services.State.StatusChanged += OnStatusChanged;
         App.Services.State.Changed += OnStateChanged;
         App.Services.Engine.Crashed += OnEngineCrashed;
-        Nav.Loaded += Nav_Loaded;
-        StarLayer.Loaded += (_, _) => BuildStarfield();
-        StarLayer.SizeChanged += (_, _) => BuildStarfield();
+        NavEntriesPanel.Loaded += Nav_Loaded;
+        Responsive.Watch(RootGrid, 1120, ApplyShellWidth);
+        Responsive.Watch(RootGrid, 900, ApplyTitleBar);
+        StarLayer.Loaded += (_, _) => BuildTechGrid();
+        StarLayer.SizeChanged += (_, _) => BuildTechGrid();
         AppWindow.Closing += OnAppWindowClosing;
         Closed += OnClosed;
 
@@ -107,21 +111,35 @@ public sealed partial class MainWindow : Window
     {
         var theme = App.Services.Settings.Theme;
         ThemeService.Apply(RootGrid, theme);
-        ThemeIcon.Glyph = theme switch
-        {
-            "light" => "\uE706",
-            "system" => "\uE793",
-            _ => "\uE708"
-        };
-        ToolTipService.SetToolTip(ThemeButton, $"当前：{ThemeService.DisplayName(theme)}，点击切换");
+        UpdateThemeSegments();
         UpdateCaptionButtons();
         UpdateEngineBadge(App.Services.Engine.IsRunning);
+        foreach (var item in EnumerateNavItems()) item.RefreshVisuals();
         ApplyMaterial();
+        BuildTechGrid(force: true);
+    }
+
+    /// <summary>顶栏三段主题选择：当前项用强调底与强调字，其余保持中性。</summary>
+    private void UpdateThemeSegments()
+    {
+        var current = App.Services.Settings.Theme;
+        foreach (var button in new[] { ThemeDarkButton, ThemeLightButton, ThemeSystemButton })
+        {
+            var active = string.Equals(button.Tag as string, current, StringComparison.Ordinal);
+            button.Background = active
+                ? ThemeResources.Get("AccentSoftBrush")
+                : new SolidColorBrush(Colors.Transparent);
+            button.Foreground = ThemeResources.Get(active ? "AccentBrush" : "SubTextBrush");
+            button.FontWeight = active
+                ? Microsoft.UI.Text.FontWeights.SemiBold
+                : Microsoft.UI.Text.FontWeights.Normal;
+        }
     }
 
     /// <summary>
     /// 窗口材质：深空沿用自带渐变，云母与液态玻璃交给 Windows 11 合成层。
     /// 卡片仍是实色，材质只出现在窗口背景、导航与留白处，保证正文对比度。
+    /// 三种材质都保留技术网格，切换时只改变底色与网格强度。
     /// </summary>
     private void ApplyMaterial()
     {
@@ -136,21 +154,19 @@ public sealed partial class MainWindow : Window
                 case "mica":
                     SystemBackdrop = new MicaBackdrop();
                     RootGrid.Background = ThemeResources.Get("MicaTintBrush");
-                    GlassLayer.Background = ThemeResources.Get("MicaSheenBrush");
-                    GlassLayer.Opacity = 0.55;
-                    StarLayer.Opacity = 0;
+                    ApplyChrome(unified: true);
+                    StarLayer.Opacity = ThemeService.IsDark ? 0.7 : 0.5;
                     break;
                 case "glass":
                     SystemBackdrop = new DesktopAcrylicBackdrop();
                     RootGrid.Background = ThemeResources.Get("GlassTintBrush");
-                    GlassLayer.Background = ThemeResources.Get("GlassSheenBrush");
-                    GlassLayer.Opacity = 1;
-                    StarLayer.Opacity = 0;
+                    ApplyChrome(unified: true);
+                    StarLayer.Opacity = ThemeService.IsDark ? 0.5 : 0.35;
                     break;
                 default:
                     RootGrid.Background = ThemeResources.Get("AppBackdropBrush");
-                    GlassLayer.Opacity = 0;
-                    StarLayer.Opacity = ThemeService.IsDark ? 0.5 : 0.16;
+                    ApplyChrome(unified: false);
+                    StarLayer.Opacity = ThemeService.IsDark ? 1 : 0.55;
                     break;
             }
         }
@@ -159,45 +175,75 @@ public sealed partial class MainWindow : Window
             AppLog.Write("窗口材质应用失败: " + ex.Message);
             SystemBackdrop = null;
             RootGrid.Background = ThemeResources.Get("AppBackdropBrush");
-            GlassLayer.Opacity = 0;
-            StarLayer.Opacity = ThemeService.IsDark ? 0.5 : 0.16;
+            ApplyChrome(unified: false);
+            StarLayer.Opacity = ThemeService.IsDark ? 1 : 0.55;
         }
+    }
+
+    /// <summary>
+    /// 深空材质用实色分区；云母与液态玻璃共用一层根底色，
+    /// 否则半透明栏叠在根底色上会二次加深，顶栏变成一条突兀的黑带。
+    /// </summary>
+    private void ApplyChrome(bool unified)
+    {
+        var clear = unified ? new SolidColorBrush(Colors.Transparent) : null;
+        Rail.Background = clear ?? ThemeResources.Get("NavBgBrush");
+        TitleBarDrag.Background = clear ?? ThemeResources.Get("PaneBrush");
+        StatusBar.Background = clear ?? ThemeResources.Get("NavBgBrush");
     }
 
     public void RefreshMaterial() => ApplyMaterial();
 
     /// <summary>
-    /// 生成一层稀疏星点。位置与尺寸固定随机种子，窗口尺寸变化时才重建，避免无意义抖动。
+    /// 内容区底纹：76px 间距的 1px 技术网格，给切角面板提供可读的坐标参照。
+    /// 只在尺寸真正变化或主题切换时重建，避免每次采样都重绘。
     /// </summary>
-    private void BuildStarfield()
+    private void BuildTechGrid(bool force = false)
     {
         try
         {
             var width = StarLayer.ActualWidth;
             var height = StarLayer.ActualHeight;
             if (width < 240 || height < 240) return;
-            if (Math.Abs(width - _starWidth) < 32 && Math.Abs(height - _starHeight) < 32) return;
+            if (!force && Math.Abs(width - _starWidth) < 2 && Math.Abs(height - _starHeight) < 2) return;
 
             _starWidth = width;
             _starHeight = height;
             StarLayer.Children.Clear();
 
-            var brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 155, 231, 245));
-            var random = new Random(20261104);
-            var count = Math.Clamp((int)(width * height / 26000), 24, 64);
-            for (var i = 0; i < count; i++)
+            var brush = ThemeResources.Get("TechGridBrush");
+            const double step = 76;
+
+            // 按设备像素对齐：1 DIP 的线在 125%/150% 缩放下会被重采样成两条半透明线，
+            // 看起来像脏点。这里换算成 1 物理像素宽，并把起点吸附到整像素。
+            var scale = 1.0;
+            try { scale = StarLayer.XamlRoot?.RasterizationScale ?? 1.0; } catch { }
+            if (scale <= 0) scale = 1.0;
+            var thickness = 1.0 / scale;
+
+            for (var x = step; x < width; x += step)
             {
-                var size = 0.6 + random.NextDouble() * 1.2;
-                var star = new Microsoft.UI.Xaml.Shapes.Ellipse
+                var line = new Rectangle
                 {
-                    Width = size,
-                    Height = size,
-                    Fill = brush,
-                    Opacity = 0.05 + random.NextDouble() * 0.18
+                    Width = thickness,
+                    Height = height,
+                    Fill = brush
                 };
-                Canvas.SetLeft(star, random.NextDouble() * width);
-                Canvas.SetTop(star, random.NextDouble() * height);
-                StarLayer.Children.Add(star);
+                Canvas.SetLeft(line, Math.Round(x * scale) / scale);
+                Canvas.SetTop(line, 0);
+                StarLayer.Children.Add(line);
+            }
+            for (var y = step; y < height; y += step)
+            {
+                var line = new Rectangle
+                {
+                    Width = width,
+                    Height = thickness,
+                    Fill = brush
+                };
+                Canvas.SetLeft(line, 0);
+                Canvas.SetTop(line, Math.Round(y * scale) / scale);
+                StarLayer.Children.Add(line);
             }
         }
         catch { }
@@ -230,10 +276,83 @@ public sealed partial class MainWindow : Window
     {
         if (_initialized) return;
         _initialized = true;
-        if (Nav.SelectedItem is null && Nav.MenuItems.Count > 0 && Nav.MenuItems[0] is NavigationViewItem first)
-            Nav.SelectedItem = first;
+        SelectNav("overview", navigate: true);
         _ = InitializeAsync();
     }
+
+    /// <summary>窄窗口收起为图标栏，保留全部导航能力。</summary>
+    private void ApplyShellWidth(bool narrow)
+    {
+        RailColumn.Width = new GridLength(narrow ? 64 : 236);
+        BrandText.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+        RailDeviceBlock.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+        RailTelemetry.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+        NavGroupA.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+        NavGroupB.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+
+        Grid.SetColumnSpan(BrandMark, narrow ? 2 : 1);
+        BrandMark.HorizontalAlignment = narrow ? HorizontalAlignment.Center : HorizontalAlignment.Left;
+
+        foreach (var item in EnumerateNavItems())
+        {
+            item.IsCompact = narrow;
+        }
+    }
+
+    /// <summary>
+    /// 窄窗口顶栏只保留当前页名：面包屑前缀与 LOCAL MODE 徽标会和右侧的
+    /// 待优化按钮、主题切换争位置，导致文字被压住半截。
+    /// </summary>
+    private void ApplyTitleBar(bool narrow)
+    {
+        CrumbRoot.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+        CrumbSlash.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+        LocalModeGroup.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private IEnumerable<NavItem> EnumerateNavItems()
+    {
+        foreach (var child in NavEntriesPanel.Children)
+        {
+            if (child is NavItem item) yield return item;
+        }
+        foreach (var child in RailFooter.Children)
+        {
+            if (child is NavItem item) yield return item;
+        }
+    }
+
+    private void NavItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is NavItem { Tag: string tag })
+        {
+            SelectNav(tag, navigate: true);
+        }
+    }
+
+    private void SelectNav(string tag, bool navigate)
+    {
+        foreach (var item in EnumerateNavItems())
+        {
+            item.IsSelected = string.Equals(item.Tag as string, tag, StringComparison.Ordinal);
+        }
+        TopBreadcrumb.Text = PageName(tag);
+        if (navigate) Navigate(tag);
+    }
+
+    private static string PageName(string tag) => tag switch
+    {
+        "items" => "优化项",
+        "diagnostics" => "诊断报告",
+        "startup" => "启动项与后台",
+        "games" => "游戏库",
+        "driver" => "驱动中心",
+        "backup" => "备份还原",
+        "log" => "运行日志",
+        "settings" => "设置",
+        "about" => "关于与支持",
+        _ => "概览"
+    };
 
     private async Task InitializeAsync()
     {
@@ -430,7 +549,9 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            PaneEngineDot.Fill = ThemeResources.Get(connected ? "OkBrush" : "WarnBrush");
+            var brush = ThemeResources.Get(connected ? "OkBrush" : "WarnBrush");
+            PaneEngineDot.Fill = brush;
+            StatusEngineDot.Fill = brush;
         }
         catch { }
     }
@@ -459,13 +580,6 @@ public sealed partial class MainWindow : Window
         EngineInfoBar.IsOpen = true;
     }
 
-    private void Nav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
-    {
-        if (args.SelectedItem is not NavigationViewItem item) return;
-        if (item.Tag is not string tag) return;
-        Navigate(tag);
-    }
-
     /// <summary>设置页修改主题后调用，刷新标题栏与当前页面。</summary>
     public void RefreshTheme()
     {
@@ -477,25 +591,7 @@ public sealed partial class MainWindow : Window
     /// <summary>供页面内部跳转使用，同时同步左侧导航的选中项。</summary>
     public void NavigateTo(string tag)
     {
-        foreach (var item in Nav.MenuItems)
-        {
-            if (item is NavigationViewItem navItem && navItem.Tag is string itemTag && itemTag == tag)
-            {
-                Nav.SelectedItem = navItem;
-                Navigate(tag);
-                return;
-            }
-        }
-        foreach (var item in Nav.FooterMenuItems)
-        {
-            if (item is NavigationViewItem navItem && navItem.Tag is string itemTag && itemTag == tag)
-            {
-                Nav.SelectedItem = navItem;
-                Navigate(tag);
-                return;
-            }
-        }
-        Navigate(tag);
+        SelectNav(tag, navigate: true);
     }
 
     private void Navigate(string tag)
@@ -513,21 +609,21 @@ public sealed partial class MainWindow : Window
             "about" => typeof(AboutPage),
             _ => typeof(OverviewPage)
         };
+        TopBreadcrumb.Text = PageName(tag);
         if (ContentFrame.CurrentSourcePageType == pageType) return;
         ContentFrame.Navigate(pageType, null, new Microsoft.UI.Xaml.Media.Animation.EntranceNavigationTransitionInfo());
     }
 
-    private async void ThemeButton_Click(object sender, RoutedEventArgs e)
+    private void ThemeSegment_Click(object sender, RoutedEventArgs e)
     {
-        var next = ThemeService.Next(App.Services.Settings.Theme);
-        App.Services.Settings.Theme = next;
+        if (sender is not Button { Tag: string theme }) return;
+        App.Services.Settings.Theme = theme;
         App.Services.Settings.Save();
         ApplyTheme();
 
         // 主题资源切换后通知当前页面重新计算依赖主题的徽标颜色
         if (ContentFrame.Content is Page page && page is IThemeAware aware)
             aware.OnThemeChanged();
-        await Task.CompletedTask;
     }
 
     private async void RepoButton_Click(object sender, RoutedEventArgs e)

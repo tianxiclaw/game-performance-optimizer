@@ -73,6 +73,8 @@ public partial class App : Application
             if (seconds <= 0) seconds = 20;
 
             window.AppWindow.Show(false);
+            // 等首屏导航完成后再跳转，否则会被 Nav_Loaded 的默认概览覆盖。
+            await Task.Delay(700);
             window.NavigateTo(page);
             await Task.Delay(TimeSpan.FromSeconds(seconds));
         }

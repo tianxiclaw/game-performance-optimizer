@@ -4,34 +4,26 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:models="using:GamePerfCenter.Models"
+    xmlns:controls="using:GamePerfCenter.Controls"
     NavigationCacheMode="Required"
     Background="Transparent">
 
-    <Grid Padding="28,24,28,20" RowSpacing="14">
+    <Grid Padding="28,22,28,18" RowSpacing="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- 页头：左边是问题，右边是动作 -->
-        <Grid ColumnSpacing="16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <StackPanel Spacing="4">
-                <TextBlock Text="概览" Style="{StaticResource PageTitleStyle}" />
-                <TextBlock Text="这台机器现在怎么样：实时负载、优化进度与硬件状态。"
-                           Style="{StaticResource SecondaryTextStyle}" />
-            </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+        <controls:PageHeader Title="概览" Code="GAMEPERF // OVERVIEW"
+                            Subtitle="这台机器现在怎么样：实时负载、优化进度与硬件状态。">
+            <StackPanel Orientation="Horizontal" Spacing="6">
                 <Button Content="刷新状态" Style="{StaticResource SubtleButtonStyle}" Click="Refresh_Click"
                         ToolTipService.ToolTip="重新读取硬件与优化项状态" />
                 <Button Content="打开优化项" Style="{StaticResource GhostButtonStyle}" Click="OpenItems_Click"
                         ToolTipService.ToolTip="查看全部优化项并手动勾选" />
             </StackPanel>
-        </Grid>
+        </controls:PageHeader>
 
         <InfoBar x:Name="PendingBar" Grid.Row="1" IsOpen="False" Severity="Warning" Title="系统等待重启"
                  Message="部分优化项需要重启后才能生效。" IsClosable="False" />
@@ -39,222 +31,260 @@
         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,0,4,8"
                       HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
                       HorizontalContentAlignment="Stretch">
-            <StackPanel Spacing="16" MaxWidth="1500" HorizontalAlignment="Stretch">
+            <StackPanel Spacing="14" MaxWidth="1500" HorizontalAlignment="Stretch">
 
                 <InfoBar x:Name="ActionInfo" IsOpen="False" IsClosable="True" />
 
-                <!-- 主块：实时负载是这台机器“现在”的答案，优化进度是下一步 -->
-                <Border Style="{StaticResource FeaturedCardBorderStyle}" Padding="24,22">
-                    <Grid x:Name="HeroGrid" ColumnSpacing="26" RowSpacing="0">
+                <!-- 核心区：雷达遥测 + 优化状态 -->
+                <controls:TechPanel Style="{StaticResource TechHeroStyle}">
+                    <Grid x:Name="HeroGrid" ColumnSpacing="24" RowSpacing="0">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="264" />
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="1" />
+                            <ColumnDefinition Width="300" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <Grid x:Name="LivePanel">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-
-                            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Bottom">
-                                <TextBlock Text="实时负载" Style="{StaticResource SectionTitleStyle}" />
-                                <TextBlock x:Name="LiveStamp" Text="等待首次采样"
-                                           Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Bottom"
-                                           Margin="0,0,0,2" />
+                        <!-- 模块标题行 -->
+                        <Grid Grid.ColumnSpan="4" Margin="0,0,0,16" ColumnSpacing="12">
+                            <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                <TextBlock Text="SYS.CORE" Style="{StaticResource TechLabelStyle}"
+                                           Foreground="{ThemeResource AccentBrush}" />
+                                <Border Width="1" Height="10" Background="{ThemeResource BorderBrush}" />
+                                <TextBlock Text="实时遥测" Style="{StaticResource TechLabelStyle}" />
                             </StackPanel>
+                            <TextBlock Text="2S SAMPLE // LOCAL" Style="{StaticResource TechCodeStyle}"
+                                       HorizontalAlignment="Right" VerticalAlignment="Center" />
+                        </Grid>
 
-                            <Grid x:Name="LiveGrid" Grid.Row="1" ColumnSpacing="22" Margin="0,12,0,0">
+                        <!-- 雷达 -->
+                        <StackPanel Grid.Row="1" Spacing="8" Width="264">
+                            <Grid Width="264" Height="264" HorizontalAlignment="Left">
+                                <!-- 同心环与刻度 -->
+                                <Ellipse Width="236" Height="236" Stroke="{ThemeResource BorderBrush}"
+                                         StrokeThickness="1" Opacity="0.85" />
+                                <Ellipse Width="188" Height="188" Stroke="{ThemeResource BorderBrush}"
+                                         StrokeThickness="1" Opacity="0.6" />
+                                <Ellipse Width="140" Height="140" Stroke="{ThemeResource BorderBrush}"
+                                         StrokeThickness="1" Opacity="0.45" />
+                                <Rectangle Width="236" Height="1" Fill="{ThemeResource TechLineBrush}" />
+                                <Rectangle Width="1" Height="236" Fill="{ThemeResource TechLineBrush}" />
+                                <Canvas x:Name="RadarTicks" Width="264" Height="264" IsHitTestVisible="False" />
+
+                                <!-- 扫描扇区 -->
+                                <Path Data="M 132,132 L 132,14 A 118,118 0 0 1 207.8,41.6 Z"
+                                      Fill="{ThemeResource AccentDimBrush}" Opacity="0.16"
+                                      IsHitTestVisible="False">
+                                    <Path.RenderTransform>
+                                        <RotateTransform x:Name="RadarSweepRotate" CenterX="132" CenterY="132" />
+                                    </Path.RenderTransform>
+                                </Path>
+
+                                <!-- CPU 主弧、GPU 内弧 -->
+                                <Path x:Name="CpuRing" Width="264" Height="264" Stretch="None"
+                                      Stroke="{ThemeResource AccentGradientBrush}" StrokeThickness="3"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                <Path x:Name="GpuRing" Width="264" Height="264" Stretch="None"
+                                      Stroke="{ThemeResource OkBrush}" StrokeThickness="2" Opacity="0.85"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                            Spacing="2">
+                                    <TextBlock Text="CPU 负载" Style="{StaticResource TechLabelStyle}"
+                                               HorizontalAlignment="Center" />
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                        <TextBlock x:Name="CpuValue" Text="--"
+                                                   Style="{StaticResource LiveValueStyle}" FontSize="44" />
+                                        <TextBlock Text="%" Style="{StaticResource LiveUnitStyle}" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="6"
+                                                HorizontalAlignment="Center">
+                                        <Ellipse Width="4" Height="4" Fill="{ThemeResource OkBrush}"
+                                                 VerticalAlignment="Center" />
+                                        <TextBlock x:Name="GpuRingLabel" Text="GPU 3D"
+                                                   Style="{StaticResource TechCodeStyle}"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <TextBlock Text="RADAR" Style="{StaticResource TechCodeStyle}"
+                                           HorizontalAlignment="Left" VerticalAlignment="Top"
+                                           Margin="18,16,0,0" />
+                                <TextBlock Text="360°" Style="{StaticResource TechCodeStyle}"
+                                           HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                           Margin="0,0,18,16" />
+                            </Grid>
+
+                            <!-- 趋势线 -->
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="CPU 90S" Style="{StaticResource TechCodeStyle}" />
+                                <Grid Grid.Row="1" Height="28">
+                                    <Border Height="1" VerticalAlignment="Bottom"
+                                            Background="{ThemeResource BorderBrush}" Opacity="0.6" />
+                                    <Canvas Width="264" Height="28" HorizontalAlignment="Left"
+                                            VerticalAlignment="Top">
+                                        <Polyline x:Name="CpuSparkLine" Stroke="{ThemeResource AccentBrush}"
+                                                  StrokeThickness="1.2" />
+                                    </Canvas>
+                                </Grid>
+                            </Grid>
+
+                            <Grid Margin="0,2,0,0">
+                                <TextBlock x:Name="LiveStamp" Text="等待首次采样"
+                                           Style="{StaticResource TechCodeStyle}" />
+                                <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Right">
+                                    <Ellipse Width="4" Height="4" Fill="{ThemeResource AccentBrush}"
+                                             VerticalAlignment="Center" />
+                                    <TextBlock Text="LIVE" Style="{StaticResource TechCodeStyle}"
+                                               Foreground="{ThemeResource AccentBrush}" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- 遥测列 -->
+                        <StackPanel x:Name="LiveStats" Grid.Row="1" Grid.Column="1" Spacing="0"
+                                    VerticalAlignment="Center" MinWidth="190" Margin="4,0,0,0">
+                            <Grid Padding="0,0,0,8">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="GPU 3D 负载" Style="{StaticResource TechLabelStyle}" />
+                                    <TextBlock Text="专用显卡的 3D 引擎占用" Style="{StaticResource CaptionTextStyle}" />
+                                </StackPanel>
+                                <TextBlock x:Name="GpuValue" Text="--" HorizontalAlignment="Right"
+                                           VerticalAlignment="Center" Style="{StaticResource MetricValueStyle}"
+                                           FontSize="22" />
+                            </Grid>
+                            <ProgressBar x:Name="GpuBar" Minimum="0" Maximum="100" Height="3"
+                                         Foreground="{ThemeResource OkBrush}"
+                                         Background="{ThemeResource Surface2Brush}" />
+
+                            <Border Style="{StaticResource DividerStyle}" Margin="0,13,0,12" Opacity="0.7" />
+
+                            <Grid Padding="0,0,0,8">
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="MEM" Style="{StaticResource TechLabelStyle}" />
+                                    <TextBlock Text="物理内存占用" Style="{StaticResource CaptionTextStyle}" />
+                                </StackPanel>
+                                <TextBlock x:Name="RamValue" Text="--" HorizontalAlignment="Right"
+                                           VerticalAlignment="Center" Style="{StaticResource MetricValueStyle}"
+                                           FontSize="22" />
+                            </Grid>
+                            <ProgressBar x:Name="RamBar" Minimum="0" Maximum="100" Height="3"
+                                         Foreground="{ThemeResource AccentGradientBrush}"
+                                         Background="{ThemeResource Surface2Brush}" />
+                            <TextBlock x:Name="RamHint" Text="读取中..." Style="{StaticResource TechCodeStyle}"
+                                       Margin="0,6,0,0" />
+
+                            <Border Style="{StaticResource DividerStyle}" Margin="0,13,0,12" Opacity="0.7" />
+
+                            <Grid>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="NET" Style="{StaticResource TechLabelStyle}" />
+                                    <TextBlock Text="实时吞吐" Style="{StaticResource CaptionTextStyle}" />
+                                </StackPanel>
+                                <StackPanel HorizontalAlignment="Right" Spacing="2">
+                                    <TextBlock x:Name="NetValue" Text="--" HorizontalAlignment="Right"
+                                               Style="{StaticResource MonoTextStyle}" FontSize="12.5"
+                                               Foreground="{ThemeResource TextBrush}" />
+                                    <TextBlock x:Name="NetHint" Text="上行 --" HorizontalAlignment="Right"
+                                               Style="{StaticResource TechCodeStyle}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Border Style="{StaticResource DividerStyle}" Margin="0,13,0,10" Opacity="0.7" />
+                            <Grid ColumnSpacing="12" RowSpacing="5">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-
-                                <!-- CPU / GPU 环形仪表：数值来自外壳统一采样 -->
-                                <StackPanel Orientation="Horizontal" Spacing="18" VerticalAlignment="Center">
-                                    <StackPanel Spacing="6" Width="132">
-                                        <Grid Width="132" Height="132"
-                                              ToolTipService.ToolTip="CPU 使用率，2 秒采样，全核心">
-                                            <Ellipse Width="116" Height="116"
-                                                     Stroke="{ThemeResource BorderBrush}" StrokeThickness="9"
-                                                     Opacity="0.55" />
-                                            <Path x:Name="CpuRing" Width="132" Height="132" Stretch="None"
-                                                  Stroke="{ThemeResource AccentGradientBrush}" StrokeThickness="9"
-                                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
-                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                        Spacing="0">
-                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                                    <TextBlock x:Name="CpuValue" Text="--"
-                                                               Style="{StaticResource LiveValueStyle}" FontSize="36" />
-                                                    <TextBlock Text="%" Style="{StaticResource LiveUnitStyle}" />
-                                                </StackPanel>
-                                                <TextBlock Text="CPU 使用率" Style="{StaticResource CaptionTextStyle}"
-                                                           HorizontalAlignment="Center" />
-                                            </StackPanel>
-                                        </Grid>
-                                        <Grid Width="132" Height="24"
-                                              ToolTipService.ToolTip="CPU 最近约 90 秒的真实采样趋势">
-                                            <Border Height="1" VerticalAlignment="Bottom"
-                                                    Background="{ThemeResource BorderBrush}" Opacity="0.55" />
-                                            <Canvas Width="132" Height="23" HorizontalAlignment="Left"
-                                                    VerticalAlignment="Top">
-                                                <Polyline x:Name="CpuSparkLine" Stroke="{ThemeResource AccentBrush}"
-                                                          StrokeThickness="1.4" />
-                                            </Canvas>
-                                        </Grid>
-                                    </StackPanel>
-
-                                    <StackPanel Spacing="6" Width="132">
-                                        <Grid Width="132" Height="132"
-                                              ToolTipService.ToolTip="GPU 3D 引擎负载，2 秒采样">
-                                            <Ellipse Width="116" Height="116"
-                                                     Stroke="{ThemeResource BorderBrush}" StrokeThickness="9"
-                                                     Opacity="0.55" />
-                                            <Path x:Name="GpuRing" Width="132" Height="132" Stretch="None"
-                                                  Stroke="{ThemeResource AccentGradientBrush}" StrokeThickness="9"
-                                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
-                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                        Spacing="0">
-                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                                    <TextBlock x:Name="GpuValue" Text="--"
-                                                               Style="{StaticResource LiveValueStyle}" FontSize="36" />
-                                                    <TextBlock Text="%" Style="{StaticResource LiveUnitStyle}" />
-                                                </StackPanel>
-                                                <TextBlock x:Name="GpuRingLabel" Text="GPU 3D"
-                                                           Style="{StaticResource CaptionTextStyle}"
-                                                           HorizontalAlignment="Center" />
-                                            </StackPanel>
-                                        </Grid>
-                                        <Grid Width="132" Height="24"
-                                              ToolTipService.ToolTip="GPU 最近约 90 秒的真实采样趋势">
-                                            <Border Height="1" VerticalAlignment="Bottom"
-                                                    Background="{ThemeResource BorderBrush}" Opacity="0.55" />
-                                            <Canvas Width="132" Height="23" HorizontalAlignment="Left"
-                                                    VerticalAlignment="Top">
-                                                <Polyline x:Name="GpuSparkLine" Stroke="{ThemeResource AccentBrush}"
-                                                          StrokeThickness="1.4" />
-                                            </Canvas>
-                                        </Grid>
-                                    </StackPanel>
-                                </StackPanel>
-
-                                <StackPanel x:Name="LiveStats" Grid.Column="1" Spacing="14"
-                                            VerticalAlignment="Center" MinWidth="200">
-                                    <StackPanel Spacing="4">
-                                        <Grid>
-                                            <TextBlock Text="内存" Style="{StaticResource BodyTextStyle}"
-                                                       FontWeight="SemiBold" />
-                                            <TextBlock x:Name="RamValue" Text="--" HorizontalAlignment="Right"
-                                                       Style="{StaticResource MonoTextStyle}" FontSize="12" />
-                                        </Grid>
-                                        <ProgressBar x:Name="RamBar" Minimum="0" Maximum="100" Height="4"
-                                                     Foreground="{ThemeResource AccentGradientBrush}"
-                                                     Background="{ThemeResource Surface2Brush}" />
-                                        <TextBlock x:Name="RamHint" Text="读取中..." Style="{StaticResource CaptionTextStyle}" />
-                                    </StackPanel>
-
-                                    <StackPanel Spacing="4">
-                                        <Grid>
-                                            <TextBlock Text="网络" Style="{StaticResource BodyTextStyle}"
-                                                       FontWeight="SemiBold" />
-                                            <TextBlock x:Name="NetValue" Text="--" HorizontalAlignment="Right"
-                                                       Style="{StaticResource MonoTextStyle}" FontSize="12" />
-                                        </Grid>
-                                        <TextBlock x:Name="NetHint" Text="上行 --" Style="{StaticResource CaptionTextStyle}" />
-                                    </StackPanel>
-
-                                    <Border Height="1" Background="{ThemeResource BorderBrush}" Opacity="0.65" />
-                                    <TextBlock x:Name="LiveDeviceLine" Text="正在读取显示设备..."
-                                               Style="{StaticResource CaptionTextStyle}" MaxLines="1"
-                                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                                </StackPanel>
+                                <TextBlock Text="POWER" Style="{StaticResource TechCodeStyle}" />
+                                <TextBlock x:Name="SignalPower" Grid.Column="1" Text="—"
+                                           Style="{StaticResource TechCodeStyle}" HorizontalAlignment="Right"
+                                           Foreground="{ThemeResource SubTextBrush}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Row="1" Text="GPU CTR" Style="{StaticResource TechCodeStyle}" />
+                                <TextBlock x:Name="SignalGpu" Grid.Row="1" Grid.Column="1" Text="—"
+                                           Style="{StaticResource TechCodeStyle}" HorizontalAlignment="Right"
+                                           Foreground="{ThemeResource SubTextBrush}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Row="2" Text="LAST APPLY" Style="{StaticResource TechCodeStyle}" />
+                                <TextBlock x:Name="SignalApply" Grid.Row="2" Grid.Column="1" Text="—"
+                                           Style="{StaticResource TechCodeStyle}" HorizontalAlignment="Right"
+                                           Foreground="{ThemeResource SubTextBrush}" TextTrimming="CharacterEllipsis" />
                             </Grid>
 
-                            <!-- 实时区底部落脚：供电、计数器与上次应用都是真实状态 -->
-                            <StackPanel Grid.Row="3" Spacing="8" Margin="0,18,0,0">
-                                <Border Height="1" Background="{ThemeResource BorderBrush}" Opacity="0.6" />
-                                <Grid ColumnSpacing="18">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Text="供电" Style="{StaticResource CaptionTextStyle}" />
-                                        <TextBlock x:Name="SignalPower" Text="—" Style="{StaticResource BodyTextStyle}"
-                                                   FontSize="12.5" TextWrapping="NoWrap"
-                                                   TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Spacing="2">
-                                        <TextBlock Text="GPU 计数器" Style="{StaticResource CaptionTextStyle}" />
-                                        <TextBlock x:Name="SignalGpu" Text="—" Style="{StaticResource BodyTextStyle}"
-                                                   FontSize="12.5" TextWrapping="NoWrap"
-                                                   TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2" Spacing="2">
-                                        <TextBlock Text="上次应用" Style="{StaticResource CaptionTextStyle}" />
-                                        <TextBlock x:Name="SignalApply" Text="—" Style="{StaticResource BodyTextStyle}"
-                                                   FontSize="12.5" TextWrapping="NoWrap"
-                                                   TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-                                </Grid>
+                            <Border Style="{StaticResource DividerStyle}" Margin="0,10,0,8" Opacity="0.7" />
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="DEVICE" Style="{StaticResource TechLabelStyle}" />
+                                <TextBlock x:Name="LiveDeviceLine" Text="正在读取显示设备..."
+                                           Style="{StaticResource CaptionTextStyle}" MaxLines="2"
+                                           TextTrimming="CharacterEllipsis" TextWrapping="Wrap" />
                             </StackPanel>
-                        </Grid>
+                        </StackPanel>
 
-                        <Border x:Name="PendingDivider" Grid.Column="1" Width="1"
+                        <Border x:Name="PendingDivider" Grid.Row="1" Grid.Column="2"
                                 Background="{ThemeResource BorderBrush}" Margin="0,2" />
 
-                        <StackPanel x:Name="PendingPanel" Grid.Column="2" Width="292" Spacing="0"
-                                    VerticalAlignment="Stretch">
-                            <TextBlock Text="优化进度" Style="{StaticResource SectionTitleStyle}" />
-                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,6,0,0">
+                        <!-- 优化状态 -->
+                        <StackPanel x:Name="PendingPanel" Grid.Row="1" Grid.Column="3" Width="300"
+                                    Spacing="0" VerticalAlignment="Stretch">
+                            <Grid>
+                                <TextBlock Text="OPTIMIZE // 优化进度" Style="{StaticResource TechCodeStyle}" />
+                                <TextBlock Text="MOD 01" Style="{StaticResource TechCodeStyle}"
+                                           HorizontalAlignment="Right"
+                                           Foreground="{ThemeResource AccentBrush}" />
+                            </Grid>
+                            <StackPanel Orientation="Horizontal" Spacing="7" Margin="0,10,0,0">
                                 <TextBlock x:Name="PendingCount" Text="--"
                                            Style="{StaticResource PendingValueStyle}" VerticalAlignment="Bottom" />
-                                <TextBlock Text="项待优化" Style="{StaticResource BodyTextStyle}"
-                                           VerticalAlignment="Bottom" Margin="0,0,0,4" />
+                                <TextBlock Text="项待优化" Style="{StaticResource SecondaryTextStyle}"
+                                           VerticalAlignment="Bottom" Margin="0,0,0,6" />
                             </StackPanel>
-                            <ProgressBar x:Name="CompletionBar" Minimum="0" Maximum="100" Height="4"
+                            <ProgressBar x:Name="CompletionBar" Minimum="0" Maximum="100" Height="3"
                                          Margin="0,10,0,0" Foreground="{ThemeResource AccentGradientBrush}"
                                          Background="{ThemeResource Surface2Brush}" />
                             <TextBlock x:Name="AppliedText" Text="已生效 -- 项"
-                                       Style="{StaticResource CaptionTextStyle}" Margin="0,6,0,0" />
+                                       Style="{StaticResource TechCodeStyle}" Margin="0,7,0,0" />
                             <TextBlock x:Name="StatusHeadline" Text="正在读取本机状态..."
                                        Style="{StaticResource BodyTextStyle}" FontWeight="SemiBold"
-                                       Margin="0,12,0,0" />
+                                       Margin="0,14,0,0" />
                             <TextBlock x:Name="StatusDetail" Text="正在采集硬件与优化项状态。"
                                        Style="{StaticResource SecondaryTextStyle}" Margin="0,4,0,0"
                                        TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" />
 
-                            <StackPanel Spacing="6" Margin="0,12,0,0">
+                            <Border Style="{StaticResource DividerStyle}" Margin="0,12,0,10" Opacity="0.7" />
+
+                            <StackPanel Spacing="7">
                                 <Grid ColumnSpacing="8">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="16" />
+                                        <ColumnDefinition Width="14" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <FontIcon Glyph="&#xE945;" FontSize="12" VerticalAlignment="Center"
-                                              Foreground="{ThemeResource SubTextBrush}" />
+                                    <FontIcon Glyph="&#xE945;" FontSize="11" VerticalAlignment="Center"
+                                              Foreground="{ThemeResource AccentBrush}" />
                                     <TextBlock x:Name="RecoText" Grid.Column="1" Text="低风险推荐 -- 项"
                                                Style="{StaticResource CaptionTextStyle}" TextWrapping="NoWrap"
                                                TextTrimming="CharacterEllipsis" />
                                 </Grid>
                                 <Grid ColumnSpacing="8">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="16" />
+                                        <ColumnDefinition Width="14" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <FontIcon Glyph="&#xE823;" FontSize="12" VerticalAlignment="Center"
+                                    <FontIcon Glyph="&#xE823;" FontSize="11" VerticalAlignment="Center"
                                               Foreground="{ThemeResource SubTextBrush}" />
                                     <TextBlock x:Name="RebootText" Grid.Column="1" Text="重启状态：读取中"
                                                Style="{StaticResource CaptionTextStyle}" TextWrapping="NoWrap"
@@ -262,10 +292,10 @@
                                 </Grid>
                                 <Grid ColumnSpacing="8">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="16" />
+                                        <ColumnDefinition Width="14" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <FontIcon Glyph="&#xE72E;" FontSize="12" VerticalAlignment="Center"
+                                    <FontIcon Glyph="&#xE72E;" FontSize="11" VerticalAlignment="Center"
                                               Foreground="{ThemeResource SubTextBrush}" />
                                     <TextBlock x:Name="SecurityText" Grid.Column="1" Text="安全与存储：读取中"
                                                Style="{StaticResource CaptionTextStyle}" TextWrapping="NoWrap"
@@ -282,12 +312,12 @@
                             </StackPanel>
                         </StackPanel>
                     </Grid>
-                </Border>
+                </controls:TechPanel>
 
-                <!-- 硬件与系统状态 -->
-                <Grid x:Name="BottomGrid" ColumnSpacing="16" RowSpacing="16">
+                <!-- 硬件与安全 -->
+                <Grid x:Name="BottomGrid" ColumnSpacing="14" RowSpacing="14">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="1.3*" />
+                        <ColumnDefinition Width="1.35*" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
@@ -295,14 +325,19 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <Border x:Name="HardwareCard" Style="{StaticResource CardBorderStyle}">
+                    <controls:TechPanel x:Name="HardwareCard" Style="{StaticResource TechCardStyle}"
+                                        Padding="18,16">
                         <StackPanel Spacing="6">
                             <Grid>
-                                <TextBlock Text="硬件概览" Style="{StaticResource SectionTitleStyle}" />
+                                <StackPanel Orientation="Horizontal" Spacing="9" VerticalAlignment="Center">
+                                    <TextBlock Text="02" Style="{StaticResource TechCodeStyle}"
+                                               Foreground="{ThemeResource AccentBrush}" />
+                                    <TextBlock Text="硬件概览" Style="{StaticResource SectionTitleStyle}" />
+                                </StackPanel>
                                 <StackPanel Orientation="Horizontal" Spacing="8"
                                             HorizontalAlignment="Right" VerticalAlignment="Center">
                                     <TextBlock x:Name="HardwareUpdated" VerticalAlignment="Center"
-                                               Style="{StaticResource CaptionTextStyle}" />
+                                               Style="{StaticResource TechCodeStyle}" />
                                     <Button Content="完整诊断" Style="{StaticResource GhostButtonStyle}"
                                             Click="OpenDiagnostics_Click" />
                                 </StackPanel>
@@ -316,11 +351,11 @@
                                         <Border Style="{StaticResource DataRowStyle}" Padding="0,8">
                                             <Grid ColumnSpacing="12">
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="88" />
+                                                    <ColumnDefinition Width="84" />
                                                     <ColumnDefinition Width="*" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Text="{x:Bind Name}" Style="{StaticResource CaptionTextStyle}"
-                                                           VerticalAlignment="Top" Margin="0,2,0,0" />
+                                                <TextBlock Text="{x:Bind Name}" Style="{StaticResource TechCodeStyle}"
+                                                           VerticalAlignment="Top" Margin="0,3,0,0" />
                                                 <TextBlock Grid.Column="1" Text="{x:Bind Value}"
                                                            Style="{StaticResource BodyTextStyle}" TextWrapping="Wrap"
                                                            ToolTipService.ToolTip="{x:Bind Hint}" />
@@ -330,11 +365,16 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </StackPanel>
-                    </Border>
+                    </controls:TechPanel>
 
-                    <Border x:Name="SecurityCard" Grid.Column="1" Style="{StaticResource CardBorderStyle}">
+                    <controls:TechPanel x:Name="SecurityCard" Grid.Column="1"
+                                        Style="{StaticResource TechCardStyle}" Padding="18,16">
                         <StackPanel Spacing="8">
-                            <TextBlock Text="安全与存储" Style="{StaticResource SectionTitleStyle}" Margin="0,0,0,2" />
+                            <StackPanel Orientation="Horizontal" Spacing="9" Margin="0,0,0,2">
+                                <TextBlock Text="03" Style="{StaticResource TechCodeStyle}"
+                                           Foreground="{ThemeResource AccentBrush}" />
+                                <TextBlock Text="安全与存储" Style="{StaticResource SectionTitleStyle}" />
+                            </StackPanel>
                             <ItemsControl x:Name="DiagList">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="models:DiagEntry">
@@ -358,7 +398,7 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </StackPanel>
-                    </Border>
+                    </controls:TechPanel>
                 </Grid>
             </StackPanel>
         </ScrollViewer>

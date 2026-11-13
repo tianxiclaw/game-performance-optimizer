@@ -1,31 +1,24 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Page
     x:Class="GamePerfCenter.Pages.SettingsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:GamePerfCenter.Controls"
     NavigationCacheMode="Required"
     Background="Transparent">
 
-    <Grid Padding="28,24,28,20" RowSpacing="14">
+    <Grid Padding="24,18,24,18" RowSpacing="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid ColumnSpacing="16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <StackPanel Spacing="4">
-                <TextBlock Text="设置" Style="{StaticResource PageTitleStyle}" />
-                <TextBlock Text="怎么改变程序行为：外观、托盘与配置文件，修改后立即保存。"
-                           Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" />
-            </StackPanel>
-            <Button Grid.Column="1" Content="打开程序目录" Style="{StaticResource SubtleButtonStyle}"
+        <controls:PageHeader Title="设置" Code="GAMEPERF // SETTINGS"
+                             Subtitle="怎么改变程序行为：外观、托盘与配置文件，修改后立即保存。">
+            <Button Content="打开程序目录" Style="{StaticResource SubtleButtonStyle}"
                     VerticalAlignment="Center" Click="OpenConfig_Click" />
-        </Grid>
+        </controls:PageHeader>
 
         <InfoBar x:Name="PageInfo" Grid.Row="1" IsOpen="False" IsClosable="True" />
 
@@ -42,8 +35,8 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <StackPanel x:Name="LeftColumn" Spacing="16">
-                    <Border Style="{StaticResource CardBorderStyle}">
+                <StackPanel x:Name="LeftColumn" Spacing="10">
+                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16" Cut="12" CutBottom="12">
                         <StackPanel Spacing="0">
                             <StackPanel Spacing="3" Margin="0,0,0,6">
                                 <TextBlock Text="外观" Style="{StaticResource SectionTitleStyle}" />
@@ -87,9 +80,9 @@
                                 </StackPanel>
                             </Border>
                         </StackPanel>
-                    </Border>
+                </controls:TechPanel>
 
-                    <Border Style="{StaticResource CardBorderStyle}">
+                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16" Cut="12" CutBottom="12">
                         <StackPanel Spacing="0">
                             <StackPanel Spacing="3" Margin="0,0,0,6">
                                 <TextBlock Text="行为" Style="{StaticResource SectionTitleStyle}" />
@@ -128,12 +121,12 @@
                                 </Grid>
                             </Border>
                         </StackPanel>
-                    </Border>
+                </controls:TechPanel>
 
                 </StackPanel>
 
-                <StackPanel x:Name="RightColumn" Grid.Column="1" Spacing="16">
-                    <Border Style="{StaticResource CardBorderStyle}">
+                <StackPanel x:Name="RightColumn" Grid.Column="1" Spacing="10">
+                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16" Cut="12" CutBottom="12">
                         <StackPanel Spacing="12">
                             <TextBlock Text="存储与配置" Style="{StaticResource SectionTitleStyle}" />
 
@@ -166,9 +159,9 @@
                                 <Button Content="打开备份目录" Style="{StaticResource GhostButtonStyle}" Click="OpenBackup_Click" />
                             </StackPanel>
                         </StackPanel>
-                    </Border>
+                </controls:TechPanel>
 
-                    <Border Style="{StaticResource CardBorderStyle}">
+                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16" Cut="12" CutBottom="12">
                         <StackPanel Spacing="11">
                             <TextBlock Text="分享与便携包" Style="{StaticResource SectionTitleStyle}" />
                             <TextBlock Text="一键导出当前程序为便携 ZIP，自动排除本机设置、备份、诊断与日志。"
@@ -182,9 +175,9 @@
                             <TextBlock x:Name="ExportStatus" Text="尚未导出便携包"
                                        Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                         </StackPanel>
-                    </Border>
+                </controls:TechPanel>
 
-                    <Border Style="{StaticResource CardBorderStyle}">
+                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16" Cut="12" CutBottom="12">
                         <StackPanel Spacing="12">
                             <TextBlock Text="版本与更新" Style="{StaticResource SectionTitleStyle}" />
                             <StackPanel Spacing="4">
@@ -203,9 +196,9 @@
                                            Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                             </Border>
                         </StackPanel>
-                    </Border>
+                </controls:TechPanel>
 
-                    <Border Style="{StaticResource CardBorderStyle}">
+                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16" Cut="12" CutBottom="12">
                         <StackPanel Spacing="12">
                             <TextBlock Text="重置" Style="{StaticResource SectionTitleStyle}" />
                             <TextBlock Text="仅重置外观与行为设置，不会删除备份、日志或游戏库。"
@@ -213,7 +206,7 @@
                             <Button Content="恢复默认设置" Style="{StaticResource DangerButtonStyle}"
                                     Click="Reset_Click" HorizontalAlignment="Left" />
                         </StackPanel>
-                    </Border>
+                </controls:TechPanel>
                 </StackPanel>
             </Grid>
         </ScrollViewer>

@@ -14,6 +14,8 @@ public sealed partial class ItemsPage : Page, IThemeAware
 {
     private List<ProfileInfo> _profiles = new();
     private bool _loadingProfiles;
+    private bool? _twoRow;
+    private bool? _short;
 
     public ObservableCollection<ItemInfo> View { get; } = new();
 
@@ -23,8 +25,93 @@ public sealed partial class ItemsPage : Page, IThemeAware
         NavigationCacheMode = Microsoft.UI.Xaml.Navigation.NavigationCacheMode.Required;
         App.Services.State.Changed += OnStateChanged;
         Loaded += OnLoaded;
+        Loaded += (_, _) => ApplyDensity(ActualWidth, ActualHeight);
+        SizeChanged += (_, e) => ApplyDensity(e.NewSize.Width, e.NewSize.Height);
         Responsive.Watch(this, 640, narrow =>
             ViewCountText.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible);
+    }
+
+    /// <summary>
+    /// 窄窗口把筛选条折成两行，保证搜索框不会被下拉框挤成 0 宽；
+    /// 矮窗口收紧内外边距并隐藏重复的状态计数，把高度留给列表本身。
+    /// </summary>
+    private void ApplyDensity(double width, double height)
+    {
+        if (width <= 0 || height <= 0) return;
+
+        var twoRow = width < 780;
+        if (_twoRow != twoRow)
+        {
+            _twoRow = twoRow;
+            if (twoRow)
+            {
+                Grid.SetRow(SearchCell, 0);
+                Grid.SetColumn(SearchCell, 0);
+                Grid.SetColumnSpan(SearchCell, 4);
+
+                Grid.SetRow(CategoryBox, 1);
+                Grid.SetColumn(CategoryBox, 0);
+                Grid.SetRow(RiskBox, 1);
+                Grid.SetColumn(RiskBox, 1);
+                Grid.SetRow(ProfileGroup, 1);
+                Grid.SetColumn(ProfileGroup, 2);
+
+                CategoryBox.Margin = new Thickness(0, 8, 0, 0);
+                RiskBox.Margin = new Thickness(0, 8, 0, 0);
+                ProfileGroup.Margin = new Thickness(0, 8, 0, 0);
+
+                Grid.SetRow(StatusRow, 2);
+
+                FilterGrid.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
+                FilterGrid.ColumnDefinitions[1].Width = new GridLength(1, GridUnitType.Star);
+                FilterGrid.ColumnDefinitions[2].Width = new GridLength(1.2, GridUnitType.Star);
+
+                CategoryBox.MinWidth = 0;
+                RiskBox.MinWidth = 0;
+                ProfileBox.MinWidth = 0;
+            }
+            else
+            {
+                Grid.SetRow(SearchCell, 0);
+                Grid.SetColumn(SearchCell, 0);
+                Grid.SetColumnSpan(SearchCell, 1);
+
+                Grid.SetRow(CategoryBox, 0);
+                Grid.SetColumn(CategoryBox, 1);
+                Grid.SetRow(RiskBox, 0);
+                Grid.SetColumn(RiskBox, 2);
+                Grid.SetRow(ProfileGroup, 0);
+                Grid.SetColumn(ProfileGroup, 3);
+
+                CategoryBox.Margin = new Thickness(0);
+                RiskBox.Margin = new Thickness(0);
+                ProfileGroup.Margin = new Thickness(0);
+
+                Grid.SetRow(StatusRow, 1);
+
+                FilterGrid.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
+                FilterGrid.ColumnDefinitions[1].Width = GridLength.Auto;
+                FilterGrid.ColumnDefinitions[2].Width = GridLength.Auto;
+
+                CategoryBox.MinWidth = 132;
+                RiskBox.MinWidth = 120;
+                ProfileBox.MinWidth = 128;
+            }
+        }
+
+        var shortHeight = height < 520;
+        if (_short == shortHeight) return;
+        _short = shortHeight;
+
+        RootGrid.Padding = shortHeight ? new Thickness(14, 10, 14, 10) : new Thickness(24, 18, 24, 18);
+        RootGrid.RowSpacing = shortHeight ? 6 : 10;
+
+        FilterPanel.Padding = shortHeight ? new Thickness(12, 8, 12, 8) : new Thickness(14, 12, 14, 12);
+        StatusRow.Visibility = shortHeight ? Visibility.Collapsed : Visibility.Visible;
+
+        ListPanel.Padding = shortHeight ? new Thickness(12, 8, 12, 4) : new Thickness(14, 10, 14, 6);
+        ActionPanel.Padding = shortHeight ? new Thickness(12, 6, 12, 6) : new Thickness(14, 10, 14, 10);
+        ActionHint.Visibility = shortHeight ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)

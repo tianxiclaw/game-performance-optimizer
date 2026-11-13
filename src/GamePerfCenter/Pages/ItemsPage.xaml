@@ -3,11 +3,12 @@
     x:Class="GamePerfCenter.Pages.ItemsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:GamePerfCenter.Controls"
     xmlns:models="using:GamePerfCenter.Models"
     NavigationCacheMode="Required"
     Background="Transparent">
 
-    <Grid Padding="28,24,28,20" RowSpacing="14">
+    <Grid x:Name="RootGrid" Padding="24,18,24,18" RowSpacing="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -16,173 +17,208 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- 标题 -->
-        <Grid ColumnSpacing="16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <StackPanel Spacing="4">
-                <TextBlock Text="优化项" Style="{StaticResource PageTitleStyle}" />
-                <TextBlock Text="哪些项值得改：勾选后预览或应用，所有改动都记录原值、可还原。"
-                           Style="{StaticResource SecondaryTextStyle}" />
-            </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+        <controls:PageHeader Title="优化项" Code="GAMEPERF // ITEM REGISTRY"
+                             Subtitle="哪些项值得改：勾选后预览或应用，所有改动都记录原值、可还原。">
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <Button Content="全选推荐" Style="{StaticResource SubtleButtonStyle}" Click="SelectRecommended_Click"
                         ToolTipService.ToolTip="选中所有待优化的低风险项目" />
                 <Button Content="清除选择" Style="{StaticResource GhostButtonStyle}" Click="ClearSelection_Click" />
                 <Button Content="刷新状态" Style="{StaticResource GhostButtonStyle}" Click="Refresh_Click"
                         ToolTipService.ToolTip="重新检测全部优化项" />
             </StackPanel>
-        </Grid>
+        </controls:PageHeader>
 
-        <!-- 筛选与汇总放在同一张卡里：筛选条件与结果数量是同一件事 -->
-        <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Padding="12">
-            <Grid ColumnSpacing="8" RowSpacing="8">
+        <!-- 筛选条：过滤条件与结果计数是同一件事，压成一条控制台 -->
+        <controls:TechPanel x:Name="FilterPanel" Grid.Row="1" Style="{StaticResource TechCardStyle}"
+                            Padding="14,12" Cut="10">
+            <Grid x:Name="FilterGrid" ColumnSpacing="8">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="1.15*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBox x:Name="SearchBox" Grid.ColumnSpan="4" PlaceholderText="搜索名称、分类或说明..."
-                         TextChanged="SearchBox_TextChanged" MinHeight="34" />
-                <ComboBox x:Name="CategoryBox" Grid.Row="1" PlaceholderText="全部分类"
-                          SelectionChanged="Filter_Changed" MinHeight="34" HorizontalAlignment="Stretch" />
-                <ComboBox x:Name="RiskBox" Grid.Row="1" Grid.Column="1" PlaceholderText="全部风险"
-                          SelectionChanged="Filter_Changed" MinHeight="34" HorizontalAlignment="Stretch" />
-                <ComboBox x:Name="ProfileBox" Grid.Row="1" Grid.Column="2" PlaceholderText="预设方案"
-                          MinHeight="34" HorizontalAlignment="Stretch" />
-                <StackPanel Grid.Row="1" Grid.Column="3" Orientation="Horizontal" Spacing="6"
-                            VerticalAlignment="Center">
-                    <Button Content="载入方案" Style="{StaticResource SubtleButtonStyle}" Click="LoadProfile_Click"
+
+                <Grid x:Name="SearchCell" ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="SEARCH" Style="{StaticResource TechLabelStyle}"
+                               VerticalAlignment="Center" Margin="0,0,2,0" />
+                    <TextBox x:Name="SearchBox" Grid.Column="1" PlaceholderText="搜索名称、分类或说明..."
+                             TextChanged="SearchBox_TextChanged" MinHeight="32" />
+                </Grid>
+
+                <ComboBox x:Name="CategoryBox" Grid.Column="1" PlaceholderText="全部分类"
+                          SelectionChanged="Filter_Changed" MinHeight="32" MinWidth="132"
+                          HorizontalAlignment="Stretch" />
+                <ComboBox x:Name="RiskBox" Grid.Column="2" PlaceholderText="全部风险"
+                          SelectionChanged="Filter_Changed" MinHeight="32" MinWidth="120"
+                          HorizontalAlignment="Stretch" />
+                <StackPanel x:Name="ProfileGroup" Grid.Column="3" Orientation="Horizontal" Spacing="6">
+                    <ComboBox x:Name="ProfileBox" PlaceholderText="预设方案"
+                              MinHeight="32" MinWidth="128" HorizontalAlignment="Stretch" />
+                    <Button Content="载入" Style="{StaticResource SubtleButtonStyle}" Click="LoadProfile_Click"
                             ToolTipService.ToolTip="将方案中的项目设为选中" />
-                    <Button Content="保存方案" Style="{StaticResource SubtleButtonStyle}" Click="SaveProfile_Click"
+                    <Button Content="保存" Style="{StaticResource SubtleButtonStyle}" Click="SaveProfile_Click"
                             ToolTipService.ToolTip="把当前勾选项保存为自定义方案" />
                 </StackPanel>
 
-                <Border Grid.Row="2" Grid.ColumnSpan="4" Height="1" Margin="0,2"
+                <StackPanel x:Name="StatusRow" Grid.Row="1" Grid.ColumnSpan="4" Spacing="9"
+                            Margin="0,10,0,0">
+                <Border x:Name="FilterDivider" Height="1"
                         Background="{ThemeResource BorderBrush}" Opacity="0.7" />
 
-                <Grid Grid.Row="3" Grid.ColumnSpan="4">
-                    <StackPanel Orientation="Horizontal" Spacing="14">
+                <Grid x:Name="CountsRow">
+                    <StackPanel Orientation="Horizontal" Spacing="16">
                         <StackPanel Orientation="Horizontal" Spacing="5">
-                            <Ellipse Width="6" Height="6" Fill="{ThemeResource OkBrush}" VerticalAlignment="Center" />
-                            <TextBlock x:Name="AppliedChip" Text="已生效 0" Style="{StaticResource CaptionTextStyle}" />
+                            <Rectangle Width="3" Height="10" Fill="{ThemeResource OkBrush}" VerticalAlignment="Center" />
+                            <TextBlock x:Name="AppliedChip" Text="已生效 0" Style="{StaticResource TechCodeStyle}" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="5">
-                            <Ellipse Width="6" Height="6" Fill="{ThemeResource WarnBrush}" VerticalAlignment="Center" />
-                            <TextBlock x:Name="PendingChip" Text="待优化 0" Style="{StaticResource CaptionTextStyle}" />
+                            <Rectangle Width="3" Height="10" Fill="{ThemeResource WarnBrush}" VerticalAlignment="Center" />
+                            <TextBlock x:Name="PendingChip" Text="待优化 0" Style="{StaticResource TechCodeStyle}" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="5">
-                            <Ellipse Width="6" Height="6" Fill="{ThemeResource MutedTextBrush}" VerticalAlignment="Center" />
-                            <TextBlock x:Name="NaChip" Text="不适用 0" Style="{StaticResource CaptionTextStyle}" />
+                            <Rectangle Width="3" Height="10" Fill="{ThemeResource MutedTextBrush}" VerticalAlignment="Center" />
+                            <TextBlock x:Name="NaChip" Text="不适用 0" Style="{StaticResource TechCodeStyle}" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="5">
-                            <Ellipse Width="6" Height="6" Fill="{ThemeResource AccentBrush}" VerticalAlignment="Center" />
-                            <TextBlock x:Name="SelectedChip" Text="已选 0" Style="{StaticResource CaptionTextStyle}" />
+                            <Rectangle Width="3" Height="10" Fill="{ThemeResource AccentBrush}" VerticalAlignment="Center" />
+                            <TextBlock x:Name="SelectedChip" Text="已选 0" Style="{StaticResource TechCodeStyle}"
+                                       Foreground="{ThemeResource AccentBrush}" />
                         </StackPanel>
                     </StackPanel>
                     <TextBlock x:Name="ViewCountText" HorizontalAlignment="Right" VerticalAlignment="Center"
-                               Style="{StaticResource CaptionTextStyle}" />
+                               Style="{StaticResource TechCodeStyle}" />
                 </Grid>
+                </StackPanel>
             </Grid>
-        </Border>
+        </controls:TechPanel>
 
-        <!-- 列表 -->
-        <Border Grid.Row="2" Style="{StaticResource CardBorderStyle}" Padding="14,4">
+        <!-- 列表：表头用等宽微标签，行与行之间只有一条极细分割线 -->
+        <controls:TechPanel x:Name="ListPanel" Grid.Row="2" Style="{StaticResource TechCardStyle}"
+                            Padding="14,10,14,6" Cut="12" CutBottom="12">
             <Grid>
-                <ListView x:Name="ItemsList" SelectionMode="None"
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Grid ColumnSpacing="12" Padding="4,0,4,8" Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="24" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="SEL" Style="{StaticResource TechMicroStyle}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="ITEM / TARGET" Style="{StaticResource TechMicroStyle}" />
+                    <TextBlock Grid.Column="2" Text="STATUS" Style="{StaticResource TechMicroStyle}"
+                               HorizontalAlignment="Right" />
+                    <TextBlock Grid.Column="3" Text="ACT" Style="{StaticResource TechMicroStyle}" Margin="0,0,4,0" />
+                </Grid>
+
+                <ListView x:Name="ItemsList" Grid.Row="1" SelectionMode="None"
                           ItemContainerStyle="{StaticResource DenseListViewItemStyle}"
-                          ItemsSource="{x:Bind View}" IsItemClickEnabled="False">
+                          ItemsSource="{x:Bind View}" IsItemClickEnabled="False"
+                          Padding="0">
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="models:ItemInfo">
-                            <Border Style="{StaticResource DataRowStyle}" Padding="4,8">
-                                <Grid ColumnSpacing="12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="24" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="150" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
+                            <Grid ColumnSpacing="12" Padding="4,8"
+                                  BorderBrush="{ThemeResource BorderBrush}" BorderThickness="0,1,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="24" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
 
-                                    <CheckBox IsChecked="{x:Bind Selected, Mode=TwoWay}" Click="ItemCheck_Click"
-                                              VerticalAlignment="Center" MinWidth="0" Width="24"
-                                              ToolTipService.ToolTip="勾选后预览或应用" />
+                                <CheckBox IsChecked="{x:Bind Selected, Mode=TwoWay}" Click="ItemCheck_Click"
+                                          VerticalAlignment="Center" MinWidth="0" Width="24"
+                                          ToolTipService.ToolTip="勾选后预览或应用" />
 
-                                    <StackPanel Grid.Column="1" Spacing="2">
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
                                         <TextBlock Text="{x:Bind Name}" FontSize="13.5" FontWeight="SemiBold"
                                                    Foreground="{ThemeResource TextBrush}" MaxLines="1"
                                                    TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
                                                    ToolTipService.ToolTip="{x:Bind Name}" />
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <TextBlock Text="{x:Bind Cat}" FontSize="11.5"
-                                                       Foreground="{ThemeResource SubTextBrush}" TextWrapping="NoWrap" />
-                                            <TextBlock Text="·" FontSize="11.5"
-                                                       Foreground="{ThemeResource MutedTextBrush}" TextWrapping="NoWrap" />
-                                            <TextBlock Text="{x:Bind Risk, Converter={StaticResource RiskText}}"
-                                                       FontSize="11.5"
-                                                       Foreground="{x:Bind Risk, Converter={StaticResource RiskBrush}}"
-                                                       TextWrapping="NoWrap" />
-                                            <TextBlock Text="·" FontSize="11.5"
-                                                       Foreground="{ThemeResource MutedTextBrush}" TextWrapping="NoWrap"
-                                                       Visibility="{x:Bind NeedsReboot, Converter={StaticResource BoolVisible}}" />
-                                            <TextBlock Text="需重启" FontSize="11.5"
-                                                       Foreground="{ThemeResource WarnBrush}" TextWrapping="NoWrap"
-                                                       Visibility="{x:Bind NeedsReboot, Converter={StaticResource BoolVisible}}" />
-                                        </StackPanel>
-                                        <TextBlock Style="{StaticResource SecondaryTextStyle}"
-                                                   MaxLines="1" TextTrimming="CharacterEllipsis"
-                                                   ToolTipService.ToolTip="{x:Bind Desc}">
-                                            <Run Text="{x:Bind Desc}" />
-                                            <Run Text="  ·  目标 " Foreground="{ThemeResource MutedTextBrush}" />
-                                            <Run Text="{x:Bind Target}" Foreground="{ThemeResource SubTextBrush}" />
-                                        </TextBlock>
+                                        <TextBlock Text="{x:Bind Id}" Style="{StaticResource TechCodeStyle}"
+                                                   VerticalAlignment="Center" MaxLines="1"
+                                                   TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
-
-                                    <StackPanel Grid.Column="2" Spacing="2" HorizontalAlignment="Right"
-                                                VerticalAlignment="Center">
-                                        <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
-                                            <Ellipse Width="6" Height="6" VerticalAlignment="Center"
-                                                     Fill="{x:Bind Status, Converter={StaticResource StatusBrush}}" />
-                                            <TextBlock Text="{x:Bind Status, Converter={StaticResource StatusText}}"
-                                                       FontSize="12" FontWeight="SemiBold" TextWrapping="NoWrap"
-                                                       Foreground="{x:Bind Status, Converter={StaticResource StatusBrush}}" />
-                                        </StackPanel>
-                                        <TextBlock Text="{x:Bind StatusText}" Style="{StaticResource CaptionTextStyle}"
-                                                   TextAlignment="Right" MaxWidth="150" MaxLines="1"
-                                                   TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
-                                                   ToolTipService.ToolTip="{x:Bind StatusText}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="{x:Bind Cat}" FontSize="11.5"
+                                                   Foreground="{ThemeResource SubTextBrush}" TextWrapping="NoWrap" />
+                                        <TextBlock Text="·" FontSize="11.5"
+                                                   Foreground="{ThemeResource FaintTextBrush}" TextWrapping="NoWrap" />
+                                        <TextBlock Text="{x:Bind Risk, Converter={StaticResource RiskText}}"
+                                                   FontSize="11.5"
+                                                   Foreground="{x:Bind Risk, Converter={StaticResource RiskBrush}}"
+                                                   TextWrapping="NoWrap" />
+                                        <TextBlock Text="·" FontSize="11.5"
+                                                   Foreground="{ThemeResource FaintTextBrush}" TextWrapping="NoWrap"
+                                                   Visibility="{x:Bind NeedsReboot, Converter={StaticResource BoolVisible}}" />
+                                        <TextBlock Text="需重启" FontSize="11.5"
+                                                   Foreground="{ThemeResource WarnBrush}" TextWrapping="NoWrap"
+                                                   Visibility="{x:Bind NeedsReboot, Converter={StaticResource BoolVisible}}" />
                                     </StackPanel>
+                                    <TextBlock Style="{StaticResource SecondaryTextStyle}"
+                                               MaxLines="1" TextTrimming="CharacterEllipsis"
+                                               ToolTipService.ToolTip="{x:Bind Desc}">
+                                        <Run Text="{x:Bind Desc}" />
+                                        <Run Text="  //  TARGET " Foreground="{ThemeResource FaintTextBrush}" />
+                                        <Run Text="{x:Bind Target}" Foreground="{ThemeResource SubTextBrush}" />
+                                    </TextBlock>
+                                </StackPanel>
 
-                                    <Button Grid.Column="3" Content="详情" Style="{StaticResource GhostButtonStyle}"
-                                            VerticalAlignment="Center" Click="Detail_Click" />
-                                </Grid>
-                            </Border>
+                                <StackPanel Grid.Column="2" Spacing="2" HorizontalAlignment="Right"
+                                            VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+                                        <Rectangle Width="3" Height="10" VerticalAlignment="Center"
+                                                   Fill="{x:Bind Status, Converter={StaticResource StatusBrush}}" />
+                                        <TextBlock Text="{x:Bind Status, Converter={StaticResource StatusText}}"
+                                                   FontSize="12" FontWeight="SemiBold" TextWrapping="NoWrap"
+                                                   Foreground="{x:Bind Status, Converter={StaticResource StatusBrush}}" />
+                                    </StackPanel>
+                                    <TextBlock Text="{x:Bind StatusText}" Style="{StaticResource TechCodeStyle}"
+                                               TextAlignment="Right" MaxWidth="150" MaxLines="1"
+                                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+                                               ToolTipService.ToolTip="{x:Bind StatusText}" />
+                                </StackPanel>
+
+                                <Button Grid.Column="3" Content="详情" Style="{StaticResource SubtleButtonStyle}"
+                                        Padding="11,4" MinHeight="28" FontSize="12"
+                                        VerticalAlignment="Center" Click="Detail_Click" />
+                            </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
-                <StackPanel x:Name="EmptyHint" VerticalAlignment="Center" HorizontalAlignment="Center"
+
+                <StackPanel x:Name="EmptyHint" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center"
                             Spacing="6" Visibility="Collapsed">
-                    <FontIcon Glyph="&#xE721;" FontSize="26" Foreground="{ThemeResource MutedTextBrush}" />
+                    <TextBlock Text="NO MATCH" Style="{StaticResource TechLabelStyle}"
+                               Foreground="{ThemeResource DangerBrush}" HorizontalAlignment="Center" />
                     <TextBlock Text="没有符合条件的优化项" Style="{StaticResource SecondaryTextStyle}" />
                     <TextBlock Text="试试清空搜索词，或把分类、风险筛选恢复为全部。"
-                               Style="{StaticResource CaptionTextStyle}" />
+                               Style="{StaticResource TechCodeStyle}" />
                 </StackPanel>
             </Grid>
-        </Border>
+        </controls:TechPanel>
 
-        <InfoBar x:Name="PageInfo" Grid.Row="3" IsOpen="False" IsClosable="True" Margin="0,0,0,4" />
+        <InfoBar x:Name="PageInfo" Grid.Row="3" IsOpen="False" IsClosable="True" Margin="0,0,0,2" />
 
         <!-- 操作栏 -->
-        <Border Grid.Row="4" Background="{ThemeResource CardSurfaceBrush}" BorderBrush="{ThemeResource BorderBrush}"
-                BorderThickness="1" CornerRadius="12" Padding="14,10">
+        <controls:TechPanel x:Name="ActionPanel" Grid.Row="4" Style="{StaticResource TechCardStyle}"
+                            Padding="14,10" Cut="10" CutBottom="10"
+                            TopLineBrush="{ThemeResource AccentDimBrush}" TopLineOpacity="0.9">
             <Grid ColumnSpacing="16">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -191,8 +227,8 @@
                 <StackPanel Spacing="1" VerticalAlignment="Center">
                     <TextBlock x:Name="ActionSummary" Text="未选择项目" Style="{StaticResource BodyTextStyle}"
                                FontWeight="SemiBold" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                    <TextBlock Text="应用前自动生成原值备份；预览不会写入系统。"
-                               Style="{StaticResource CaptionTextStyle}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="ActionHint" Text="应用前自动生成原值备份 · 预览不会写入系统"
+                               Style="{StaticResource TechCodeStyle}" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                     <Button Content="恢复最近备份" Style="{StaticResource DangerGhostButtonStyle}" Click="RestoreLatest_Click"
@@ -201,6 +237,6 @@
                     <Button Content="应用所选" Style="{StaticResource AccentButtonStyle}" Click="ApplySelected_Click" />
                 </StackPanel>
             </Grid>
-        </Border>
+        </controls:TechPanel>
     </Grid>
 </Page>

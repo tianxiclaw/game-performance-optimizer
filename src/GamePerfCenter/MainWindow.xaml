@@ -5,191 +5,276 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:controls="using:GamePerfCenter.Controls"
     mc:Ignorable="d">
 
     <Grid x:Name="RootGrid" Background="{ThemeResource AppBackdropBrush}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition x:Name="RailColumn" Width="236" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
-            <RowDefinition Height="48" />
+            <RowDefinition Height="52" />
             <RowDefinition Height="*" />
-            <RowDefinition Height="30" />
+            <RowDefinition Height="28" />
         </Grid.RowDefinitions>
 
-        <!-- 液态玻璃的高光层；云母与深空模式下隐藏 -->
-        <Border x:Name="GlassLayer" Grid.RowSpan="3" IsHitTestVisible="False" Opacity="0"
-                Background="{ThemeResource GlassSheenBrush}" />
+        <!-- 左侧导航：品牌、设备指纹、分组导航、实时遥测 -->
+        <Border x:Name="Rail" Grid.Row="0" Grid.RowSpan="2" Grid.Column="0"
+                Background="{ThemeResource NavBgBrush}"
+                BorderBrush="{ThemeResource BorderBrush}" BorderThickness="0,0,1,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-        <!-- 自定义标题栏 -->
-        <Grid x:Name="TitleBarDrag" Grid.Row="0" Background="Transparent">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0" Spacing="9">
-                <Image Source="Assets/AppIcon.png" Width="18" Height="18" />
-                <TextBlock Text="游戏性能优化中心" FontSize="13" FontWeight="SemiBold"
-                           Foreground="{ThemeResource TextBrush}" VerticalAlignment="Center" />
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center"
-                        Margin="0,0,148,0" Spacing="4">
-                <!-- 待优化数量放在外壳上：不进入概览也能看到下一步 -->
-                <Button x:Name="PendingButton" Style="{StaticResource GhostButtonStyle}"
-                        Click="PendingButton_Click" Visibility="Collapsed"
-                        ToolTipService.ToolTip="查看待应用的低风险优化项">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <Ellipse Width="6" Height="6" Fill="{ThemeResource WarnBrush}" VerticalAlignment="Center" />
-                        <TextBlock x:Name="TopPendingText" Text="待优化" FontWeight="SemiBold" />
+                <!-- 品牌块：切角标记 + 等宽副标 -->
+                <Grid Height="58" Margin="16,0,14,0" ColumnSpacing="11">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="32" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <controls:TechPanel x:Name="BrandMark" Width="32" Height="32" Cut="8"
+                                        Fill="{ThemeResource AccentSoftBrush}"
+                                        Stroke="{ThemeResource AccentBrush}" StrokeThickness="1"
+                                        VerticalAlignment="Center">
+                        <TextBlock Text="GP" FontFamily="{StaticResource MonoFontFamily}" FontSize="12"
+                                   FontWeight="SemiBold" Foreground="{ThemeResource AccentBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   CharacterSpacing="40" />
+                    </controls:TechPanel>
+                    <StackPanel x:Name="BrandText" Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                        <TextBlock Text="GAMEPERF" FontFamily="{StaticResource DisplayFontFamily}"
+                                   FontSize="15" FontWeight="Bold" CharacterSpacing="90"
+                                   Foreground="{ThemeResource TextBrush}" TextWrapping="NoWrap" />
+                        <TextBlock Text="PERFORMANCE CONSOLE" Style="{StaticResource TechMicroStyle}" />
                     </StackPanel>
-                </Button>
-                <Button x:Name="ThemeButton" Style="{StaticResource IconButtonStyle}"
-                        ToolTipService.ToolTip="切换深浅色主题" Click="ThemeButton_Click">
-                    <FontIcon x:Name="ThemeIcon" Glyph="&#xE708;" FontSize="15" />
-                </Button>
-                <Button Style="{StaticResource IconButtonStyle}" ToolTipService.ToolTip="打开项目主页"
-                        Click="RepoButton_Click">
-                    <FontIcon Glyph="&#xE774;" FontSize="15" />
-                </Button>
-            </StackPanel>
-            <Border Height="1" VerticalAlignment="Bottom" Background="{ThemeResource BorderBrush}"
-                    Opacity="0.55" IsHitTestVisible="False" />
-        </Grid>
+                </Grid>
 
-        <!-- 主导航 -->
-        <NavigationView x:Name="Nav"
-                        Grid.Row="1"
-                        Background="Transparent"
-                        IsTitleBarAutoPaddingEnabled="False"
-                        IsBackButtonVisible="Collapsed"
-                        IsSettingsVisible="False"
-                        IsPaneToggleButtonVisible="True"
-                        PaneDisplayMode="Auto"
-                        OpenPaneLength="228"
-                        CompactPaneLength="52"
-                        CompactModeThresholdWidth="900"
-                        ExpandedModeThresholdWidth="1080"
-                        AlwaysShowHeader="False"
-                        SelectionFollowsFocus="Disabled"
-                        SelectionChanged="Nav_SelectionChanged">
-            <NavigationView.PaneHeader>
-                <!-- 本机身份：不再把设备信息塞进概览页的大卡片 -->
-                <StackPanel Padding="4,10,4,8" Spacing="3"
-                            Visibility="{Binding IsPaneOpen, ElementName=Nav, Converter={StaticResource BoolVisible}}">
+                <!-- 本机身份 -->
+                <StackPanel x:Name="RailDeviceBlock" Grid.Row="1" Padding="16,10,16,12" Spacing="3">
+                    <Border Height="1" Background="{ThemeResource BorderBrush}" Opacity="0.7"
+                            Margin="0,0,0,10" />
+                    <TextBlock Text="本机" Style="{StaticResource TechCodeStyle}" />
                     <TextBlock x:Name="PaneDeviceName" Text="正在识别本机" FontSize="13" FontWeight="SemiBold"
                                Foreground="{ThemeResource TextBrush}" TextWrapping="NoWrap"
                                TextTrimming="CharacterEllipsis" />
                     <StackPanel Orientation="Horizontal" Spacing="6">
-                        <Ellipse x:Name="PaneEngineDot" Width="6" Height="6" VerticalAlignment="Center"
+                        <Ellipse x:Name="PaneEngineDot" Width="5" Height="5" VerticalAlignment="Center"
                                  Fill="{ThemeResource WarnBrush}" />
-                        <TextBlock x:Name="PaneEngineText" Text="正在连接优化引擎"
-                                   Style="{StaticResource CaptionTextStyle}" TextWrapping="NoWrap" />
+                        <TextBlock x:Name="PaneEngineText" Text="正在连接优化引擎" FontSize="11.5"
+                                   Foreground="{ThemeResource SubTextBrush}" TextWrapping="NoWrap"
+                                   TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </StackPanel>
-            </NavigationView.PaneHeader>
 
-            <NavigationView.MenuItems>
-                <NavigationViewItemHeader Content="诊断与优化" />
-                <NavigationViewItem Content="概览" Tag="overview" ToolTipService.ToolTip="实时负载、优化进度与硬件摘要">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE80F;" /></NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="优化项" Tag="items" ToolTipService.ToolTip="按分类筛选并应用可还原的系统优化">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE9D9;" /></NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="诊断报告" Tag="diagnostics" ToolTipService.ToolTip="只读检查 VBS、内存、PCIe、NVMe 与显示链路">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE9D5;" /></NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="启动项与后台" Tag="startup" ToolTipService.ToolTip="查看开机自启项与内存占用较高的后台进程">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE7C4;" /></NavigationViewItem.Icon>
-                </NavigationViewItem>
+                <!-- 导航项 -->
+                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
+                              VerticalScrollMode="Auto" Padding="8,2,8,8">
+                    <StackPanel x:Name="NavEntriesPanel" Spacing="2">
+                        <TextBlock x:Name="NavGroupA" Text="诊断与优化" Style="{StaticResource TechCodeStyle}"
+                                   Margin="8,6,0,5" />
+                        <controls:NavItem Label="概览" Glyph="&#xE80F;" Code="01" Tag="overview"
+                                          Style="{StaticResource NavItemStyle}" Click="NavItem_Click"
+                                          ToolTipService.ToolTip="实时负载、优化进度与硬件摘要" />
+                        <controls:NavItem Label="优化项" Glyph="&#xE9D9;" Code="02" Tag="items"
+                                          Style="{StaticResource NavItemStyle}" Click="NavItem_Click"
+                                          ToolTipService.ToolTip="按分类筛选并应用可还原的系统优化" />
+                        <controls:NavItem Label="诊断报告" Glyph="&#xE9D5;" Code="03" Tag="diagnostics"
+                                          Style="{StaticResource NavItemStyle}" Click="NavItem_Click"
+                                          ToolTipService.ToolTip="只读检查 VBS、内存、PCIe、NVMe 与显示链路" />
+                        <controls:NavItem Label="启动项与后台" Glyph="&#xE7C4;" Code="04" Tag="startup"
+                                          Style="{StaticResource NavItemStyle}" Click="NavItem_Click"
+                                          ToolTipService.ToolTip="查看开机自启项与内存占用较高的后台进程" />
 
-                <NavigationViewItemHeader Content="游戏与维护" />
-                <NavigationViewItem Content="游戏库" Tag="games" ToolTipService.ToolTip="识别本地游戏并保存独立运行配置">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE7FC;" /></NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="驱动中心" Tag="driver" ToolTipService.ToolTip="显卡驱动版本、厂商工具与回退记录">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE7F8;" /></NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="备份还原" Tag="backup" ToolTipService.ToolTip="原值备份、单项还原与全部回放">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE777;" /></NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="运行日志" Tag="log" ToolTipService.ToolTip="本机操作与引擎输出，不上传">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE8A5;" /></NavigationViewItem.Icon>
-                </NavigationViewItem>
-            </NavigationView.MenuItems>
-            <NavigationView.FooterMenuItems>
-                <NavigationViewItem Content="设置" Tag="settings" ToolTipService.ToolTip="外观、托盘与配置文件">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE713;" /></NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="关于与支持" Tag="about" ToolTipService.ToolTip="版本信息、赞赏码与项目链接">
-                    <NavigationViewItem.Icon><FontIcon Glyph="&#xE946;" /></NavigationViewItem.Icon>
-                </NavigationViewItem>
-            </NavigationView.FooterMenuItems>
-
-            <NavigationView.PaneFooter>
-                <!-- 实时负载贴在导航栏底部，只在展开态显示，避免紧凑态被裁切 -->
-                <StackPanel Padding="4,8,4,10" Spacing="7"
-                            Visibility="{Binding IsPaneOpen, ElementName=Nav, Converter={StaticResource BoolVisible}}">
-                    <Border Height="1" Background="{ThemeResource BorderBrush}" Opacity="0.7" Margin="0,0,0,2" />
-                    <Grid>
-                        <TextBlock Text="实时负载" Style="{StaticResource CaptionTextStyle}" />
-                        <TextBlock Text="2 秒" Style="{StaticResource CaptionTextStyle}" HorizontalAlignment="Right" />
-                    </Grid>
-                    <StackPanel Spacing="3">
-                        <Grid>
-                            <TextBlock Text="CPU" Style="{StaticResource CaptionTextStyle}" />
-                            <TextBlock x:Name="PaneCpuValue" Text="--" HorizontalAlignment="Right"
-                                       Style="{StaticResource MonoTextStyle}" FontSize="11" />
-                        </Grid>
-                        <ProgressBar x:Name="PaneCpuBar" Minimum="0" Maximum="100" Height="3"
-                                     Foreground="{ThemeResource AccentGradientBrush}"
-                                     Background="{ThemeResource Surface2Brush}" />
+                        <Border Height="1" Background="{ThemeResource BorderBrush}" Opacity="0.65"
+                                Margin="8,8,8,6" />
+                        <TextBlock x:Name="NavGroupB" Text="游戏与维护" Style="{StaticResource TechCodeStyle}"
+                                   Margin="8,2,0,5" />
+                        <controls:NavItem Label="游戏库" Glyph="&#xE7FC;" Code="05" Tag="games"
+                                          Style="{StaticResource NavItemStyle}" Click="NavItem_Click"
+                                          ToolTipService.ToolTip="识别本地游戏并保存独立运行配置" />
+                        <controls:NavItem Label="驱动中心" Glyph="&#xE7F8;" Code="06" Tag="driver"
+                                          Style="{StaticResource NavItemStyle}" Click="NavItem_Click"
+                                          ToolTipService.ToolTip="显卡驱动版本、厂商工具与回退记录" />
+                        <controls:NavItem Label="备份还原" Glyph="&#xE777;" Code="07" Tag="backup"
+                                          Style="{StaticResource NavItemStyle}" Click="NavItem_Click"
+                                          ToolTipService.ToolTip="原值备份、单项还原与全部回放" />
+                        <controls:NavItem Label="运行日志" Glyph="&#xE8A5;" Code="08" Tag="log"
+                                          Style="{StaticResource NavItemStyle}" Click="NavItem_Click"
+                                          ToolTipService.ToolTip="本机操作与引擎输出，不上传" />
                     </StackPanel>
-                    <StackPanel Spacing="3">
-                        <Grid>
-                            <TextBlock Text="GPU" Style="{StaticResource CaptionTextStyle}" />
-                            <TextBlock x:Name="PaneGpuValue" Text="--" HorizontalAlignment="Right"
-                                       Style="{StaticResource MonoTextStyle}" FontSize="11" />
+                </ScrollViewer>
+
+                <!-- 底部：实时遥测 + 设置 / 关于 -->
+                <StackPanel x:Name="RailFooter" Grid.Row="3" Padding="8,0,8,10" Spacing="2">
+                    <Border Height="1" Background="{ThemeResource BorderBrush}" Opacity="0.65"
+                            Margin="8,0,8,8" />
+                    <controls:NavItem Label="设置" Glyph="&#xE713;" Code="09" Tag="settings"
+                                      Style="{StaticResource NavItemStyle}" Click="NavItem_Click"
+                                      ToolTipService.ToolTip="外观、托盘与配置文件" />
+                    <controls:NavItem Label="关于与支持" Glyph="&#xE946;" Code="10" Tag="about"
+                                      Style="{StaticResource NavItemStyle}" Click="NavItem_Click"
+                                      ToolTipService.ToolTip="版本信息、赞赏码与项目链接" />
+
+                    <StackPanel x:Name="RailTelemetry" Padding="8,10,8,2" Spacing="7"
+                                Margin="0,8,0,0">
+                        <Border Height="1" Background="{ThemeResource BorderBrush}" Opacity="0.65" />
+                        <Grid Margin="0,2,0,0">
+                            <TextBlock Text="LIVE TELEMETRY" Style="{StaticResource TechCodeStyle}" />
+                            <TextBlock Text="2S" Style="{StaticResource TechCodeStyle}"
+                                       HorizontalAlignment="Right" />
                         </Grid>
-                        <ProgressBar x:Name="PaneGpuBar" Minimum="0" Maximum="100" Height="3"
-                                     Foreground="{ThemeResource AccentGradientBrush}"
-                                     Background="{ThemeResource Surface2Brush}" />
-                    </StackPanel>
-                    <StackPanel Spacing="3">
-                        <Grid>
-                            <TextBlock Text="内存" Style="{StaticResource CaptionTextStyle}" />
-                            <TextBlock x:Name="PaneRamValue" Text="--" HorizontalAlignment="Right"
-                                       Style="{StaticResource MonoTextStyle}" FontSize="11" />
-                        </Grid>
-                        <ProgressBar x:Name="PaneRamBar" Minimum="0" Maximum="100" Height="3"
-                                     Foreground="{ThemeResource AccentGradientBrush}"
-                                     Background="{ThemeResource Surface2Brush}" />
+                        <StackPanel Spacing="3">
+                            <Grid>
+                                <TextBlock Text="CPU" Style="{StaticResource TechMicroStyle}" />
+                                <TextBlock x:Name="PaneCpuValue" Text="--" HorizontalAlignment="Right"
+                                           Style="{StaticResource MonoTextStyle}" FontSize="10.5" />
+                            </Grid>
+                            <ProgressBar x:Name="PaneCpuBar" Minimum="0" Maximum="100" Height="2"
+                                         Foreground="{ThemeResource AccentBrush}"
+                                         Background="{ThemeResource Surface2Brush}" />
+                        </StackPanel>
+                        <StackPanel Spacing="3">
+                            <Grid>
+                                <TextBlock Text="GPU" Style="{StaticResource TechMicroStyle}" />
+                                <TextBlock x:Name="PaneGpuValue" Text="--" HorizontalAlignment="Right"
+                                           Style="{StaticResource MonoTextStyle}" FontSize="10.5" />
+                            </Grid>
+                            <ProgressBar x:Name="PaneGpuBar" Minimum="0" Maximum="100" Height="2"
+                                         Foreground="{ThemeResource AccentBrush}"
+                                         Background="{ThemeResource Surface2Brush}" />
+                        </StackPanel>
+                        <StackPanel Spacing="3">
+                            <Grid>
+                                <TextBlock Text="MEM" Style="{StaticResource TechMicroStyle}" />
+                                <TextBlock x:Name="PaneRamValue" Text="--" HorizontalAlignment="Right"
+                                           Style="{StaticResource MonoTextStyle}" FontSize="10.5" />
+                            </Grid>
+                            <ProgressBar x:Name="PaneRamBar" Minimum="0" Maximum="100" Height="2"
+                                         Foreground="{ThemeResource AccentBrush}"
+                                         Background="{ThemeResource Surface2Brush}" />
+                        </StackPanel>
                     </StackPanel>
                 </StackPanel>
-            </NavigationView.PaneFooter>
+            </Grid>
+        </Border>
 
+        <!-- 顶部命令栏 -->
+        <Grid x:Name="TitleBarDrag" Grid.Row="0" Grid.Column="1" Background="{ThemeResource PaneBrush}"
+              Padding="22,0,150,0" ColumnSpacing="16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Border Grid.ColumnSpan="2" Height="1" VerticalAlignment="Bottom"
+                    Margin="-22,0,-150,0" Background="{ThemeResource BorderBrush}"
+                    Opacity="0.7" IsHitTestVisible="False" />
+            <Grid VerticalAlignment="Center" ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="CrumbRoot" Text="工作台" Style="{StaticResource TechLabelStyle}" />
+                <TextBlock x:Name="CrumbSlash" Grid.Column="1" Text="/" Style="{StaticResource TechLabelStyle}"
+                           Foreground="{ThemeResource FaintTextBrush}" />
+                <TextBlock x:Name="TopBreadcrumb" Grid.Column="2" Text="概览" Style="{StaticResource TechLabelStyle}"
+                           Foreground="{ThemeResource TextBrush}" TextWrapping="NoWrap" MaxLines="1"
+                           TextTrimming="CharacterEllipsis" />
+                <StackPanel x:Name="LocalModeGroup" Grid.Column="3" Orientation="Horizontal" Spacing="6"
+                            VerticalAlignment="Center">
+                    <Border Width="1" Height="12" Background="{ThemeResource BorderBrush}" Opacity="0.8" />
+                    <Ellipse Width="5" Height="5" Fill="{ThemeResource OkBrush}" VerticalAlignment="Center" />
+                    <TextBlock Text="LOCAL MODE" Style="{StaticResource TechCodeStyle}" />
+                </StackPanel>
+            </Grid>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right"
+                        VerticalAlignment="Center" Spacing="6">
+                <Button x:Name="PendingButton" Click="PendingButton_Click" Visibility="Collapsed"
+                        Background="{ThemeResource WarnSoftBrush}"
+                        BorderBrush="{ThemeResource WarnBrush}" BorderThickness="1"
+                        CornerRadius="2" Padding="9,4" VerticalAlignment="Center"
+                        ToolTipService.ToolTip="查看待应用的低风险优化项">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Ellipse Width="5" Height="5" Fill="{ThemeResource WarnBrush}" VerticalAlignment="Center" />
+                        <TextBlock x:Name="TopPendingText" Text="待优化" FontSize="11.5"
+                                   Foreground="{ThemeResource WarnBrush}" />
+                    </StackPanel>
+                </Button>
+
+                <!-- 主题三段选择：与 Pavise 顶栏的分段控件同构 -->
+                <Border Background="{ThemeResource InsetBrush}" BorderBrush="{ThemeResource BorderBrush}"
+                        BorderThickness="1" CornerRadius="2" Padding="2">
+                    <StackPanel Orientation="Horizontal" Spacing="1">
+                        <Button x:Name="ThemeDarkButton" Content="深" Tag="dark" Click="ThemeSegment_Click"
+                                FontSize="11.5" Padding="9,3" MinHeight="24" CornerRadius="1"
+                                BorderThickness="0" Background="Transparent"
+                                Foreground="{ThemeResource SubTextBrush}"
+                                ToolTipService.ToolTip="深色主题" />
+                        <Button x:Name="ThemeLightButton" Content="浅" Tag="light" Click="ThemeSegment_Click"
+                                FontSize="11.5" Padding="9,3" MinHeight="24" CornerRadius="1"
+                                BorderThickness="0" Background="Transparent"
+                                Foreground="{ThemeResource SubTextBrush}"
+                                ToolTipService.ToolTip="浅色主题" />
+                        <Button x:Name="ThemeSystemButton" Content="随" Tag="system" Click="ThemeSegment_Click"
+                                FontSize="11.5" Padding="9,3" MinHeight="24" CornerRadius="1"
+                                BorderThickness="0" Background="Transparent"
+                                Foreground="{ThemeResource SubTextBrush}"
+                                ToolTipService.ToolTip="跟随系统主题" />
+                    </StackPanel>
+                </Border>
+
+                <Button Style="{StaticResource IconButtonStyle}" ToolTipService.ToolTip="打开项目主页"
+                        Click="RepoButton_Click" VerticalAlignment="Center">
+                    <FontIcon Glyph="&#xE774;" FontSize="14" />
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- 内容区 -->
+        <Grid Grid.Row="1" Grid.Column="1">
+            <Canvas x:Name="StarLayer" IsHitTestVisible="False" />
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <!-- 星空只保留极低密度纹理，不作为视觉主体 -->
-                <Canvas x:Name="StarLayer" Grid.RowSpan="2" IsHitTestVisible="False" />
-
                 <InfoBar x:Name="EngineInfoBar" Grid.Row="0" IsOpen="False" Severity="Error"
-                         Margin="20,10,20,0" Title="引擎错误" IsClosable="True" />
+                         Margin="22,12,22,0" Title="引擎错误" IsClosable="True" />
                 <Frame x:Name="ContentFrame" Grid.Row="1" Background="Transparent" />
             </Grid>
-        </NavigationView>
+        </Grid>
 
-        <!-- 底部状态栏 -->
-        <Border Grid.Row="2" Background="{ThemeResource SurfaceBrush}" Padding="16,0">
-            <Grid>
-                <Border Height="1" VerticalAlignment="Top" Margin="-16,0"
-                        Background="{ThemeResource BorderBrush}" Opacity="0.6"
-                        IsHitTestVisible="False" />
+        <!-- 底部状态条 -->
+        <Border x:Name="StatusBar" Grid.Row="2" Grid.ColumnSpan="2" Background="{ThemeResource NavBgBrush}"
+                BorderBrush="{ThemeResource BorderBrush}" BorderThickness="0,1,0,0">
+            <Grid Padding="16,0">
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                    <ProgressRing x:Name="StatusRing" Width="13" Height="13" IsActive="False"
+                    <ProgressRing x:Name="StatusRing" Width="12" Height="12" IsActive="False"
                                   Foreground="{ThemeResource AccentBrush}" />
-                    <TextBlock x:Name="StatusText" Text="正在启动..." Style="{StaticResource CaptionTextStyle}"
-                               VerticalAlignment="Center" />
+                    <TextBlock x:Name="StatusText" Text="正在启动..." FontSize="11.5"
+                               Foreground="{ThemeResource SubTextBrush}" VerticalAlignment="Center" />
+                    <Border Width="1" Height="11" Background="{ThemeResource BorderBrush}"
+                            Margin="6,0" Opacity="0.8" />
+                    <TextBlock Text="SECURE // LOCAL ONLY" Style="{StaticResource TechCodeStyle}" />
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="14" VerticalAlignment="Center">
-                    <TextBlock x:Name="EngineStateText" Text="引擎未连接" Style="{StaticResource CaptionTextStyle}" />
-                    <TextBlock x:Name="VersionText" Text="WinUI 3" Style="{StaticResource MonoTextStyle}" FontSize="10.5" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12"
+                            VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                        <Ellipse x:Name="StatusEngineDot" Width="5" Height="5"
+                                 Fill="{ThemeResource WarnBrush}" VerticalAlignment="Center" />
+                        <TextBlock x:Name="EngineStateText" Text="引擎未连接" FontSize="11.5"
+                                   Foreground="{ThemeResource SubTextBrush}" />
+                    </StackPanel>
+                    <Border Width="1" Height="11" Background="{ThemeResource BorderBrush}" Opacity="0.8" />
+                    <TextBlock x:Name="VersionText" Text="WinUI 3" Style="{StaticResource TechCodeStyle}"
+                               VerticalAlignment="Center" />
                 </StackPanel>
             </Grid>
         </Border>

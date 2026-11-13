@@ -1,35 +1,28 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Page
     x:Class="GamePerfCenter.Pages.StartupPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:GamePerfCenter.Controls"
     xmlns:models="using:GamePerfCenter.Models"
     NavigationCacheMode="Required"
     Background="Transparent">
 
-    <Grid Padding="28,24,28,20" RowSpacing="14">
+    <Grid Padding="24,18,24,18" RowSpacing="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid ColumnSpacing="16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <StackPanel Spacing="4">
-                <TextBlock Text="启动项与后台" Style="{StaticResource PageTitleStyle}" />
-                <TextBlock Text="哪些程序会自启、后台在跑什么：只读展示，不在应用内结束进程。"
-                           Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" />
-            </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+        <controls:PageHeader Title="启动项与后台" Code="GAMEPERF // STARTUP &amp; PROCESS"
+                             Subtitle="哪些程序会自启、后台在跑什么：只读展示，不在应用内结束进程。">
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <Button Content="启动文件夹" Style="{StaticResource GhostButtonStyle}" Click="OpenStartupFolder_Click" />
                 <Button Content="任务管理器" Style="{StaticResource SubtleButtonStyle}" Click="OpenTaskManager_Click" />
                 <Button Content="刷新" Style="{StaticResource AccentButtonStyle}" Click="Refresh_Click" />
             </StackPanel>
-        </Grid>
+        </controls:PageHeader>
 
         <InfoBar x:Name="PageInfo" Grid.Row="1" IsOpen="False" IsClosable="True" />
 
@@ -39,7 +32,7 @@
                 <ColumnDefinition Width="1*" />
             </Grid.ColumnDefinitions>
 
-            <Border Style="{StaticResource CardBorderStyle}">
+            <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="16,14" Cut="12" CutBottom="12">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -88,9 +81,9 @@
                         <TextBlock Text="没有发现启动项" Style="{StaticResource SecondaryTextStyle}" />
                     </StackPanel>
                 </Grid>
-            </Border>
+            </controls:TechPanel>
 
-            <Border Grid.Column="1" Style="{StaticResource CardBorderStyle}">
+            <controls:TechPanel Grid.Column="1" Style="{StaticResource TechCardStyle}" Padding="16,14" Cut="12" CutBottom="12">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -140,7 +133,7 @@
                         </ListView.ItemTemplate>
                     </ListView>
                 </Grid>
-            </Border>
+            </controls:TechPanel>
         </Grid>
     </Grid>
 </Page>

@@ -1,13 +1,14 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Page
     x:Class="GamePerfCenter.Pages.DiagnosticsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:GamePerfCenter.Controls"
     xmlns:models="using:GamePerfCenter.Models"
     NavigationCacheMode="Required"
     Background="Transparent">
 
-    <Grid Padding="28,24,28,20" RowSpacing="14">
+    <Grid Padding="24,18,24,18" RowSpacing="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -15,33 +16,26 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid ColumnSpacing="16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <StackPanel Spacing="4">
-                <TextBlock Text="诊断报告" Style="{StaticResource PageTitleStyle}" />
-                <TextBlock Text="当前有哪些风险：硬件、电源、驱动、服务与安全状态的一次性核查。"
-                           Style="{StaticResource SecondaryTextStyle}" TextWrapping="Wrap" />
-            </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+        <controls:PageHeader Title="诊断报告" Code="GAMEPERF // DIAGNOSTICS"
+                             Subtitle="当前有哪些风险：硬件、电源、驱动、服务与安全状态的一次性核查。">
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <Button Content="打开诊断目录" Style="{StaticResource GhostButtonStyle}" Click="OpenFolder_Click" />
                 <Button Content="导出诊断包" Style="{StaticResource SubtleButtonStyle}" Click="ExportBundle_Click"
                         ToolTipService.ToolTip="打包日志、配置与诊断文本，便于反馈问题" />
                 <Button Content="导出报告" Style="{StaticResource SubtleButtonStyle}" Click="ExportReport_Click" />
                 <Button Content="重新诊断" Style="{StaticResource AccentButtonStyle}" Click="Run_Click" />
             </StackPanel>
-        </Grid>
+        </controls:PageHeader>
 
-        <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}" Padding="16,12">
+        <controls:TechPanel Grid.Row="1" Style="{StaticResource TechCardStyle}" Padding="16,12" Cut="10">
             <Grid ColumnSpacing="12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <Border Width="38" Height="38" CornerRadius="10" Background="{ThemeResource AccentSoftBrush}"
+                <Border Width="38" Height="38" Background="{ThemeResource AccentSoftBrush}"
+                        BorderBrush="{ThemeResource HeroBorderBrush}" BorderThickness="1"
                         VerticalAlignment="Center">
                     <FontIcon Glyph="&#xE9D9;" FontSize="16" Foreground="{ThemeResource AccentBrush}" />
                 </Border>
@@ -53,7 +47,7 @@
                 <Button x:Name="OpenExportButton" Grid.Column="2" Content="打开文件" Style="{StaticResource GhostButtonStyle}"
                         Click="OpenExport_Click" IsEnabled="False" VerticalAlignment="Center" />
             </Grid>
-        </Border>
+        </controls:TechPanel>
 
         <InfoBar x:Name="PageInfo" Grid.Row="2" IsOpen="False" IsClosable="True" />
 
@@ -64,12 +58,12 @@
                 <ItemsControl x:Name="GroupList">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="models:DiagGroup">
-                            <Border Style="{StaticResource CardBorderStyle}">
+                            <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="16,14" Cut="12">
                                 <StackPanel Spacing="12">
                                     <Grid>
                                         <TextBlock Text="{x:Bind Name}" Style="{StaticResource SectionTitleStyle}" />
                                         <TextBlock Text="{x:Bind Hint}" HorizontalAlignment="Right"
-                                                   Style="{StaticResource CaptionTextStyle}" />
+                                                   Style="{StaticResource TechCodeStyle}" />
                                     </Grid>
                                     <ItemsControl ItemsSource="{x:Bind Items}">
                                         <ItemsControl.ItemTemplate>
@@ -97,7 +91,7 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                 </StackPanel>
-                            </Border>
+                            </controls:TechPanel>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>

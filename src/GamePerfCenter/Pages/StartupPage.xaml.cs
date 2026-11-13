@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using GamePerfCenter.Helpers;
 using GamePerfCenter.Models;
 using GamePerfCenter.Services;
 using Microsoft.UI.Xaml;
@@ -19,6 +20,9 @@ public sealed partial class StartupPage : Page, IThemeAware
         StartupList.ItemsSource = _startup;
         BackgroundList.ItemsSource = _background;
         Loaded += OnLoaded;
+        // 窄窗口两张卡片各剩约 280px，标题与右侧计数会压在一起。
+        Responsive.Watch(this, 780, narrow =>
+            BackgroundHint.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible);
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)

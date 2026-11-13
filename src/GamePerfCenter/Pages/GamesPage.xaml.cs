@@ -20,13 +20,29 @@ public sealed partial class GamesPage : Page, IThemeAware
     private bool _loaded;
     private bool _syncingSelection;
     private bool _narrow;
+    private bool? _short;
 
     public GamesPage()
     {
         InitializeComponent();
         GameList.ItemsSource = _view;
         Loaded += OnLoaded;
+        Loaded += (_, _) => ApplyDensity(ActualHeight);
+        SizeChanged += (_, e) => ApplyDensity(e.NewSize.Height);
         Responsive.Watch(this, 920, ApplyWidth);
+    }
+
+    /// <summary>矮窗口把详情面板的内边距与底部说明收掉，让游戏名留在首屏。</summary>
+    private void ApplyDensity(double height)
+    {
+        if (height <= 0) return;
+        var shortHeight = height < 520;
+        if (_short == shortHeight) return;
+        _short = shortHeight;
+
+        DetailPanel.Padding = shortHeight ? new Thickness(16, 12, 16, 12) : new Thickness(24, 20, 24, 20);
+        DetailBackButton.Margin = shortHeight ? new Thickness(0, 0, 0, 4) : new Thickness(0, 0, 0, 10);
+        DetailFooterHint.Visibility = shortHeight ? Visibility.Collapsed : Visibility.Visible;
     }
 
     /// <summary>宽窗口左列表右详情；窄窗口选中后整页显示详情，并可返回列表。</summary>
