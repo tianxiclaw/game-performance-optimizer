@@ -72,9 +72,7 @@ public sealed partial class SettingsPage : Page, IThemeAware
             // 配置可能来自另一台机器；本机不支持时窗口已回退深空，选项也要显示真实状态。
             if ((material == "mica" && !micaSupported) || (material == "glass" && !glassSupported))
                 material = "deep";
-            MaterialDeepOption.IsChecked = material == "deep";
-            MaterialMicaOption.IsChecked = material == "mica";
-            MaterialGlassOption.IsChecked = material == "glass";
+            UpdateMaterialTiles(material);
             MaterialMicaOption.IsEnabled = micaSupported;
             MaterialGlassOption.IsEnabled = glassSupported;
             ToolTipService.SetToolTip(MaterialMicaOption,
@@ -102,34 +100,40 @@ public sealed partial class SettingsPage : Page, IThemeAware
         ShowInfo("主题已切换", ThemeService.DisplayName(theme) + " 已应用。", InfoBarSeverity.Success);
     }
 
-    private void Material_Checked(object sender, RoutedEventArgs e)
+    private void MaterialOption_Click(object sender, RoutedEventArgs e)
     {
-        if (_loading || MaterialDeepOption is null) return;
-        var material = ReferenceEquals(sender, MaterialMicaOption) ? "mica"
-            : ReferenceEquals(sender, MaterialGlassOption) ? "glass" : "deep";
+        if (_loading || sender is not Button { Tag: string material }) return;
         if (App.Services.Settings.Material == material) return;
 
         if (!MaterialService.IsSupported(material))
         {
             ShowInfo("当前系统不支持", "云母与液态玻璃需要 Windows 11 的系统合成层，已保留当前材质。",
                 InfoBarSeverity.Warning);
-            RevertMaterialSelection(App.Services.Settings.Material);
+            UpdateMaterialTiles(App.Services.Settings.Material);
             return;
         }
 
         App.Services.Settings.Material = material;
         Save();
+        UpdateMaterialTiles(material);
         if (App.MainWindow is MainWindow main) main.RefreshMaterial();
         ShowInfo("材质已切换", MaterialService.DisplayName(material) + " 已应用。", InfoBarSeverity.Success);
     }
 
-    private void RevertMaterialSelection(string material)
+    private void UpdateMaterialTiles(string material)
     {
-        _loading = true;
-        MaterialDeepOption.IsChecked = material == "deep";
-        MaterialMicaOption.IsChecked = material == "mica";
-        MaterialGlassOption.IsChecked = material == "glass";
-        _loading = false;
+        foreach (var (tile, tag) in new[]
+                 {
+                     (MaterialDeepOption, "deep"),
+                     (MaterialMicaOption, "mica"),
+                     (MaterialGlassOption, "glass")
+                 })
+        {
+            var active = string.Equals(material, tag, StringComparison.Ordinal);
+            tile.Background = ThemeResources.Get(active ? "AccentSoftBrush" : "Surface2Brush");
+            tile.BorderBrush = ThemeResources.Get(active ? "AccentBrush" : "BorderBrush");
+            tile.BorderThickness = new Thickness(active ? 1.5 : 1);
+        }
     }
 
     private void Setting_Toggled(object sender, RoutedEventArgs e)

@@ -141,7 +141,8 @@
                                 </Grid.ColumnDefinitions>
 
                                 <CheckBox IsChecked="{x:Bind Selected, Mode=TwoWay}" Click="ItemCheck_Click"
-                                          VerticalAlignment="Center" MinWidth="0" Width="24"
+                                          Style="{StaticResource SquareCheckBoxStyle}"
+                                          VerticalAlignment="Center" HorizontalAlignment="Center"
                                           ToolTipService.ToolTip="勾选后预览或应用" />
 
                                 <StackPanel Grid.Column="1" Spacing="2">

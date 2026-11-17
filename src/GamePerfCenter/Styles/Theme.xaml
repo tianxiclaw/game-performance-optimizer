@@ -12,18 +12,18 @@
                 <GradientStop Color="#0B0F14" Offset="0.52" />
                 <GradientStop Color="#07080A" Offset="1" />
             </LinearGradientBrush>
-            <SolidColorBrush x:Key="PaneBrush" Color="#E6050608" />
-            <SolidColorBrush x:Key="NavBgBrush" Color="#050608" />
-            <SolidColorBrush x:Key="SurfaceBrush" Color="#0E1014" />
-            <SolidColorBrush x:Key="Surface2Brush" Color="#171B21" />
-            <SolidColorBrush x:Key="InsetBrush" Color="#07080A" />
-            <SolidColorBrush x:Key="CardBrush" Color="#111317" />
+            <SolidColorBrush x:Key="PaneBrush" Color="#D9050608" />
+            <SolidColorBrush x:Key="NavBgBrush" Color="#E6050608" />
+            <SolidColorBrush x:Key="SurfaceBrush" Color="#B8151A22" />
+            <SolidColorBrush x:Key="Surface2Brush" Color="#C2202733" />
+            <SolidColorBrush x:Key="InsetBrush" Color="#8C11151C" />
+            <SolidColorBrush x:Key="CardBrush" Color="#C4171C24" />
             <LinearGradientBrush x:Key="CardSurfaceBrush" StartPoint="0,0" EndPoint="0.4,1">
-                <GradientStop Color="#14171C" Offset="0" />
-                <GradientStop Color="#101216" Offset="1" />
+                <GradientStop Color="#CC171C24" Offset="0" />
+                <GradientStop Color="#C2121620" Offset="1" />
             </LinearGradientBrush>
             <SolidColorBrush x:Key="CardHoverBrush" Color="#171B21" />
-            <SolidColorBrush x:Key="BorderBrush" Color="#272C34" />
+            <SolidColorBrush x:Key="BorderBrush" Color="#303845" />
             <SolidColorBrush x:Key="BorderStrongBrush" Color="#48515E" />
             <SolidColorBrush x:Key="TextBrush" Color="#F4F6F9" />
             <SolidColorBrush x:Key="SubTextBrush" Color="#A3AAB5" />
@@ -66,25 +66,62 @@
                 <GradientStop Color="#00101A28" Offset="1" />
             </RadialGradientBrush>
             <LinearGradientBrush x:Key="HeroSurfaceBrush" StartPoint="0,0" EndPoint="0.5,1">
-                <GradientStop Color="#12161C" Offset="0" />
-                <GradientStop Color="#0C0F13" Offset="1" />
+                <GradientStop Color="#D91C2430" Offset="0" />
+                <GradientStop Color="#C9161C26" Offset="1" />
             </LinearGradientBrush>
             <LinearGradientBrush x:Key="HeroBorderBrush" StartPoint="0,0" EndPoint="1,1">
                 <GradientStop Color="#2C343F" Offset="0" />
                 <GradientStop Color="#20262E" Offset="1" />
             </LinearGradientBrush>
-            <!-- 材质只改变底色深浅，不抬高整体亮度：否则内容区会比不透明的导航栏/标题栏亮一档，
-                 出现横向与纵向的色阶接缝。亚克力只透出很少一点桌面颜色。 -->
-            <SolidColorBrush x:Key="MicaTintBrush" Color="#C4090C11" />
-            <SolidColorBrush x:Key="GlassTintBrush" Color="#B80A0E15" />
+            <!-- 材质层：只做轻度着色，让系统 Mica / Acrylic 真正透出来；
+                 深色不再使用 70% 以上的实色盖层，否则材质会被压成一块平色。 -->
+            <LinearGradientBrush x:Key="MicaTintBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#4D090E17" Offset="0" />
+                <GradientStop Color="#400D1726" Offset="0.55" />
+                <GradientStop Color="#4D080D16" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="MicaSheenBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#1FFFFFFF" Offset="0" />
+                <GradientStop Color="#08FFFFFF" Offset="0.45" />
+                <GradientStop Color="#000B1424" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="GlassTintBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#3808111F" Offset="0" />
+                <GradientStop Color="#2E0B1A2E" Offset="0.55" />
+                <GradientStop Color="#38060B14" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="GlassSheenBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#2EFFFFFF" Offset="0" />
+                <GradientStop Color="#10FFFFFF" Offset="0.32" />
+                <GradientStop Color="#001FD4EE" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="DeepPreviewBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#0A0E17" Offset="0" />
+                <GradientStop Color="#151B26" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="MicaPreviewBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#3A4658" Offset="0" />
+                <GradientStop Color="#232D3C" Offset="0.55" />
+                <GradientStop Color="#2E3A4C" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="GlassPreviewBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#6E8098" Offset="0" />
+                <GradientStop Color="#2C3A4D" Offset="0.45" />
+                <GradientStop Color="#1A2432" Offset="1" />
+            </LinearGradientBrush>
             <SolidColorBrush x:Key="QrPanelBrush" Color="#FFFFFF" />
             <SolidColorBrush x:Key="OverlayBrush" Color="#CC000000" />
+
+            <SolidColorBrush x:Key="ButtonHoverOverlayBrush" Color="#14FFFFFF" />
+            <SolidColorBrush x:Key="ButtonPressedOverlayBrush" Color="#26FFFFFF" />
+            <CornerRadius x:Key="ControlCornerRadius">8</CornerRadius>
+            <CornerRadius x:Key="OverlayCornerRadius">12</CornerRadius>
 
             <!-- 控件资源：把 WinUI 默认深色控件拉到同一套近黑与青色信号体系 -->
             <SolidColorBrush x:Key="TextControlBackground" Color="#07080A" />
             <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#0B0D11" />
             <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#0B0D11" />
-            <SolidColorBrush x:Key="TextControlBorderBrush" Color="#272C34" />
+            <SolidColorBrush x:Key="TextControlBorderBrush" Color="#303845" />
             <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#48515E" />
             <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="#22D3EE" />
             <SolidColorBrush x:Key="TextControlForeground" Color="#F4F6F9" />
@@ -96,14 +133,14 @@
             <SolidColorBrush x:Key="ComboBoxBackground" Color="#0E1014" />
             <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="#171B21" />
             <SolidColorBrush x:Key="ComboBoxBackgroundFocused" Color="#0E1014" />
-            <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="#272C34" />
+            <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="#303845" />
             <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="#48515E" />
             <SolidColorBrush x:Key="ComboBoxBorderBrushFocused" Color="#22D3EE" />
             <SolidColorBrush x:Key="ComboBoxForeground" Color="#F4F6F9" />
             <SolidColorBrush x:Key="ComboBoxForegroundPointerOver" Color="#F4F6F9" />
             <SolidColorBrush x:Key="ComboBoxForegroundFocused" Color="#F4F6F9" />
             <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#111317" />
-            <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#272C34" />
+            <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#303845" />
             <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#171B21" />
             <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#0F1216" />
             <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#101216" />
@@ -113,7 +150,7 @@
             <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#48515E" />
             <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#22D3EE" />
             <SolidColorBrush x:Key="ProgressBarForeground" Color="#22D3EE" />
-            <SolidColorBrush x:Key="ProgressBarBackground" Color="#272C34" />
+            <SolidColorBrush x:Key="ProgressBarBackground" Color="#303845" />
             <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="#22D3EE" />
             <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="#22D3EE" />
             <SolidColorBrush x:Key="ToggleSwitchFillOff" Color="#2B3039" />
@@ -124,10 +161,10 @@
             <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedFill" Color="#22D3EE" />
             <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedStroke" Color="#22D3EE" />
             <SolidColorBrush x:Key="ToolTipBackground" Color="#0B0D11" />
-            <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#272C34" />
+            <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#303845" />
             <SolidColorBrush x:Key="ToolTipForeground" Color="#F4F6F9" />
             <SolidColorBrush x:Key="ContentDialogBackground" Color="#111317" />
-            <SolidColorBrush x:Key="ContentDialogBorderBrush" Color="#272C34" />
+            <SolidColorBrush x:Key="ContentDialogBorderBrush" Color="#303845" />
 
             <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#171B21" />
             <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="#0E2A31" />
@@ -144,14 +181,14 @@
                 <GradientStop Color="#EEF2F7" Offset="1" />
             </LinearGradientBrush>
             <SolidColorBrush x:Key="PaneBrush" Color="#E6FFFFFF" />
-            <SolidColorBrush x:Key="NavBgBrush" Color="#E1E7EF" />
-            <SolidColorBrush x:Key="SurfaceBrush" Color="#F7F9FC" />
-            <SolidColorBrush x:Key="Surface2Brush" Color="#E8EEF6" />
-            <SolidColorBrush x:Key="InsetBrush" Color="#E4EAF2" />
-            <SolidColorBrush x:Key="CardBrush" Color="#FBFCFE" />
+            <SolidColorBrush x:Key="NavBgBrush" Color="#EAE1E7EF" />
+            <SolidColorBrush x:Key="SurfaceBrush" Color="#E6F7F9FC" />
+            <SolidColorBrush x:Key="Surface2Brush" Color="#D9E8EEF6" />
+            <SolidColorBrush x:Key="InsetBrush" Color="#C7E4EAF2" />
+            <SolidColorBrush x:Key="CardBrush" Color="#EDFBFCFE" />
             <LinearGradientBrush x:Key="CardSurfaceBrush" StartPoint="0,0" EndPoint="0.4,1">
-                <GradientStop Color="#FFFFFF" Offset="0" />
-                <GradientStop Color="#F7FAFD" Offset="1" />
+                <GradientStop Color="#EDFFFFFF" Offset="0" />
+                <GradientStop Color="#E6F7FAFD" Offset="1" />
             </LinearGradientBrush>
             <SolidColorBrush x:Key="CardHoverBrush" Color="#F1F5FA" />
             <SolidColorBrush x:Key="BorderBrush" Color="#C2CBD8" />
@@ -197,17 +234,53 @@
                 <GradientStop Color="#00F6FBFF" Offset="1" />
             </RadialGradientBrush>
             <LinearGradientBrush x:Key="HeroSurfaceBrush" StartPoint="0,0" EndPoint="0.5,1">
-                <GradientStop Color="#FFFFFF" Offset="0" />
-                <GradientStop Color="#F4F9FD" Offset="1" />
+                <GradientStop Color="#F5FFFFFF" Offset="0" />
+                <GradientStop Color="#EBF4F9FD" Offset="1" />
             </LinearGradientBrush>
             <LinearGradientBrush x:Key="HeroBorderBrush" StartPoint="0,0" EndPoint="1,1">
                 <GradientStop Color="#C9D9E7" Offset="0" />
                 <GradientStop Color="#D8E3EF" Offset="1" />
             </LinearGradientBrush>
-            <SolidColorBrush x:Key="MicaTintBrush" Color="#C4F3F6FA" />
-            <SolidColorBrush x:Key="GlassTintBrush" Color="#B8F4F7FB" />
+            <LinearGradientBrush x:Key="MicaTintBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#66F3F6FA" Offset="0" />
+                <GradientStop Color="#59EDF3FA" Offset="0.55" />
+                <GradientStop Color="#66F4F7FB" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="MicaSheenBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#66FFFFFF" Offset="0" />
+                <GradientStop Color="#14FFFFFF" Offset="0.45" />
+                <GradientStop Color="#00FFFFFF" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="GlassTintBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#80FFFFFF" Offset="0" />
+                <GradientStop Color="#73F2F7FD" Offset="0.55" />
+                <GradientStop Color="#80F7FAFE" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="GlassSheenBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#A6FFFFFF" Offset="0" />
+                <GradientStop Color="#26FFFFFF" Offset="0.32" />
+                <GradientStop Color="#001D4ED8" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="DeepPreviewBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#0F172A" Offset="0" />
+                <GradientStop Color="#1E293B" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="MicaPreviewBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#E8EFF8" Offset="0" />
+                <GradientStop Color="#CBD8E8" Offset="1" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="GlassPreviewBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#FFFFFF" Offset="0" />
+                <GradientStop Color="#D7E7F6" Offset="0.55" />
+                <GradientStop Color="#EDF4FC" Offset="1" />
+            </LinearGradientBrush>
             <SolidColorBrush x:Key="QrPanelBrush" Color="#FFFFFF" />
             <SolidColorBrush x:Key="OverlayBrush" Color="#66000000" />
+
+            <SolidColorBrush x:Key="ButtonHoverOverlayBrush" Color="#0F000000" />
+            <SolidColorBrush x:Key="ButtonPressedOverlayBrush" Color="#1A000000" />
+            <CornerRadius x:Key="ControlCornerRadius">8</CornerRadius>
+            <CornerRadius x:Key="OverlayCornerRadius">12</CornerRadius>
 
             <SolidColorBrush x:Key="TextControlBackground" Color="#E4EAF2" />
             <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#EDF2F8" />
@@ -393,12 +466,13 @@
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
     </Style>
 
-    <!-- 切角面板：主要表面积使用，边角切掉而不是圆角 -->
+    <!-- 常规卡片：圆角容器；切角只保留给品牌标记等少量记忆点 -->
     <Style x:Key="TechCardStyle" TargetType="controls:TechPanel">
         <Setter Property="Fill" Value="{ThemeResource CardSurfaceBrush}" />
         <Setter Property="Stroke" Value="{ThemeResource BorderBrush}" />
         <Setter Property="StrokeThickness" Value="1" />
-        <Setter Property="Cut" Value="12" />
+        <Setter Property="Cut" Value="0" />
+        <Setter Property="Radius" Value="12" />
         <Setter Property="Padding" Value="18" />
     </Style>
 
@@ -406,8 +480,8 @@
         <Setter Property="Fill" Value="{ThemeResource HeroSurfaceBrush}" />
         <Setter Property="Stroke" Value="{ThemeResource HeroBorderBrush}" />
         <Setter Property="StrokeThickness" Value="1" />
-        <Setter Property="Cut" Value="18" />
-        <Setter Property="CutBottom" Value="10" />
+        <Setter Property="Cut" Value="0" />
+        <Setter Property="Radius" Value="16" />
         <Setter Property="Padding" Value="22,20" />
         <Setter Property="TopLineBrush" Value="{ThemeResource AccentDimBrush}" />
         <Setter Property="TopLineOpacity" Value="0.8" />
@@ -419,7 +493,8 @@
         <Setter Property="Fill" Value="{ThemeResource InsetBrush}" />
         <Setter Property="Stroke" Value="{ThemeResource BorderBrush}" />
         <Setter Property="StrokeThickness" Value="1" />
-        <Setter Property="Cut" Value="8" />
+        <Setter Property="Cut" Value="0" />
+        <Setter Property="Radius" Value="8" />
         <Setter Property="Padding" Value="12" />
     </Style>
 
@@ -427,7 +502,7 @@
         <Setter Property="Background" Value="{ThemeResource CardSurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource BorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="2" />
+        <Setter Property="CornerRadius" Value="12" />
         <Setter Property="Padding" Value="18" />
     </Style>
 
@@ -435,7 +510,7 @@
         <Setter Property="Background" Value="{ThemeResource HeroSurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource HeroBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="2" />
+        <Setter Property="CornerRadius" Value="16" />
         <Setter Property="Padding" Value="22" />
     </Style>
 
@@ -443,7 +518,7 @@
         <Setter Property="Background" Value="{ThemeResource HeroSurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource HeroBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="2" />
+        <Setter Property="CornerRadius" Value="16" />
         <Setter Property="Padding" Value="22,20" />
     </Style>
 
@@ -470,23 +545,72 @@
         <Setter Property="Background" Value="{ThemeResource InsetBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource BorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="2" />
-        <Setter Property="Padding" Value="8,3" />
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="Padding" Value="9,3" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
+
+    <!-- 按钮统一模板：基础背景由样式决定，hover / pressed 只叠一层中性遮罩，
+         这样强调色渐变不会被 WinUI 默认状态色冲掉。 -->
+    <ControlTemplate x:Key="SoftButtonTemplate" TargetType="Button">
+        <Grid x:Name="Root"
+              Background="{TemplateBinding Background}"
+              BorderBrush="{TemplateBinding BorderBrush}"
+              BorderThickness="{TemplateBinding BorderThickness}"
+              CornerRadius="{TemplateBinding CornerRadius}">
+            <Border x:Name="HoverOverlay" CornerRadius="{TemplateBinding CornerRadius}"
+                    Background="{ThemeResource ButtonHoverOverlayBrush}" Opacity="0" />
+            <Border x:Name="PressOverlay" CornerRadius="{TemplateBinding CornerRadius}"
+                    Background="{ThemeResource ButtonPressedOverlayBrush}" Opacity="0" />
+            <ContentPresenter x:Name="Presenter"
+                              Content="{TemplateBinding Content}"
+                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                              Padding="{TemplateBinding Padding}"
+                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                              AutomationProperties.AccessibilityView="Raw" />
+            <VisualStateManager.VisualStateGroups>
+                <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="PointerOver">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="HoverOverlay"
+                                             Storyboard.TargetProperty="Opacity"
+                                             To="1" Duration="0:0:0.12" />
+                        </Storyboard>
+                    </VisualState>
+                    <VisualState x:Name="Pressed">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="PressOverlay"
+                                             Storyboard.TargetProperty="Opacity"
+                                             To="1" Duration="0:0:0.08" />
+                        </Storyboard>
+                    </VisualState>
+                    <VisualState x:Name="Disabled">
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="Root"
+                                             Storyboard.TargetProperty="Opacity"
+                                             To="0.45" Duration="0" />
+                        </Storyboard>
+                    </VisualState>
+                </VisualStateGroup>
+            </VisualStateManager.VisualStateGroups>
+        </Grid>
+    </ControlTemplate>
 
     <Style x:Key="AccentButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="{ThemeResource AccentGradientBrush}" />
         <Setter Property="Foreground" Value="{ThemeResource AccentForegroundBrush}" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="CornerRadius" Value="2" />
-        <Setter Property="Padding" Value="15,7" />
-        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="15,8" />
+        <Setter Property="MinHeight" Value="36" />
         <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template" Value="{StaticResource SoftButtonTemplate}" />
     </Style>
 
     <Style x:Key="SubtleButtonStyle" TargetType="Button">
@@ -494,39 +618,42 @@
         <Setter Property="Foreground" Value="{ThemeResource TextBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource BorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="2" />
-        <Setter Property="Padding" Value="13,7" />
-        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="13,8" />
+        <Setter Property="MinHeight" Value="36" />
         <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template" Value="{StaticResource SoftButtonTemplate}" />
     </Style>
 
     <Style x:Key="GhostButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{ThemeResource SubTextBrush}" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="CornerRadius" Value="2" />
+        <Setter Property="CornerRadius" Value="8" />
         <Setter Property="Padding" Value="10,6" />
-        <Setter Property="MinHeight" Value="30" />
+        <Setter Property="MinHeight" Value="32" />
         <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
         <Setter Property="FontSize" Value="12.5" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template" Value="{StaticResource SoftButtonTemplate}" />
     </Style>
 
     <Style x:Key="DangerGhostButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{ThemeResource DangerBrush}" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="CornerRadius" Value="2" />
+        <Setter Property="CornerRadius" Value="8" />
         <Setter Property="Padding" Value="10,6" />
-        <Setter Property="MinHeight" Value="30" />
+        <Setter Property="MinHeight" Value="32" />
         <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
         <Setter Property="FontSize" Value="12.5" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template" Value="{StaticResource SoftButtonTemplate}" />
     </Style>
 
     <Style x:Key="DangerButtonStyle" TargetType="Button">
@@ -534,33 +661,128 @@
         <Setter Property="Foreground" Value="{ThemeResource DangerBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource DangerBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="2" />
-        <Setter Property="Padding" Value="13,7" />
-        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="13,8" />
+        <Setter Property="MinHeight" Value="36" />
         <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template" Value="{StaticResource SoftButtonTemplate}" />
     </Style>
 
     <Style x:Key="IconButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{ThemeResource SubTextBrush}" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="CornerRadius" Value="2" />
+        <Setter Property="CornerRadius" Value="7" />
         <Setter Property="Padding" Value="6" />
         <Setter Property="Width" Value="30" />
         <Setter Property="Height" Value="28" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template" Value="{StaticResource SoftButtonTemplate}" />
+    </Style>
+
+    <!-- 设置页的材质选项：缩略预览 + 名称，选中态由页面代码切换描边与底色 -->
+    <Style x:Key="MaterialTileStyle" TargetType="Button">
+        <Setter Property="Background" Value="{ThemeResource Surface2Brush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource BorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="10" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Top" />
+        <Setter Property="Template" Value="{StaticResource SoftButtonTemplate}" />
+    </Style>
+
+    <!-- 列表勾选框：自带模板，选中态使用强调色，避免系统默认蓝与整体配色冲突 -->
+    <Style x:Key="SquareCheckBoxStyle" TargetType="CheckBox">
+        <Setter Property="Width" Value="20" />
+        <Setter Property="Height" Value="20" />
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="UseSystemFocusVisuals" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <Grid x:Name="Root" Background="Transparent">
+                        <Border x:Name="Box"
+                                CornerRadius="6"
+                                BorderThickness="1.5"
+                                BorderBrush="{ThemeResource BorderStrongBrush}"
+                                Background="{ThemeResource InsetBrush}" />
+                        <FontIcon x:Name="Glyph"
+                                  Glyph="&#xE73E;"
+                                  FontSize="10"
+                                  Foreground="{ThemeResource AccentForegroundBrush}"
+                                  Visibility="Collapsed" />
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CheckStates">
+                                <VisualState x:Name="Unchecked" />
+                                <VisualState x:Name="Indeterminate" />
+                                <VisualState x:Name="Checked">
+                                    <Storyboard>
+                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetName="Box"
+                                                                       Storyboard.TargetProperty="Background">
+                                            <DiscreteObjectKeyFrame KeyTime="0"
+                                                                    Value="{ThemeResource AccentBrush}" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetName="Box"
+                                                                       Storyboard.TargetProperty="BorderBrush">
+                                            <DiscreteObjectKeyFrame KeyTime="0"
+                                                                    Value="{ThemeResource AccentBrush}" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetName="Glyph"
+                                                                       Storyboard.TargetProperty="Visibility">
+                                            <DiscreteObjectKeyFrame KeyTime="0" Value="Visible" />
+                                        </ObjectAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </VisualState>
+                            </VisualStateGroup>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal" />
+                                <VisualState x:Name="PointerOver">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Root"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0.88" Duration="0:0:0.1" />
+                                    </Storyboard>
+                                </VisualState>
+                                <VisualState x:Name="Pressed">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Root"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0.72" Duration="0:0:0.06" />
+                                    </Storyboard>
+                                </VisualState>
+                                <VisualState x:Name="Disabled">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Root"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0.4" Duration="0" />
+                                    </Storyboard>
+                                </VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <Style x:Key="CardListViewItemStyle" TargetType="ListViewItem">
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="Padding" Value="0" />
         <Setter Property="Margin" Value="0,0,0,6" />
-        <Setter Property="CornerRadius" Value="2" />
+        <Setter Property="CornerRadius" Value="8" />
         <Setter Property="MinHeight" Value="0" />
     </Style>
 
@@ -568,7 +790,7 @@
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="Padding" Value="0" />
         <Setter Property="Margin" Value="0,0,0,6" />
-        <Setter Property="CornerRadius" Value="2" />
+        <Setter Property="CornerRadius" Value="8" />
         <Setter Property="MinHeight" Value="0" />
     </Style>
 
@@ -602,7 +824,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="controls:NavItem">
                     <Grid Height="42" Margin="4,0,4,0" Background="Transparent">
-                        <controls:TechPanel x:Name="Face" Cut="9" Fill="Transparent" Stroke="Transparent"
+                        <controls:TechPanel x:Name="Face" Cut="0" Radius="8" Fill="Transparent" Stroke="Transparent"
                                             IsHitTestVisible="False" />
                         <Border x:Name="Bar" Width="3" HorizontalAlignment="Left"
                                 Background="{ThemeResource AccentBrush}" Visibility="Collapsed" />
@@ -651,7 +873,7 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
                             <Border x:Name="AccentBar" Width="4" Height="32" VerticalAlignment="Top" Margin="0,6,0,0"
-                                    Background="{ThemeResource AccentBrush}" />
+                                    CornerRadius="2" Background="{ThemeResource AccentBrush}" />
                             <StackPanel Grid.Column="1" Margin="14,0,0,0" Spacing="4">
                                 <TextBlock x:Name="TitleText" Text="{TemplateBinding Title}"
                                            Style="{StaticResource PageTitleStyle}" />

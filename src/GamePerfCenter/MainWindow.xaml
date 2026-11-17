@@ -19,6 +19,10 @@
             <RowDefinition Height="28" />
         </Grid.RowDefinitions>
 
+        <!-- 材质高光层：只服务于云母 / 液态玻璃，深空模式隐藏 -->
+        <Border x:Name="SheenLayer" Grid.RowSpan="3" Grid.ColumnSpan="2"
+                IsHitTestVisible="False" Opacity="0" />
+
         <!-- 左侧导航：品牌、设备指纹、分组导航、实时遥测 -->
         <Border x:Name="Rail" Grid.Row="0" Grid.RowSpan="2" Grid.Column="0"
                 Background="{ThemeResource NavBgBrush}"
@@ -199,7 +203,7 @@
                 <Button x:Name="PendingButton" Click="PendingButton_Click" Visibility="Collapsed"
                         Background="{ThemeResource WarnSoftBrush}"
                         BorderBrush="{ThemeResource WarnBrush}" BorderThickness="1"
-                        CornerRadius="2" Padding="9,4" VerticalAlignment="Center"
+                        CornerRadius="999" Padding="11,4" VerticalAlignment="Center"
                         ToolTipService.ToolTip="查看待应用的低风险优化项">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <Ellipse Width="5" Height="5" Fill="{ThemeResource WarnBrush}" VerticalAlignment="Center" />
@@ -210,20 +214,20 @@
 
                 <!-- 主题三段选择：与 Pavise 顶栏的分段控件同构 -->
                 <Border Background="{ThemeResource InsetBrush}" BorderBrush="{ThemeResource BorderBrush}"
-                        BorderThickness="1" CornerRadius="2" Padding="2">
+                        BorderThickness="1" CornerRadius="8" Padding="2">
                     <StackPanel Orientation="Horizontal" Spacing="1">
                         <Button x:Name="ThemeDarkButton" Content="深" Tag="dark" Click="ThemeSegment_Click"
-                                FontSize="11.5" Padding="9,3" MinHeight="24" CornerRadius="1"
+                                FontSize="11.5" Padding="9,3" MinHeight="24" CornerRadius="6"
                                 BorderThickness="0" Background="Transparent"
                                 Foreground="{ThemeResource SubTextBrush}"
                                 ToolTipService.ToolTip="深色主题" />
                         <Button x:Name="ThemeLightButton" Content="浅" Tag="light" Click="ThemeSegment_Click"
-                                FontSize="11.5" Padding="9,3" MinHeight="24" CornerRadius="1"
+                                FontSize="11.5" Padding="9,3" MinHeight="24" CornerRadius="6"
                                 BorderThickness="0" Background="Transparent"
                                 Foreground="{ThemeResource SubTextBrush}"
                                 ToolTipService.ToolTip="浅色主题" />
                         <Button x:Name="ThemeSystemButton" Content="随" Tag="system" Click="ThemeSegment_Click"
-                                FontSize="11.5" Padding="9,3" MinHeight="24" CornerRadius="1"
+                                FontSize="11.5" Padding="9,3" MinHeight="24" CornerRadius="6"
                                 BorderThickness="0" Background="Transparent"
                                 Foreground="{ThemeResource SubTextBrush}"
                                 ToolTipService.ToolTip="跟随系统主题" />

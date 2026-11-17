@@ -66,17 +66,58 @@
                                 <StackPanel Spacing="12">
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="窗口材质" Style="{StaticResource BodyTextStyle}" />
-                                        <TextBlock Text="云母与液态玻璃使用 Windows 11 系统合成层；系统不支持时自动回退深空。卡片保持实色，不牺牲正文可读性。"
+                                        <TextBlock Text="云母与液态玻璃直接透出 Windows 11 系统合成层，卡片与导航保持可读；系统不支持时自动回退深空。"
                                                    Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                                     </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Spacing="18">
-                                        <RadioButton x:Name="MaterialDeepOption" Content="深空" GroupName="Material"
-                                                     MinWidth="0" Checked="Material_Checked" />
-                                        <RadioButton x:Name="MaterialMicaOption" Content="云母" GroupName="Material"
-                                                     MinWidth="0" Checked="Material_Checked" />
-                                        <RadioButton x:Name="MaterialGlassOption" Content="液态玻璃" GroupName="Material"
-                                                     MinWidth="0" Checked="Material_Checked" />
-                                    </StackPanel>
+                                    <Grid ColumnSpacing="8" HorizontalAlignment="Stretch">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Button x:Name="MaterialDeepOption" Tag="deep" MinWidth="0"
+                                                Style="{StaticResource MaterialTileStyle}"
+                                                Click="MaterialOption_Click"
+                                                ToolTipService.ToolTip="纯本地渐变背景，不依赖系统合成层">
+                                            <StackPanel Spacing="7">
+                                                <Border Height="34" CornerRadius="7"
+                                                        Background="{ThemeResource DeepPreviewBrush}"
+                                                        BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" />
+                                                <TextBlock Text="深空" FontSize="12.5" FontWeight="SemiBold"
+                                                           Foreground="{ThemeResource TextBrush}" TextWrapping="NoWrap" />
+                                                <TextBlock Text="纯本地渐变" Style="{StaticResource CaptionTextStyle}"
+                                                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button x:Name="MaterialMicaOption" Grid.Column="1" Tag="mica" MinWidth="0"
+                                                Style="{StaticResource MaterialTileStyle}"
+                                                Click="MaterialOption_Click"
+                                                ToolTipService.ToolTip="使用 Windows 11 云母背景">
+                                            <StackPanel Spacing="7">
+                                                <Border Height="34" CornerRadius="7"
+                                                        Background="{ThemeResource MicaPreviewBrush}"
+                                                        BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" />
+                                                <TextBlock Text="云母" FontSize="12.5" FontWeight="SemiBold"
+                                                           Foreground="{ThemeResource TextBrush}" TextWrapping="NoWrap" />
+                                                <TextBlock Text="静态磨砂" Style="{StaticResource CaptionTextStyle}"
+                                                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button x:Name="MaterialGlassOption" Grid.Column="2" Tag="glass" MinWidth="0"
+                                                Style="{StaticResource MaterialTileStyle}"
+                                                Click="MaterialOption_Click"
+                                                ToolTipService.ToolTip="使用系统亚克力与高光层模拟液态玻璃">
+                                            <StackPanel Spacing="7">
+                                                <Border Height="34" CornerRadius="7"
+                                                        Background="{ThemeResource GlassPreviewBrush}"
+                                                        BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" />
+                                                <TextBlock Text="液态玻璃" FontSize="12.5" FontWeight="SemiBold"
+                                                           Foreground="{ThemeResource TextBrush}" TextWrapping="NoWrap" />
+                                                <TextBlock Text="实时透光" Style="{StaticResource CaptionTextStyle}"
+                                                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

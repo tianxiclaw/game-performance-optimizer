@@ -115,6 +115,17 @@ public sealed class TechPanel : Grid
         set => SetValue(CutBottomProperty, value);
     }
 
+    public static readonly DependencyProperty RadiusProperty = DependencyProperty.Register(
+        nameof(Radius), typeof(double), typeof(TechPanel),
+        new PropertyMetadata(0d, (d, _) => ((TechPanel)d).UpdateGeometry()));
+
+    /// <summary>圆角半径；仅在两个切角都为 0 时生效，用于常规卡片与内嵌面。</summary>
+    public double Radius
+    {
+        get => (double)GetValue(RadiusProperty);
+        set => SetValue(RadiusProperty, value);
+    }
+
     public static readonly DependencyProperty TopLineBrushProperty = DependencyProperty.Register(
         nameof(TopLineBrush), typeof(Brush), typeof(TechPanel),
         new PropertyMetadata(null, (d, _) => ((TechPanel)d).UpdateGeometry()));
@@ -175,18 +186,56 @@ public sealed class TechPanel : Grid
         var maxCut = Math.Min(right - left, bottom - top) * 0.5;
         var cut = Math.Clamp(Cut, 0, maxCut);
         var cutBottom = Math.Clamp(CutBottom, 0, maxCut);
+        var radius = cut <= 0 && cutBottom <= 0 ? Math.Clamp(Radius, 0, maxCut) : 0;
 
         var figure = new PathFigure
         {
-            StartPoint = new Point(left, top),
+            StartPoint = new Point(left + radius, top),
             IsClosed = true,
             IsFilled = true
         };
-        figure.Segments.Add(new LineSegment { Point = new Point(right - cut, top) });
-        figure.Segments.Add(new LineSegment { Point = new Point(right, top + cut) });
-        figure.Segments.Add(new LineSegment { Point = new Point(right, bottom) });
-        figure.Segments.Add(new LineSegment { Point = new Point(left + cutBottom, bottom) });
-        figure.Segments.Add(new LineSegment { Point = new Point(left, bottom - cutBottom) });
+
+        if (radius > 0)
+        {
+            var corner = new Size(radius, radius);
+            figure.Segments.Add(new LineSegment { Point = new Point(right - radius, top) });
+            figure.Segments.Add(new ArcSegment
+            {
+                Point = new Point(right, top + radius),
+                Size = corner,
+                SweepDirection = SweepDirection.Clockwise
+            });
+            figure.Segments.Add(new LineSegment { Point = new Point(right, bottom - radius) });
+            figure.Segments.Add(new ArcSegment
+            {
+                Point = new Point(right - radius, bottom),
+                Size = corner,
+                SweepDirection = SweepDirection.Clockwise
+            });
+            figure.Segments.Add(new LineSegment { Point = new Point(left + radius, bottom) });
+            figure.Segments.Add(new ArcSegment
+            {
+                Point = new Point(left, bottom - radius),
+                Size = corner,
+                SweepDirection = SweepDirection.Clockwise
+            });
+            figure.Segments.Add(new LineSegment { Point = new Point(left, top + radius) });
+            figure.Segments.Add(new ArcSegment
+            {
+                Point = new Point(left + radius, top),
+                Size = corner,
+                SweepDirection = SweepDirection.Clockwise
+            });
+        }
+        else
+        {
+            figure.StartPoint = new Point(left, top);
+            figure.Segments.Add(new LineSegment { Point = new Point(right - cut, top) });
+            figure.Segments.Add(new LineSegment { Point = new Point(right, top + cut) });
+            figure.Segments.Add(new LineSegment { Point = new Point(right, bottom) });
+            figure.Segments.Add(new LineSegment { Point = new Point(left + cutBottom, bottom) });
+            figure.Segments.Add(new LineSegment { Point = new Point(left, bottom - cutBottom) });
+        }
 
         var geometry = new PathGeometry();
         geometry.Figures.Add(figure);
@@ -201,21 +250,21 @@ public sealed class TechPanel : Grid
 
         Canvas.SetLeft(_topLine, left);
         Canvas.SetTop(_topLine, top);
-        _topLine.Width = Math.Max(0, right - left - cut);
+        _topLine.Width = Math.Max(0, right - left - cut - (radius * 2));
         _topLine.Fill = TopLineBrush;
         _topLine.Opacity = Math.Clamp(TopLineOpacity, 0, 1);
         _topLine.Visibility = TopLineBrush is null ? Visibility.Collapsed : Visibility.Visible;
 
         var bracketBrush = BracketBrush ?? TopLineBrush ?? Stroke;
         var bracketLength = 16d;
-        Canvas.SetLeft(_bracketH, left + 1);
+        Canvas.SetLeft(_bracketH, left + radius + 1);
         Canvas.SetTop(_bracketH, top + 1);
         _bracketH.Width = bracketLength;
         _bracketH.Fill = bracketBrush;
         _bracketH.Visibility = Brackets ? Visibility.Visible : Visibility.Collapsed;
 
         Canvas.SetLeft(_bracketV, left + 1);
-        Canvas.SetTop(_bracketV, top + 1);
+        Canvas.SetTop(_bracketV, top + radius + 1);
         _bracketV.Height = bracketLength;
         _bracketV.Fill = bracketBrush;
         _bracketV.Visibility = Brackets ? Visibility.Visible : Visibility.Collapsed;

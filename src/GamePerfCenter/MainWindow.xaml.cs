@@ -154,17 +154,23 @@ public sealed partial class MainWindow : Window
                 case "mica":
                     SystemBackdrop = new MicaBackdrop();
                     RootGrid.Background = ThemeResources.Get("MicaTintBrush");
+                    SheenLayer.Background = ThemeResources.Get("MicaSheenBrush");
+                    SheenLayer.Opacity = 0.55;
                     ApplyChrome(unified: true);
-                    StarLayer.Opacity = ThemeService.IsDark ? 0.7 : 0.5;
+                    // 材质模式不再叠加星空网格：网格会盖住 Mica 的细微噪点与明暗层次。
+                    StarLayer.Opacity = 0;
                     break;
                 case "glass":
                     SystemBackdrop = new DesktopAcrylicBackdrop();
                     RootGrid.Background = ThemeResources.Get("GlassTintBrush");
+                    SheenLayer.Background = ThemeResources.Get("GlassSheenBrush");
+                    SheenLayer.Opacity = 0.85;
                     ApplyChrome(unified: true);
-                    StarLayer.Opacity = ThemeService.IsDark ? 0.5 : 0.35;
+                    StarLayer.Opacity = 0;
                     break;
                 default:
                     RootGrid.Background = ThemeResources.Get("AppBackdropBrush");
+                    SheenLayer.Opacity = 0;
                     ApplyChrome(unified: false);
                     StarLayer.Opacity = ThemeService.IsDark ? 1 : 0.55;
                     break;
@@ -175,6 +181,7 @@ public sealed partial class MainWindow : Window
             AppLog.Write("窗口材质应用失败: " + ex.Message);
             SystemBackdrop = null;
             RootGrid.Background = ThemeResources.Get("AppBackdropBrush");
+            SheenLayer.Opacity = 0;
             ApplyChrome(unified: false);
             StarLayer.Opacity = ThemeService.IsDark ? 1 : 0.55;
         }
