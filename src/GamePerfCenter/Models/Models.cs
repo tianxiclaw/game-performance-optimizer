@@ -232,7 +232,7 @@ public sealed class BackupInfo
     public string RecordsText => $"{Records} 条记录";
 }
 
-public sealed class GameInfo
+public sealed partial class GameInfo
 {
     public string? Name { get; set; }
     public string? Exe { get; set; }
@@ -313,6 +313,9 @@ public sealed class BackgroundProc
     public int Id { get; set; }
     public double MemMB { get; set; }
     public bool Foreground { get; set; }
+
+    [JsonIgnore]
+    public double Share { get; set; }
 
     [JsonIgnore]
     public string MemText => $"{MemMB:0.0} MB";

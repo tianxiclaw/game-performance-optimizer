@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Page
     x:Class="GamePerfCenter.Pages.DiagnosticsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -8,73 +8,106 @@
     NavigationCacheMode="Required"
     Background="Transparent">
 
-    <Grid Padding="24,18,24,18" RowSpacing="10">
+    <Grid Padding="24,20,24,16" RowSpacing="10">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <controls:PageHeader Title="诊断报告" Code="GAMEPERF // DIAGNOSTICS"
-                             Subtitle="当前有哪些风险：硬件、电源、驱动、服务与安全状态的一次性核查。">
+        <controls:PageHeader Title="诊断报告"
+                             Subtitle="硬件、电源、驱动、服务与安全状态的一次性核查。">
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <Button Content="打开诊断目录" Style="{StaticResource GhostButtonStyle}" Click="OpenFolder_Click" />
-                <Button Content="导出诊断包" Style="{StaticResource SubtleButtonStyle}" Click="ExportBundle_Click"
+                <Button Content="导出诊断包" Style="{StaticResource GhostButtonStyle}" Click="ExportBundle_Click"
                         ToolTipService.ToolTip="打包日志、配置与诊断文本，便于反馈问题" />
                 <Button Content="导出报告" Style="{StaticResource SubtleButtonStyle}" Click="ExportReport_Click" />
                 <Button Content="重新诊断" Style="{StaticResource AccentButtonStyle}" Click="Run_Click" />
             </StackPanel>
         </controls:PageHeader>
 
-        <controls:TechPanel Grid.Row="1" Style="{StaticResource TechCardStyle}" Padding="16,12" Cut="10">
+        <!-- 搜索 + 严重度筛选：先缩小范围，再看结果 -->
+        <Grid Grid.Row="1" RowSpacing="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="DiagSearch" MaxWidth="300" MinWidth="180" MinHeight="32"
+                         HorizontalAlignment="Left" PlaceholderText="搜索项目、值或说明"
+                         TextChanged="Search_TextChanged" />
+                <TextBlock x:Name="DiagSummary" Grid.Column="1" VerticalAlignment="Center"
+                           Style="{StaticResource CaptionTextStyle}" TextTrimming="CharacterEllipsis" />
+            </Grid>
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="6">
+                <Button x:Name="FilterAll" Content="全部" Style="{StaticResource FilterChipStyle}"
+                        Click="FilterAll_Click" />
+                <Button x:Name="FilterAttention" Content="需关注" Style="{StaticResource FilterChipStyle}"
+                        Click="FilterAttention_Click" />
+                <Button x:Name="FilterOk" Content="正常" Style="{StaticResource FilterChipStyle}"
+                        Click="FilterOk_Click" />
+            </StackPanel>
+        </Grid>
+
+        <!-- 最近导出：一行状态条，不占整张卡片 -->
+        <Border Grid.Row="2" Background="{ThemeResource Surface2Brush}" CornerRadius="10" Padding="14,9">
             <Grid ColumnSpacing="12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <Border Width="38" Height="38" Background="{ThemeResource AccentSoftBrush}"
-                        BorderBrush="{ThemeResource HeroBorderBrush}" BorderThickness="1"
-                        VerticalAlignment="Center">
-                    <FontIcon Glyph="&#xE9D9;" FontSize="16" Foreground="{ThemeResource AccentBrush}" />
-                </Border>
-                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                <FontIcon Glyph="&#xE9D9;" FontSize="14" Foreground="{ThemeResource AccentBrush}"
+                          VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
                     <TextBlock x:Name="LastExportTitle" Text="尚未导出" Style="{StaticResource BodyTextStyle}" />
                     <TextBlock x:Name="LastExportPath" Text="导出的报告会保存在 diagnostics 目录"
-                               Style="{StaticResource CaptionTextStyle}" TextTrimming="CharacterEllipsis" />
+                               Style="{StaticResource CaptionTextStyle}" TextTrimming="CharacterEllipsis"
+                               TextWrapping="NoWrap" />
                 </StackPanel>
-                <Button x:Name="OpenExportButton" Grid.Column="2" Content="打开文件" Style="{StaticResource GhostButtonStyle}"
-                        Click="OpenExport_Click" IsEnabled="False" VerticalAlignment="Center" />
+                <Button x:Name="OpenExportButton" Grid.Column="2" Content="打开文件"
+                        Style="{StaticResource GhostButtonStyle}" Click="OpenExport_Click"
+                        IsEnabled="False" VerticalAlignment="Center" />
             </Grid>
-        </controls:TechPanel>
+        </Border>
 
-        <InfoBar x:Name="PageInfo" Grid.Row="2" IsOpen="False" IsClosable="True" />
+        <InfoBar x:Name="PageInfo" Grid.Row="3" IsOpen="False" IsClosable="True" />
 
-        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" Padding="0,0,4,8"
+        <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto" Padding="0,0,4,8"
                       HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
                       HorizontalContentAlignment="Stretch">
-            <StackPanel Spacing="14" MaxWidth="1500" HorizontalAlignment="Stretch">
-                <ItemsControl x:Name="GroupList">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="models:DiagGroup">
-                            <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="16,14" Cut="12">
-                                <StackPanel Spacing="12">
-                                    <Grid>
-                                        <TextBlock Text="{x:Bind Name}" Style="{StaticResource SectionTitleStyle}" />
+            <StackPanel Spacing="12" MaxWidth="1500" HorizontalAlignment="Stretch">
+                <controls:TechPanel x:Name="ResultsCard" Style="{StaticResource TechCardStyle}" Padding="18,8">
+                    <ItemsControl x:Name="GroupList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="models:DiagGroup">
+                                <StackPanel Spacing="7" Margin="0,10,0,12">
+                                    <Grid ColumnSpacing="10">
+                                        <TextBlock Text="{x:Bind Name}" FontSize="14.5" FontWeight="SemiBold"
+                                                   Foreground="{ThemeResource TextBrush}" TextWrapping="NoWrap" />
                                         <TextBlock Text="{x:Bind Hint}" HorizontalAlignment="Right"
-                                                   Style="{StaticResource TechCodeStyle}" />
+                                                   Style="{StaticResource TechCodeStyle}" VerticalAlignment="Center" />
                                     </Grid>
                                     <ItemsControl ItemsSource="{x:Bind Items}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="models:DiagEntry">
-                                                <Grid ColumnSpacing="14" Margin="0,0,0,9">
+                                                <Grid ColumnSpacing="14" Padding="0,7"
+                                                      BorderBrush="{ThemeResource BorderBrush}" BorderThickness="0,1,0,0">
                                                     <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="190" />
+                                                        <ColumnDefinition Width="150" />
                                                         <ColumnDefinition Width="*" />
                                                         <ColumnDefinition Width="Auto" />
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="{x:Bind Name}" Style="{StaticResource SecondaryTextStyle}" />
+                                                    <TextBlock Text="{x:Bind Name}" Style="{StaticResource SecondaryTextStyle}"
+                                                               VerticalAlignment="Top" Margin="0,1,0,0"
+                                                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                                                               ToolTipService.ToolTip="{x:Bind Name}" />
                                                     <StackPanel Grid.Column="1" Spacing="2">
                                                         <TextBlock Text="{x:Bind Value}" Style="{StaticResource BodyTextStyle}"
                                                                    TextWrapping="Wrap" />
@@ -85,22 +118,25 @@
                                                     <TextBlock Grid.Column="2" Text="{x:Bind LevelText}"
                                                                Foreground="{x:Bind Level, Converter={StaticResource LevelBrush}}"
                                                                FontSize="11.5" FontWeight="SemiBold" VerticalAlignment="Top"
-                                                               Margin="0,1,0,0" />
+                                                               Margin="0,2,0,0" />
                                                 </Grid>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                 </StackPanel>
-                            </controls:TechPanel>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </controls:TechPanel>
 
                 <StackPanel x:Name="EmptyHint" Spacing="9" HorizontalAlignment="Center" Margin="0,60"
                             Visibility="Collapsed">
-                    <FontIcon Glyph="&#xE9D9;" FontSize="32" Foreground="{ThemeResource MutedTextBrush}" />
-                    <TextBlock Text="还没有诊断结果" Style="{StaticResource SecondaryTextStyle}" />
-                    <Button Content="开始诊断" Style="{StaticResource AccentButtonStyle}" Click="Run_Click" />
+                    <FontIcon Glyph="&#xE9D9;" FontSize="30" Foreground="{ThemeResource MutedTextBrush}" />
+                    <TextBlock x:Name="EmptyTitle" Text="还没有诊断结果" Style="{StaticResource SecondaryTextStyle}" />
+                    <TextBlock x:Name="EmptyDetail" Text="运行一次诊断，确认当前系统的风险与可优化项。"
+                               Style="{StaticResource CaptionTextStyle}" />
+                    <Button x:Name="EmptyAction" Content="开始诊断" Style="{StaticResource AccentButtonStyle}"
+                            Click="Run_Click" HorizontalAlignment="Center" />
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>

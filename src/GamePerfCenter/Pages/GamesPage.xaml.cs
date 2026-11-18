@@ -26,6 +26,7 @@ public sealed partial class GamesPage : Page, IThemeAware
     private bool _narrow;
     private bool? _short;
     private bool _loadingFilters;
+    private bool _loading = true;
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _hoverTimer;
     private FrameworkElement? _hoverRow;
     private GameInfo? _hoverGame;
@@ -34,6 +35,8 @@ public sealed partial class GamesPage : Page, IThemeAware
     {
         InitializeComponent();
         GameList.ItemsSource = _view;
+        InitFilters();
+        ApplyFilter();
         Loaded += OnLoaded;
         Loaded += (_, _) => ApplyDensity(ActualHeight);
         SizeChanged += (_, e) => ApplyDensity(e.NewSize.Height);
@@ -104,7 +107,7 @@ public sealed partial class GamesPage : Page, IThemeAware
     private void ShowHoverPreview()
     {
         if (_narrow || _hoverGame is not { } game || _hoverRow is not { IsLoaded: true } row) return;
-        HoverInitial.Text = game.Initial;
+        ApplyHoverIcon(game);
         HoverName.Text = string.IsNullOrWhiteSpace(game.Name) ? "未命名游戏" : game.Name;
         HoverMeta.Text = $"{game.SourceText} · {game.StateText}";
         HoverProfile.Text = game.ProfileText;
@@ -200,6 +203,8 @@ public sealed partial class GamesPage : Page, IThemeAware
     private async Task LoadAsync(bool force)
     {
         var keepExe = _selected?.Exe;
+        _loading = true;
+        ApplyFilter();
         try
         {
             App.Services.State.SetStatus(force ? "正在扫描游戏库..." : "正在读取游戏库...");
@@ -207,10 +212,14 @@ public sealed partial class GamesPage : Page, IThemeAware
             _all.Clear();
             _all.AddRange(games);
             InitFilters();
+            _loading = false;
             ApplyFilter(keepExe);
+            _ = LoadIconsAsync();
         }
         catch (Exception ex)
         {
+            _loading = false;
+            ApplyFilter(keepExe);
             ShowInfo("读取游戏库失败", ex.Message, InfoBarSeverity.Error);
         }
         finally
@@ -299,8 +308,14 @@ public sealed partial class GamesPage : Page, IThemeAware
             if (profileFilter == "none" && saved) continue;
             _view.Add(game);
         }
-        CountText.Text = $"{_view.Count} / {_all.Count} 个游戏";
+        CountText.Text = _loading ? "正在读取..." : $"{_view.Count} / {_all.Count} 个游戏";
         EmptyHint.Visibility = _view.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        EmptyTitle.Text = _loading ? "正在读取游戏库" : _all.Count == 0 ? "没有检测到游戏" : "没有匹配的游戏";
+        EmptyDetail.Text = _loading
+            ? "正在扫描 Steam / Epic / WeGame / Xbox 安装目录，通常需要几秒。"
+            : _all.Count == 0
+                ? "支持 Steam / Epic / WeGame / Xbox；也可以手动选择任意 exe。"
+                : "换个关键词或筛选条件，或点“重新扫描”。";
 
         var target = keepExe is null
             ? null
@@ -400,7 +415,7 @@ public sealed partial class GamesPage : Page, IThemeAware
         }
 
         var name = string.IsNullOrWhiteSpace(game!.Name) ? "未命名游戏" : game.Name;
-        DetailMonogram.Text = game.Initial;
+        ApplyDetailIcon(game);
         DetailName.Text = name;
         DetailSource.Text = game.SourceText;
         DetailState.Text = game.StateText;
@@ -440,6 +455,58 @@ public sealed partial class GamesPage : Page, IThemeAware
         }
     }
 
+
+    /// <summary>
+    /// 图标按每台机器上的 exe 路径逐个读取，不依赖预置清单；
+    /// 读取失败的项保持首字母，也不会因为一次失败反复访问同一路径。
+    /// </summary>
+    private async Task LoadIconsAsync()
+    {
+        foreach (var game in _all)
+        {
+            if (game.IconLoaded || string.IsNullOrWhiteSpace(game.Exe)) continue;
+            var icon = await GameIconService.GetAsync(game.Exe);
+            game.ApplyIcon(icon);
+        }
+    }
+
+    private void ApplyDetailIcon(GameInfo game)
+    {
+        DetailIcon.Source = game.Icon;
+        DetailIcon.Visibility = game.HasIcon ? Visibility.Visible : Visibility.Collapsed;
+        DetailMonogram.Visibility = game.HasIcon ? Visibility.Collapsed : Visibility.Visible;
+        DetailMonogram.Text = game.Initial;
+        if (!game.IconLoaded && !string.IsNullOrWhiteSpace(game.Exe)) _ = LoadDetailIconAsync(game);
+    }
+
+    private async Task LoadDetailIconAsync(GameInfo game)
+    {
+        var icon = await GameIconService.GetAsync(game.Exe);
+        game.ApplyIcon(icon);
+        if (!ReferenceEquals(_selected, game)) return;
+        DetailIcon.Source = icon;
+        DetailIcon.Visibility = icon is null ? Visibility.Collapsed : Visibility.Visible;
+        DetailMonogram.Visibility = icon is null ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ApplyHoverIcon(GameInfo game)
+    {
+        HoverIcon.Source = game.Icon;
+        HoverIcon.Visibility = game.HasIcon ? Visibility.Visible : Visibility.Collapsed;
+        HoverInitial.Visibility = game.HasIcon ? Visibility.Collapsed : Visibility.Visible;
+        HoverInitial.Text = game.Initial;
+        if (!game.IconLoaded && !string.IsNullOrWhiteSpace(game.Exe)) _ = LoadHoverIconAsync(game);
+    }
+
+    private async Task LoadHoverIconAsync(GameInfo game)
+    {
+        var icon = await GameIconService.GetAsync(game.Exe);
+        game.ApplyIcon(icon);
+        if (!ReferenceEquals(_hoverGame, game) || HoverPreview.Visibility != Visibility.Visible) return;
+        HoverIcon.Source = icon;
+        HoverIcon.Visibility = icon is null ? Visibility.Collapsed : Visibility.Visible;
+        HoverInitial.Visibility = icon is null ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     private async Task EditProfileAsync(GameInfo game)
     {

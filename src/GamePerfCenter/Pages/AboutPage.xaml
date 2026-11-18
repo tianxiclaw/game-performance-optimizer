@@ -13,7 +13,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <controls:PageHeader Title="关于与支持" Code="GAMEPERF // ABOUT"
+        <controls:PageHeader Title="关于与支持"
                              Subtitle="这是什么、是否可信：版本、能力范围与支持作者的方式。" />
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,4,8"
@@ -83,7 +83,7 @@
                     </Grid.RowDefinitions>
 
                     <!-- 支持作者：商业化入口，必须始终可见 -->
-                    <controls:TechPanel x:Name="SupportCard" Style="{StaticResource TechCardStyle}" Padding="18,16" Cut="12" CutBottom="12">
+                    <controls:TechPanel x:Name="SupportCard" Style="{StaticResource TechCardStyle}" Padding="18,16">
                         <Grid ColumnSpacing="20">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
@@ -119,7 +119,7 @@
                         </Grid>
                     </controls:TechPanel>
 
-                    <controls:TechPanel x:Name="CapabilityCard" Grid.Column="1" Style="{StaticResource TechCardStyle}" Padding="18,16" Cut="12" CutBottom="12">
+                    <controls:TechPanel x:Name="CapabilityCard" Grid.Column="1" Style="{StaticResource TechCardStyle}" Padding="18,16">
                         <StackPanel Spacing="12">
                             <TextBlock Text="能力范围" Style="{StaticResource SectionTitleStyle}" />
                             <ItemsControl x:Name="CapabilityList">

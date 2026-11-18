@@ -37,7 +37,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <controls:PageHeader Title="驱动中心" Code="GAMEPERF // DRIVER INVENTORY"
+        <controls:PageHeader Title="驱动中心"
                              Subtitle="扫描本机设备与驱动仓库，核对版本与残留；更新判断只读取 Windows Update，不自动安装。">
             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <Button x:Name="RefreshButton" Content="刷新本地" Style="{StaticResource AccentButtonStyle}"
@@ -60,7 +60,7 @@
                       HorizontalContentAlignment="Stretch">
             <StackPanel Spacing="16" MaxWidth="1500" HorizontalAlignment="Stretch">
 
-                <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16" Cut="12" CutBottom="12">
+                <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16">
                     <Grid RowSpacing="14" ColumnSpacing="24">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -100,7 +100,7 @@
                     </Grid>
                 </controls:TechPanel>
 
-                <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16" Cut="12" CutBottom="12">
+                <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16">
                     <StackPanel Spacing="12">
                         <Grid>
                             <StackPanel Spacing="3">
@@ -184,7 +184,7 @@
                         <ColumnDefinition Width="1*" />
                     </Grid.ColumnDefinitions>
 
-                    <controls:TechPanel x:Name="ChangeCard" Style="{StaticResource TechCardStyle}" Padding="18,16" Cut="12" CutBottom="12">
+                    <controls:TechPanel x:Name="ChangeCard" Style="{StaticResource TechCardStyle}" Padding="18,16">
                         <StackPanel Spacing="12">
                             <StackPanel Spacing="3">
                                 <TextBlock Text="最近驱动变更" Style="{StaticResource SectionTitleStyle}" />
@@ -221,7 +221,7 @@
                         </StackPanel>
                     </controls:TechPanel>
 
-                    <controls:TechPanel x:Name="HistoryCard" Grid.Column="1" Style="{StaticResource TechCardStyle}" Padding="18,16" Cut="12" CutBottom="12">
+                    <controls:TechPanel x:Name="HistoryCard" Grid.Column="1" Style="{StaticResource TechCardStyle}" Padding="18,16">
                         <StackPanel Spacing="12">
                             <StackPanel Spacing="3">
                                 <TextBlock Text="设备驱动档案" Style="{StaticResource SectionTitleStyle}" />
@@ -249,7 +249,7 @@
                     </controls:TechPanel>
                 </Grid>
 
-                <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="16,12" Cut="10">
+                <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="16,12">
                     <Grid ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />

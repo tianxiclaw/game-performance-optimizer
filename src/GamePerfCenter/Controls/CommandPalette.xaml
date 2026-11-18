@@ -10,10 +10,9 @@
           Tapped="Layer_Tapped">
         <local:TechPanel x:Name="Card" MaxWidth="640" MaxHeight="560" Margin="24,88,24,24"
                          HorizontalAlignment="Stretch" VerticalAlignment="Top"
-                         Padding="0" Radius="16" Cut="0"
+                         Padding="0" Radius="16"
                          Fill="{ThemeResource CardSurfaceBrush}"
                          Stroke="{ThemeResource BorderStrongBrush}" StrokeThickness="1"
-                         TopLineBrush="{ThemeResource AccentDimBrush}" TopLineOpacity="0.9"
                          Tapped="Card_Tapped">
             <Grid>
                 <Grid.RowDefinitions>
@@ -77,7 +76,7 @@
                                                    MaxLines="1" TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
                                     <TextBlock Grid.Column="2" Text="{x:Bind Group}"
-                                               Style="{StaticResource TechMicroStyle}"
+                                               Style="{StaticResource CaptionTextStyle}"
                                                VerticalAlignment="Center" Margin="0,0,4,0" />
                                 </Grid>
                             </DataTemplate>
@@ -86,8 +85,8 @@
 
                     <StackPanel x:Name="EmptyText" VerticalAlignment="Center" HorizontalAlignment="Center"
                                 Spacing="4" Visibility="Collapsed" IsHitTestVisible="False">
-                        <TextBlock Text="NO MATCH" Style="{StaticResource TechLabelStyle}"
-                                   Foreground="{ThemeResource DangerBrush}" HorizontalAlignment="Center" />
+                        <TextBlock Text="没有匹配的命令" Style="{StaticResource BodyTextStyle}"
+                                   HorizontalAlignment="Center" />
                         <TextBlock Text="换个关键词，或直接输入页面名。" Style="{StaticResource CaptionTextStyle}"
                                    HorizontalAlignment="Center" />
                     </StackPanel>
@@ -96,9 +95,9 @@
                 <!-- 底部键位说明 -->
                 <Grid Grid.Row="2" Padding="16,0" Background="{ThemeResource InsetBrush}">
                     <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                        <TextBlock Text="↑↓ 选择" Style="{StaticResource TechCodeStyle}" />
-                        <TextBlock Text="↵ 执行" Style="{StaticResource TechCodeStyle}" />
-                        <TextBlock Text="ESC 关闭" Style="{StaticResource TechCodeStyle}" />
+                        <TextBlock Text="↑↓ 选择" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Text="↵ 执行" Style="{StaticResource CaptionTextStyle}" />
+                        <TextBlock Text="ESC 关闭" Style="{StaticResource CaptionTextStyle}" />
                     </StackPanel>
                     <TextBlock x:Name="CountText" HorizontalAlignment="Right" VerticalAlignment="Center"
                                Style="{StaticResource TechCodeStyle}" />

@@ -13,13 +13,13 @@ namespace GamePerfCenter.Pages;
 
 public sealed partial class OverviewPage : Page, IThemeAware
 {
-    private const int HistoryLimit = 45;
-    private const double RadarCenter = 132;
+    private const double SampleSeconds = 0.25;
+    private const int HistoryLimit = (int)(90 / SampleSeconds);
+    private const double SparkHeight = 44;
     private readonly List<double> _cpuHistory = new();
     private readonly NumberRoll _cpuRoll;
     private readonly NumberRoll _gpuRoll;
     private readonly NumberRoll _ramRoll;
-    private Storyboard? _sweep;
     private Storyboard? _pulse;
     private MainWindow? _shell;
 
@@ -34,77 +34,48 @@ public sealed partial class OverviewPage : Page, IThemeAware
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
         Responsive.Watch(this, 1020, ApplyWidth);
-        Responsive.Watch(this, 760, ApplyCompact);
+        Responsive.Watch(this, 760, ApplyMetricLayout);
         Responsive.Watch(this, 900, ApplyBottom);
     }
 
-    /// <summary>窄窗口时把优化进度移到仪表下方，避免横向挤压。</summary>
+    /// <summary>窄窗口时把优化进度移到实时负载下方，避免横向挤压。</summary>
     private void ApplyWidth(bool narrow)
     {
-        // 优化进度移走后，右侧两列不再需要占位；否则固定的 264 + 300 会把
-        // 中间的自适应列压成 0，窄窗口下雷达与遥测被裁掉一截。
-        HeroGrid.ColumnDefinitions[2].Width = narrow ? new GridLength(0) : new GridLength(1);
-        HeroGrid.ColumnDefinitions[3].Width = narrow ? new GridLength(0) : new GridLength(300);
+        HeroGrid.ColumnDefinitions[1].Width = narrow ? new GridLength(0) : new GridLength(340);
 
         if (narrow)
         {
-            Grid.SetRow(PendingDivider, 3);
-            Grid.SetColumn(PendingDivider, 0);
-            Grid.SetColumnSpan(PendingDivider, 4);
-            PendingDivider.Width = double.NaN;
-            PendingDivider.Height = 1;
-            PendingDivider.Margin = new Thickness(0, 18, 0, 0);
-
-            Grid.SetRow(PendingPanel, 4);
+            Grid.SetRow(PendingPanel, 1);
             Grid.SetColumn(PendingPanel, 0);
-            Grid.SetColumnSpan(PendingPanel, 4);
-            PendingPanel.Width = double.NaN;
-            PendingPanel.Margin = new Thickness(0, 16, 0, 0);
+            Grid.SetColumnSpan(PendingPanel, 2);
+            PendingPanel.BorderThickness = new Thickness(0, 1, 0, 0);
+            PendingPanel.Padding = new Thickness(0, 20, 0, 0);
+            PendingPanel.Margin = new Thickness(0, 20, 0, 0);
         }
         else
         {
-            Grid.SetRow(PendingDivider, 1);
-            Grid.SetColumn(PendingDivider, 2);
-            Grid.SetColumnSpan(PendingDivider, 1);
-            PendingDivider.Width = 1;
-            PendingDivider.Height = double.NaN;
-            PendingDivider.Margin = new Thickness(0, 2, 0, 2);
-
-            Grid.SetRow(PendingPanel, 1);
-            Grid.SetColumn(PendingPanel, 3);
+            Grid.SetRow(PendingPanel, 0);
+            Grid.SetColumn(PendingPanel, 1);
             Grid.SetColumnSpan(PendingPanel, 1);
-            PendingPanel.Width = 300;
+            PendingPanel.BorderThickness = new Thickness(1, 0, 0, 0);
+            PendingPanel.Padding = new Thickness(20, 0, 0, 0);
             PendingPanel.Margin = new Thickness(0);
         }
     }
 
-    /// <summary>更窄时把遥测列移到雷达下方。</summary>
-    private void ApplyCompact(bool compact)
+    /// <summary>很窄时三个指标块改为单列，避免数字被挤成两行。</summary>
+    private void ApplyMetricLayout(bool compact)
     {
-        // 遥测列移到雷达下方后，第一列接管整行宽度，雷达仍保持 264 的固定尺寸。
-        HeroGrid.ColumnDefinitions[0].Width = compact
-            ? new GridLength(1, GridUnitType.Star)
-            : new GridLength(264);
-        HeroGrid.ColumnDefinitions[1].Width = compact
-            ? new GridLength(0)
-            : new GridLength(1, GridUnitType.Star);
+        Grid.SetRow(MetricGpu, 0);
+        Grid.SetRow(MetricMem, compact ? 1 : 0);
+        Grid.SetRow(MetricNet, compact ? 2 : 0);
 
-        if (compact)
-        {
-            Grid.SetRow(LiveStats, 2);
-            Grid.SetColumn(LiveStats, 0);
-            Grid.SetColumnSpan(LiveStats, 2);
-            LiveStats.MinWidth = 0;
-            LiveStats.Margin = new Thickness(0, 18, 0, 0);
-        }
-        else
-        {
-            Grid.SetRow(LiveStats, 1);
-            Grid.SetColumn(LiveStats, 1);
-            Grid.SetColumnSpan(LiveStats, 1);
-            LiveStats.MinWidth = 190;
-            LiveStats.Margin = new Thickness(4, 0, 0, 0);
-        }
+        Grid.SetColumn(MetricGpu, 0);
+        Grid.SetColumn(MetricMem, compact ? 0 : 1);
+        Grid.SetColumn(MetricNet, compact ? 0 : 2);
+
+        MetricGrid.ColumnDefinitions[1].Width = compact ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        MetricGrid.ColumnDefinitions[2].Width = compact ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
     }
 
     /// <summary>窄窗口时硬件与安全改为上下排列。</summary>
@@ -115,7 +86,7 @@ public sealed partial class OverviewPage : Page, IThemeAware
             Grid.SetRow(SecurityCard, 1);
             Grid.SetColumn(SecurityCard, 0);
             Grid.SetColumnSpan(SecurityCard, 2);
-            SecurityCard.Margin = new Thickness(0, 14, 0, 0);
+            SecurityCard.Margin = new Thickness(0, 12, 0, 0);
         }
         else
         {
@@ -128,65 +99,11 @@ public sealed partial class OverviewPage : Page, IThemeAware
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        BuildRadarTicks();
-        StartRadarSweep();
         StartLivePulse();
         RefreshUi();
         SubscribeMetrics();
         if (_shell?.LatestMetrics is { } latest) OnMetrics(latest);
         _ = EnsureDataAsync();
-    }
-
-    /// <summary>雷达扫描扇区：系统关闭动画时停在固定角度，避免无意义的循环重绘。</summary>
-    private void StartRadarSweep()
-    {
-        if (_sweep is not null) return;
-        try
-        {
-            if (!new UISettings().AnimationsEnabled)
-            {
-                RadarSweepRotate.Angle = 42;
-                return;
-            }
-        }
-        catch { }
-
-        var animation = new DoubleAnimation
-        {
-            From = 0,
-            To = 360,
-            Duration = new Duration(TimeSpan.FromSeconds(8)),
-            RepeatBehavior = RepeatBehavior.Forever
-        };
-        Storyboard.SetTarget(animation, RadarSweepRotate);
-        Storyboard.SetTargetProperty(animation, "Angle");
-        _sweep = new Storyboard();
-        _sweep.Children.Add(animation);
-        _sweep.Begin();
-    }
-
-    /// <summary>雷达外圈的 36 根刻度，9 根一组加长，用主题描边色绘制。</summary>
-    private void BuildRadarTicks()
-    {
-        RadarTicks.Children.Clear();
-        var brush = ThemeResources.Get("BorderStrongBrush");
-        const double center = RadarCenter;
-        for (var i = 0; i < 36; i++)
-        {
-            var angle = i * Math.PI / 18;
-            var major = i % 9 == 0;
-            var inner = major ? 118 : 122;
-            RadarTicks.Children.Add(new Microsoft.UI.Xaml.Shapes.Line
-            {
-                X1 = center + Math.Cos(angle) * inner,
-                Y1 = center + Math.Sin(angle) * inner,
-                X2 = center + Math.Cos(angle) * 126,
-                Y2 = center + Math.Sin(angle) * 126,
-                Stroke = brush,
-                StrokeThickness = major ? 1 : 0.75,
-                Opacity = major ? 0.9 : 0.5
-            });
-        }
     }
 
     /// <summary>LIVE 呼吸点：只表达采样在运行，不承载信息。</summary>
@@ -215,8 +132,6 @@ public sealed partial class OverviewPage : Page, IThemeAware
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         UnsubscribeMetrics();
-        _sweep?.Stop();
-        _sweep = null;
         _pulse?.Stop();
         _pulse = null;
         LivePulseDot.Opacity = 1;
@@ -301,7 +216,7 @@ public sealed partial class OverviewPage : Page, IThemeAware
         LiveDeviceLine.Text = gpus.Count > 0 ? "显示设备 · " + string.Join(" + ", gpus) : "未识别到显示设备";
         HardwareSubtitle.Text = $"{machine} · {(snap.IsLaptop ? "笔记本" : "台式机")}";
         SignalPower.Text = snap.OnAC switch { true => "交流供电", false => "电池供电", _ => "未知" };
-        SignalGpu.Text = App.Services.Metrics.GpuAvailable ? "可用 · 2 秒采样" : "不可用";
+        SignalGpu.Text = App.Services.Metrics.GpuAvailable ? "可用 · 1 秒刷新" : "不可用";
         SignalApply.Text = snap.LastApply is null
             ? "暂无记录"
             : $"{snap.LastApply.Items.Count} 项 · {ShortTime(snap.LastApply.Time)}";
@@ -351,17 +266,14 @@ public sealed partial class OverviewPage : Page, IThemeAware
     private void OnMetrics(LiveMetrics m)
     {
         _cpuRoll.To(m.Cpu);
-        UpdateRing(CpuRing, m.Cpu, RadarCenter, 108);
         PushHistory(_cpuHistory, m.Cpu);
-        RenderSpark(CpuSparkLine, _cpuHistory);
+        RenderSpark(CpuSparkLine, _cpuHistory, SparkCanvas.ActualWidth);
 
         var gpuAvailable = App.Services.Metrics.GpuAvailable;
         if (gpuAvailable) _gpuRoll.To(m.Gpu);
         else _gpuRoll.SetLiteral("—");
-        GpuRingLabel.Text = gpuAvailable ? "GPU 3D" : "GPU 未提供";
-        SignalGpu.Text = gpuAvailable ? "可用 · 2 秒采样" : "不可用";
-        GpuRing.Opacity = gpuAvailable ? 0.85 : 0.25;
-        UpdateRing(GpuRing, gpuAvailable ? m.Gpu : 0, RadarCenter, 90);
+        GpuRingLabel.Text = gpuAvailable ? "专用显卡 3D 引擎" : "GPU 数据不可用";
+        SignalGpu.Text = gpuAvailable ? "可用 · 1 秒刷新" : "不可用";
         GpuBar.Value = gpuAvailable ? m.Gpu : 0;
 
         _ramRoll.To(m.RamPercent, "0", "%");
@@ -370,45 +282,7 @@ public sealed partial class OverviewPage : Page, IThemeAware
 
         NetValue.Text = "↓ " + FormatRate(m.NetDownKbps);
         NetHint.Text = "↑ " + FormatRate(m.NetUpKbps);
-        LiveStamp.Text = $"更新于 {DateTime.Now:HH:mm:ss} · 2 秒采样";
-    }
-
-    private static void UpdateRing(Microsoft.UI.Xaml.Shapes.Path ring, double value, double center, double radius)
-    {
-        var fraction = Math.Clamp(value, 0, 100) / 100.0;
-        if (fraction <= 0.004)
-        {
-            ring.Data = null;
-            return;
-        }
-        if (fraction >= 0.996)
-        {
-            ring.Data = new EllipseGeometry
-            {
-                Center = new Point(center, center),
-                RadiusX = radius,
-                RadiusY = radius
-            };
-            return;
-        }
-
-        var radians = (fraction * 360 - 90) * Math.PI / 180;
-        var figure = new PathFigure
-        {
-            StartPoint = new Point(center, center - radius),
-            IsClosed = false,
-            IsFilled = false
-        };
-        figure.Segments.Add(new ArcSegment
-        {
-            Point = new Point(center + radius * Math.Cos(radians), center + radius * Math.Sin(radians)),
-            Size = new Size(radius, radius),
-            SweepDirection = SweepDirection.Clockwise,
-            IsLargeArc = fraction > 0.5
-        });
-        var geometry = new PathGeometry();
-        geometry.Figures.Add(figure);
-        ring.Data = geometry;
+        LiveStamp.Text = $"更新于 {DateTime.Now:HH:mm:ss} · 0.25 秒采样";
     }
 
     private static void PushHistory(List<double> history, double value)
@@ -422,8 +296,8 @@ public sealed partial class OverviewPage : Page, IThemeAware
     {
         var count = _cpuHistory.Count;
         if (count < 2) return;
-        const double width = 264;
-        const double height = 28;
+        var width = Math.Max(80, SparkCanvas.ActualWidth);
+        var height = SparkHeight;
 
         var pointerX = e.GetCurrentPoint(SparkCanvas).Position.X;
         var index = (int)Math.Round(Math.Clamp(pointerX, 0, width) / width * (count - 1));
@@ -437,7 +311,7 @@ public sealed partial class OverviewPage : Page, IThemeAware
         Canvas.SetTop(SparkMarker, y - 3);
         SparkCursor.Visibility = Visibility.Visible;
         SparkMarker.Visibility = Visibility.Visible;
-        SparkReadout.Text = $"{_cpuHistory[index]:0}% · {(count - 1 - index) * 2}s 前";
+        SparkReadout.Text = $"{_cpuHistory[index]:0}% · {(count - 1 - index) * SampleSeconds:0.##}s 前";
         SparkReadout.Visibility = Visibility.Visible;
     }
 
@@ -448,10 +322,15 @@ public sealed partial class OverviewPage : Page, IThemeAware
         SparkReadout.Visibility = Visibility.Collapsed;
     }
 
-    private static void RenderSpark(Microsoft.UI.Xaml.Shapes.Polyline line, IReadOnlyList<double> values)
+    private void Spark_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        const double width = 264;
-        const double height = 28;
+        if (_cpuHistory.Count >= 2) RenderSpark(CpuSparkLine, _cpuHistory, e.NewSize.Width);
+    }
+
+    private static void RenderSpark(Microsoft.UI.Xaml.Shapes.Polyline line, IReadOnlyList<double> values, double width)
+    {
+        if (width < 80) return;
+        var height = SparkHeight;
         if (values.Count < 2)
         {
             line.Points.Clear();
@@ -661,7 +540,6 @@ public sealed partial class OverviewPage : Page, IThemeAware
 
     public void OnThemeChanged()
     {
-        BuildRadarTicks();
         if (App.Services.State.Snapshot is { } snap)
         {
             HardwareList.ItemsSource = null;

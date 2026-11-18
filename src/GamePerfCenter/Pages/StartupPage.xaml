@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Page
     x:Class="GamePerfCenter.Pages.StartupPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -8,14 +8,15 @@
     NavigationCacheMode="Required"
     Background="Transparent">
 
-    <Grid Padding="24,18,24,18" RowSpacing="10">
+    <Grid Padding="24,20,24,16" RowSpacing="10">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <controls:PageHeader Title="启动项与后台" Code="GAMEPERF // STARTUP &amp; PROCESS"
+        <controls:PageHeader Title="启动项与后台"
                              Subtitle="哪些程序会自启、后台在跑什么：只读展示，不在应用内结束进程。">
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <Button Content="启动文件夹" Style="{StaticResource GhostButtonStyle}" Click="OpenStartupFolder_Click" />
@@ -26,13 +27,55 @@
 
         <InfoBar x:Name="PageInfo" Grid.Row="1" IsOpen="False" IsClosable="True" />
 
-        <Grid Grid.Row="2" ColumnSpacing="16">
+        <!-- 一眼看懂的摘要：自启数量、后台数量、Top 进程合计占用 -->
+        <Border Grid.Row="2" Background="{ThemeResource Surface2Brush}" CornerRadius="10" Padding="18,11">
+            <Grid ColumnSpacing="28">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                    <TextBlock x:Name="StartupCountText" Text="--" FontSize="19" FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextBrush}" />
+                    <TextBlock Text="个自启项" Style="{StaticResource SecondaryTextStyle}"
+                               VerticalAlignment="Bottom" Margin="0,0,0,2" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                    <TextBlock x:Name="BackgroundCountText" Text="--" FontSize="19" FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextBrush}" />
+                    <TextBlock Text="个后台进程" Style="{StaticResource SecondaryTextStyle}"
+                               VerticalAlignment="Bottom" Margin="0,0,0,2" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                    <TextBlock x:Name="BackgroundTotalText" Text="--" FontSize="19" FontWeight="SemiBold"
+                               Foreground="{ThemeResource TextBrush}" />
+                    <TextBlock Text="Top 进程合计" Style="{StaticResource SecondaryTextStyle}"
+                               VerticalAlignment="Bottom" Margin="0,0,0,2" />
+                </StackPanel>
+
+                <TextBlock Grid.Column="3" Text="数据来自注册表 Run、启动文件夹与进程工作集"
+                           Style="{StaticResource CaptionTextStyle}" HorizontalAlignment="Right"
+                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                           TextWrapping="NoWrap" />
+            </Grid>
+        </Border>
+
+        <Grid x:Name="ContentGrid" Grid.Row="3" ColumnSpacing="16" RowSpacing="16">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="1.05*" />
                 <ColumnDefinition Width="1*" />
             </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="0" />
+            </Grid.RowDefinitions>
 
-            <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="16,14" Cut="12" CutBottom="12">
+            <controls:TechPanel x:Name="StartupCard" Style="{StaticResource TechCardStyle}" Padding="16,14">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -41,11 +84,11 @@
                     <Grid Margin="0,0,0,12">
                         <StackPanel Spacing="3">
                             <TextBlock Text="开机启动项" Style="{StaticResource SectionTitleStyle}" />
-                            <TextBlock x:Name="StartupHint" Text="来自注册表 Run 与启动文件夹"
+                            <TextBlock Text="来自注册表 Run 与启动文件夹"
                                        Style="{StaticResource CaptionTextStyle}" />
                         </StackPanel>
-                        <FontIcon Glyph="&#xE7B5;" FontSize="15" HorizontalAlignment="Right" VerticalAlignment="Center"
-                                  Foreground="{ThemeResource SubTextBrush}" />
+                        <TextBlock x:Name="StartupHint" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                   Style="{StaticResource CaptionTextStyle}" />
                     </Grid>
 
                     <ListView x:Name="StartupList" Grid.Row="1" SelectionMode="None"
@@ -76,14 +119,18 @@
                         </ListView.ItemTemplate>
                     </ListView>
 
-                    <StackPanel x:Name="StartupEmpty" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center"
-                                Spacing="6" Visibility="Collapsed">
-                        <TextBlock Text="没有发现启动项" Style="{StaticResource SecondaryTextStyle}" />
+                    <StackPanel x:Name="StartupEmpty" Grid.Row="1" VerticalAlignment="Center"
+                                HorizontalAlignment="Center" Spacing="6" Visibility="Collapsed">
+                        <TextBlock Text="没有发现自启项" Style="{StaticResource BodyTextStyle}" />
+                        <TextBlock Text="注册表 Run 与启动文件夹都是空的，通常意味着系统很干净。"
+                                   Style="{StaticResource CaptionTextStyle}" TextAlignment="Center"
+                                   TextWrapping="Wrap" MaxWidth="300" />
                     </StackPanel>
                 </Grid>
             </controls:TechPanel>
 
-            <controls:TechPanel Grid.Column="1" Style="{StaticResource TechCardStyle}" Padding="16,14" Cut="12" CutBottom="12">
+            <controls:TechPanel x:Name="BackgroundCard" Grid.Column="1" Style="{StaticResource TechCardStyle}"
+                                Padding="16,14">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -91,8 +138,8 @@
                     </Grid.RowDefinitions>
                     <Grid Margin="0,0,0,12">
                         <StackPanel Spacing="3">
-                            <TextBlock Text="内存占用 Top 14" Style="{StaticResource SectionTitleStyle}" />
-                            <TextBlock Text="按工作集排序 · 仅展示，不提供结束操作"
+                            <TextBlock Text="内存占用" Style="{StaticResource SectionTitleStyle}" />
+                            <TextBlock Text="按工作集排序 · 条长表示相对最高占用"
                                        Style="{StaticResource CaptionTextStyle}" />
                         </StackPanel>
                         <TextBlock x:Name="BackgroundHint" HorizontalAlignment="Right" VerticalAlignment="Center"
@@ -105,33 +152,51 @@
                               ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="models:BackgroundProc">
-                                <Border Style="{StaticResource DataRowStyle}" Padding="4,9">
-                                    <Grid ColumnSpacing="10">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel Spacing="2">
-                                            <TextBlock Text="{x:Bind Name}" FontSize="13" FontWeight="SemiBold"
-                                                       Foreground="{ThemeResource TextBrush}" MaxLines="1"
-                                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                                            <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="NoWrap">
-                                                <Run Text="{x:Bind PidText}" />
-                                                <Run Text="  ·  " />
-                                                <Run Text="{x:Bind StateText}" />
-                                            </TextBlock>
-                                            <TextBlock Text="{x:Bind TitleText}" Style="{StaticResource CaptionTextStyle}"
-                                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" MaxWidth="420"
-                                                       ToolTipService.ToolTip="{x:Bind TitleText}" />
-                                        </StackPanel>
-                                        <TextBlock Grid.Column="1" Text="{x:Bind MemText}" FontSize="12.5" FontWeight="SemiBold"
-                                                   Foreground="{ThemeResource SubTextBrush}" VerticalAlignment="Center"
-                                                   TextWrapping="NoWrap" />
+                                <Border Style="{StaticResource DataRowStyle}" Padding="4,8">
+                                    <Grid RowSpacing="5">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Grid ColumnSpacing="10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Spacing="2">
+                                                <TextBlock Text="{x:Bind Name}" FontSize="13" FontWeight="SemiBold"
+                                                           Foreground="{ThemeResource TextBrush}" MaxLines="1"
+                                                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                                <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="NoWrap"
+                                                           TextTrimming="CharacterEllipsis">
+                                                    <Run Text="{x:Bind PidText}" />
+                                                    <Run Text="  ·  " />
+                                                    <Run Text="{x:Bind StateText}" />
+                                                    <Run Text="  ·  " />
+                                                    <Run Text="{x:Bind TitleText}" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" Text="{x:Bind MemText}" FontSize="12.5"
+                                                       FontWeight="SemiBold" Foreground="{ThemeResource SubTextBrush}"
+                                                       VerticalAlignment="Center" TextWrapping="NoWrap" />
+                                        </Grid>
+                                        <ProgressBar Grid.Row="1" Minimum="0" Maximum="100" Height="3"
+                                                     Value="{x:Bind Share}"
+                                                     Foreground="{ThemeResource AccentGradientBrush}"
+                                                     Background="{ThemeResource Surface2Brush}" />
                                     </Grid>
                                 </Border>
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
+
+                    <StackPanel x:Name="BackgroundEmpty" Grid.Row="1" VerticalAlignment="Center"
+                                HorizontalAlignment="Center" Spacing="6" Visibility="Collapsed">
+                        <TextBlock Text="没有读到后台进程" Style="{StaticResource BodyTextStyle}" />
+                        <TextBlock Text="可能被系统权限拦截。点“刷新”重试，或到任务管理器查看。"
+                                   Style="{StaticResource CaptionTextStyle}" TextAlignment="Center"
+                                   TextWrapping="Wrap" MaxWidth="300" />
+                    </StackPanel>
                 </Grid>
             </controls:TechPanel>
         </Grid>

@@ -14,7 +14,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <controls:PageHeader Title="设置" Code="GAMEPERF // SETTINGS"
+        <controls:PageHeader Title="设置"
                              Subtitle="怎么改变程序行为：外观、托盘与配置文件，修改后立即保存。">
             <Button Content="打开程序目录" Style="{StaticResource SubtleButtonStyle}"
                     VerticalAlignment="Center" Click="OpenConfig_Click" />
@@ -36,7 +36,7 @@
                 </Grid.RowDefinitions>
 
                 <StackPanel x:Name="LeftColumn" Spacing="10">
-                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16" Cut="12" CutBottom="12">
+                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16">
                         <StackPanel Spacing="0">
                             <StackPanel Spacing="3" Margin="0,0,0,6">
                                 <TextBlock Text="外观" Style="{StaticResource SectionTitleStyle}" />
@@ -138,7 +138,7 @@
                         </StackPanel>
                 </controls:TechPanel>
 
-                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16" Cut="12" CutBottom="12">
+                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16">
                         <StackPanel Spacing="0">
                             <StackPanel Spacing="3" Margin="0,0,0,6">
                                 <TextBlock Text="行为" Style="{StaticResource SectionTitleStyle}" />
@@ -181,7 +181,7 @@
                         </StackPanel>
                 </controls:TechPanel>
 
-                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16" Cut="12" CutBottom="12">
+                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16">
                         <StackPanel Spacing="0">
                             <StackPanel Spacing="3" Margin="0,0,0,6">
                                 <TextBlock Text="无障碍" Style="{StaticResource SectionTitleStyle}" />
@@ -229,7 +229,7 @@
                 </StackPanel>
 
                 <StackPanel x:Name="RightColumn" Grid.Column="1" Spacing="10">
-                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16" Cut="12" CutBottom="12">
+                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16">
                         <StackPanel Spacing="12">
                             <TextBlock Text="存储与配置" Style="{StaticResource SectionTitleStyle}" />
 
@@ -264,7 +264,7 @@
                         </StackPanel>
                 </controls:TechPanel>
 
-                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16" Cut="12" CutBottom="12">
+                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16">
                         <StackPanel Spacing="11">
                             <TextBlock Text="分享与便携包" Style="{StaticResource SectionTitleStyle}" />
                             <TextBlock Text="一键导出当前程序为便携 ZIP，自动排除本机设置、备份、诊断与日志。"
@@ -280,7 +280,7 @@
                         </StackPanel>
                 </controls:TechPanel>
 
-                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16" Cut="12" CutBottom="12">
+                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16">
                         <StackPanel Spacing="12">
                             <TextBlock Text="版本与更新" Style="{StaticResource SectionTitleStyle}" />
                             <StackPanel Spacing="4">
@@ -301,7 +301,7 @@
                         </StackPanel>
                 </controls:TechPanel>
 
-                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16" Cut="12" CutBottom="12">
+                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16">
                         <StackPanel Spacing="12">
                             <TextBlock Text="重置" Style="{StaticResource SectionTitleStyle}" />
                             <TextBlock Text="仅重置外观与行为设置，不会删除备份、日志或游戏库。"

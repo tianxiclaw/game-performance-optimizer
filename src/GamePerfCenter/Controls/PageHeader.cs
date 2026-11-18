@@ -4,19 +4,15 @@ using Microsoft.UI.Xaml.Controls;
 namespace GamePerfCenter.Controls;
 
 /// <summary>
-/// 统一页头：左侧强调条 + 标题 / 说明，右侧模块代号与操作区。
-/// 窗口变窄时操作区移到标题下方；窗口变矮时收成单行页头（隐藏说明与模块代号），
-/// 把高度让给内容区，避免小窗口里“页头吃掉整屏”。
+/// 统一页头：左侧标题与一句说明，右侧当前页操作。
+/// 窗口变窄时操作区移到标题下方；窗口变矮时收起说明，把高度让给内容区。
 /// </summary>
 public sealed class PageHeader : ContentControl
 {
     private Grid? _root;
-    private Border? _bar;
     private TextBlock? _title;
     private TextBlock? _subtitle;
-    private StackPanel? _right;
-    private TextBlock? _code;
-    private Border? _codeLine;
+    private ContentPresenter? _actions;
     private XamlRoot? _xamlRoot;
     private bool? _compact;
     private bool? _stacked;
@@ -48,7 +44,7 @@ public sealed class PageHeader : ContentControl
     public static readonly DependencyProperty CodeProperty = DependencyProperty.Register(
         nameof(Code), typeof(string), typeof(PageHeader), new PropertyMetadata(""));
 
-    /// <summary>右上角等宽模块代号，例如 “GAMEPERF // OVERVIEW”。</summary>
+    /// <summary>保留旧属性以兼容既有 XAML；页头不再展示模块代号。</summary>
     public string Code
     {
         get => (string)GetValue(CodeProperty);
@@ -59,12 +55,9 @@ public sealed class PageHeader : ContentControl
     {
         base.OnApplyTemplate();
         _root = GetTemplateChild("HeaderRoot") as Grid;
-        _bar = GetTemplateChild("AccentBar") as Border;
         _title = GetTemplateChild("TitleText") as TextBlock;
         _subtitle = GetTemplateChild("SubtitleText") as TextBlock;
-        _right = GetTemplateChild("RightBlock") as StackPanel;
-        _code = GetTemplateChild("CodeBlock") as TextBlock;
-        _codeLine = GetTemplateChild("CodeLine") as Border;
+        _actions = GetTemplateChild("ActionsHost") as ContentPresenter;
 
         _compact = null;
         _stacked = null;
@@ -94,13 +87,11 @@ public sealed class PageHeader : ContentControl
     private void OnXamlRootChanged(XamlRoot sender, XamlRootChangedEventArgs args) => Update();
 
     /// <summary>
-    /// 三种形态：常规（说明 + 代号 + 操作在右）、堆叠（操作下移）、紧凑（单行，
-    /// 隐藏说明与代号）。阈值按窗口尺寸判断：1280×800 以下开始堆叠，600 高以下转紧凑。
+    /// 常规：标题与操作同一行。堆叠（宽度 &lt; 900）：操作下移。紧凑（高度 &lt; 560）：隐藏说明。
     /// </summary>
     private void Update()
     {
-        if (_root is null || _title is null || _subtitle is null || _right is null ||
-            _code is null || _codeLine is null || _bar is null)
+        if (_root is null || _title is null || _subtitle is null || _actions is null)
         {
             return;
         }
@@ -109,8 +100,8 @@ public sealed class PageHeader : ContentControl
         var width = size?.Width ?? 1280;
         var height = size?.Height ?? 800;
 
-        var compact = height < 600;
-        var stacked = !compact && width < 1020;
+        var compact = height < 560;
+        var stacked = !compact && width < 900;
 
         if (_compact == compact && _stacked == stacked) return;
         _compact = compact;
@@ -118,57 +109,45 @@ public sealed class PageHeader : ContentControl
 
         if (compact)
         {
-            _title.FontSize = 22;
-            _title.CharacterSpacing = -10;
-            _bar.Height = 22;
-            _bar.Margin = new Thickness(0, 4, 0, 0);
+            _title.FontSize = 21;
+            _title.CharacterSpacing = -6;
             _subtitle.Visibility = Visibility.Collapsed;
-            _code.Visibility = Visibility.Collapsed;
-            _codeLine.Visibility = Visibility.Collapsed;
             _root.ColumnSpacing = 12;
 
-            Grid.SetRow(_right, 0);
-            Grid.SetColumn(_right, 1);
-            Grid.SetColumnSpan(_right, 1);
-            _right.HorizontalAlignment = HorizontalAlignment.Right;
-            _right.VerticalAlignment = VerticalAlignment.Center;
-            _right.Margin = new Thickness(0);
-            _right.MinWidth = 0;
+            Grid.SetRow(_actions, 0);
+            Grid.SetColumn(_actions, 1);
+            Grid.SetColumnSpan(_actions, 1);
+            _actions.HorizontalAlignment = HorizontalAlignment.Right;
+            _actions.VerticalAlignment = VerticalAlignment.Center;
+            _actions.Margin = new Thickness(0);
             return;
         }
 
-        _title.FontSize = 30;
-        _title.CharacterSpacing = -20;
-        _bar.Height = 32;
-        _bar.Margin = new Thickness(0, 6, 0, 0);
+        _title.FontSize = 26;
+        _title.CharacterSpacing = -10;
         _subtitle.Visibility = Visibility.Visible;
+        _subtitle.MaxLines = stacked ? 2 : 1;
 
         if (stacked)
         {
-            _code.Visibility = Visibility.Collapsed;
-            _codeLine.Visibility = Visibility.Collapsed;
-            _root.ColumnSpacing = 18;
+            _root.ColumnSpacing = 16;
 
-            Grid.SetRow(_right, 1);
-            Grid.SetColumn(_right, 0);
-            Grid.SetColumnSpan(_right, 2);
-            _right.HorizontalAlignment = HorizontalAlignment.Left;
-            _right.VerticalAlignment = VerticalAlignment.Top;
-            _right.Margin = new Thickness(0, 12, 0, 0);
-            _right.MinWidth = 0;
+            Grid.SetRow(_actions, 1);
+            Grid.SetColumn(_actions, 0);
+            Grid.SetColumnSpan(_actions, 2);
+            _actions.HorizontalAlignment = HorizontalAlignment.Left;
+            _actions.VerticalAlignment = VerticalAlignment.Top;
+            _actions.Margin = new Thickness(0, 10, 0, 0);
             return;
         }
 
-        _code.Visibility = Visibility.Visible;
-        _codeLine.Visibility = Visibility.Visible;
-        _root.ColumnSpacing = 18;
+        _root.ColumnSpacing = 20;
 
-        Grid.SetRow(_right, 0);
-        Grid.SetColumn(_right, 1);
-        Grid.SetColumnSpan(_right, 1);
-        _right.HorizontalAlignment = HorizontalAlignment.Right;
-        _right.VerticalAlignment = VerticalAlignment.Top;
-        _right.Margin = new Thickness(0);
-        _right.MinWidth = 180;
+        Grid.SetRow(_actions, 0);
+        Grid.SetColumn(_actions, 1);
+        Grid.SetColumnSpan(_actions, 1);
+        _actions.HorizontalAlignment = HorizontalAlignment.Right;
+        _actions.VerticalAlignment = VerticalAlignment.Center;
+        _actions.Margin = new Thickness(0);
     }
 }

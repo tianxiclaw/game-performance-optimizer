@@ -15,7 +15,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <controls:PageHeader Title="备份还原" Code="GAMEPERF // BACKUP ARCHIVE"
+        <controls:PageHeader Title="备份还原"
                              Subtitle="怎么安全回退：每次应用前都记录原值，可选择任意时间点恢复。">
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <Button Content="打开备份目录" Style="{StaticResource GhostButtonStyle}" Click="OpenFolder_Click" />
@@ -34,7 +34,7 @@
                 <ColumnDefinition Width="300" />
             </Grid.ColumnDefinitions>
 
-            <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="16,14" Cut="12" CutBottom="12">
+            <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="16,14">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -102,7 +102,7 @@
                           HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
                           HorizontalContentAlignment="Stretch">
                 <StackPanel Spacing="10">
-                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="16,14" Cut="10">
+                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="16,14">
                         <StackPanel Spacing="10">
                             <TextBlock Text="最近一次应用" Style="{StaticResource SectionTitleStyle}" />
                             <TextBlock x:Name="LastApplyTime" Text="暂无记录" Style="{StaticResource BodyTextStyle}" />
@@ -113,7 +113,7 @@
                         </StackPanel>
                     </controls:TechPanel>
 
-                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="16,14" Cut="10">
+                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="16,14">
                         <StackPanel Spacing="10">
                             <TextBlock Text="安全说明" Style="{StaticResource SectionTitleStyle}" />
                             <TextBlock Text="备份只包含本应用改动过的注册表值、服务启动类型与电源计划等原值，不复制个人文件。"

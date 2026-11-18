@@ -6,6 +6,7 @@ using Microsoft.UI.Composition;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml.Input;
@@ -35,6 +36,9 @@ public sealed partial class MainWindow : Window
     private EngineFailure? _shownFailure;
     private double _starWidth;
     private double _starHeight;
+    private string _currentTag = "overview";
+    private bool _inspectorOpen;
+    private bool _narrowTitleBar;
     private string? _pendingItemFocus;
     private List<GameInfo>? _paletteGames;
     private DateTime _paletteGamesAt;
@@ -80,9 +84,24 @@ public sealed partial class MainWindow : Window
         };
         RootGrid.KeyboardAccelerators.Add(paletteAccelerator);
 
-        NavEntriesPanel.Loaded += Nav_Loaded;
+        DockBar.Loaded += Nav_Loaded;
+        // Button 内部会把 PointerEntered 标记为已处理，普通订阅收不到；
+        // 必须用 handledEventsToo 才能驱动 Dock 的悬浮标签。
+        foreach (var button in EnumerateDockItems())
+        {
+            button.AddHandler(UIElement.PointerEnteredEvent,
+                new PointerEventHandler(DockButton_PointerEntered), handledEventsToo: true);
+            button.AddHandler(UIElement.PointerExitedEvent,
+                new PointerEventHandler(DockButton_PointerExited), handledEventsToo: true);
+        }
+
+        // 加速键挂在 RootGrid 上时，WinUI 会在指针 hover 时自动弹一个 "Ctrl+K" 提示，
+        // 与 Dock 自定义标签冲突。这里关掉自动提示，快捷键说明交给 Dock 标签。
+        RootGrid.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
         Responsive.Watch(RootGrid, 1120, ApplyShellWidth);
         Responsive.Watch(RootGrid, 900, ApplyTitleBar);
+        Responsive.Watch(RootGrid, 760, ApplyDockCompact);
+        RootGrid.SizeChanged += (_, e) => ApplyInspectorWidth(e.NewSize.Width);
         StarLayer.Loaded += (_, _) => BuildTechGrid();
         StarLayer.SizeChanged += (_, _) => BuildTechGrid();
         AppWindow.Closing += OnAppWindowClosing;
@@ -90,7 +109,7 @@ public sealed partial class MainWindow : Window
         Closed += OnClosed;
 
         _metricsTimer = _dispatcher.CreateTimer();
-        _metricsTimer.Interval = TimeSpan.FromSeconds(2);
+        _metricsTimer.Interval = TimeSpan.FromMilliseconds(250);
         _metricsTimer.Tick += async (_, _) => await SampleMetricsAsync();
         _metricsTimer.Start();
         _ = SampleMetricsAsync();
@@ -197,25 +216,22 @@ public sealed partial class MainWindow : Window
         UpdateThemeSegments();
         UpdateCaptionButtons();
         UpdateEngineBadge(App.Services.Engine.IsRunning);
-        foreach (var item in EnumerateNavItems()) item.RefreshVisuals();
+        RefreshDockVisuals();
         ApplyMaterial();
         BuildTechGrid(force: true);
     }
 
-    /// <summary>顶栏三段主题选择：当前项用强调底与强调字，其余保持中性。</summary>
+    /// <summary>顶栏主题图标（日 / 月 / 系统）：当前项用强调底与强调字，其余保持中性。</summary>
     private void UpdateThemeSegments()
     {
         var current = App.Services.Settings.Theme;
-        foreach (var button in new[] { ThemeDarkButton, ThemeLightButton, ThemeSystemButton })
+        foreach (var button in new[] { ThemeLightButton, ThemeDarkButton, ThemeSystemButton })
         {
             var active = string.Equals(button.Tag as string, current, StringComparison.Ordinal);
             button.Background = active
                 ? ThemeResources.Get("AccentSoftBrush")
                 : new SolidColorBrush(Colors.Transparent);
             button.Foreground = ThemeResources.Get(active ? "AccentBrush" : "SubTextBrush");
-            button.FontWeight = active
-                ? Microsoft.UI.Text.FontWeights.SemiBold
-                : Microsoft.UI.Text.FontWeights.Normal;
         }
     }
 
@@ -230,6 +246,9 @@ public sealed partial class MainWindow : Window
         // 高对比度下系统要求不透明高反差，材质透出背景会破坏可读性，统一回退深空。
         if (ThemeService.IsHighContrast) material = "deep";
         if (!MaterialService.IsSupported(material)) material = "deep";
+
+        // 卡片底色跟随窗口材质：液态玻璃下压到半透明，让 Acrylic 真正透上来。
+        ThemeService.ApplyGlassSurfaces(material == "glass");
 
         try
         {
@@ -273,6 +292,7 @@ public sealed partial class MainWindow : Window
         {
             AppLog.Write("窗口材质应用失败: " + ex.Message);
             SystemBackdrop = null;
+            ThemeService.ApplyGlassSurfaces(false);
             RootGrid.Background = ThemeResources.Get("AppBackdropBrush");
             SheenLayer.Opacity = 0;
             ApplyChrome(unified: false);
@@ -281,15 +301,14 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 深空材质用实色分区；云母与液态玻璃共用一层根底色，
-    /// 否则半透明栏叠在根底色上会二次加深，顶栏变成一条突兀的黑带。
+    /// 深空材质用实色顶栏；云母与液态玻璃让顶栏透明，避免半透明栏叠在根底色上二次加深。
+    /// 底部 Dock 区始终透明，由 Dock 自身的浮层底承担分隔。
     /// </summary>
     private void ApplyChrome(bool unified)
     {
-        var clear = unified ? new SolidColorBrush(Colors.Transparent) : null;
-        Rail.Background = clear ?? ThemeResources.Get("NavBgBrush");
-        TitleBarDrag.Background = clear ?? ThemeResources.Get("PaneBrush");
-        StatusBar.Background = clear ?? ThemeResources.Get("NavBgBrush");
+        var clear = new SolidColorBrush(Colors.Transparent);
+        TitleBarDrag.Background = unified ? clear : ThemeResources.Get("PaneBrush");
+        StatusBar.Background = clear;
     }
 
     public void RefreshMaterial() => ApplyMaterial();
@@ -380,22 +399,32 @@ public sealed partial class MainWindow : Window
         _ = InitializeAsync();
     }
 
-    /// <summary>窄窗口收起为图标栏，保留全部导航能力。</summary>
+    /// <summary>窄窗口收起品牌文字与底部次要状态，Dock 保持完整可点。</summary>
     private void ApplyShellWidth(bool narrow)
     {
-        RailColumn.Width = new GridLength(narrow ? 64 : 236);
         BrandText.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
-        RailDeviceBlock.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
-        RailTelemetry.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
-        NavGroupA.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
-        NavGroupB.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+        StatusRing.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+        StatusText.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+        StatusSecureDivider.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+        StatusSecureText.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+    }
 
-        Grid.SetColumnSpan(BrandMark, narrow ? 2 : 1);
-        BrandMark.HorizontalAlignment = narrow ? HorizontalAlignment.Center : HorizontalAlignment.Left;
-
-        foreach (var item in EnumerateNavItems())
+    /// <summary>窗口继续收窄时压缩 Dock 尺寸，避免它和右侧状态在 480 DIP 附近重叠。</summary>
+    private void ApplyDockCompact(bool compact)
+    {
+        var size = compact ? 34d : 42d;
+        foreach (var button in EnumerateDockItems())
         {
-            item.IsCompact = narrow;
+            button.Width = size;
+            button.Height = compact ? 34 : 38;
+        }
+        DockBar.Padding = compact ? new Thickness(5, 4, 5, 4) : new Thickness(7, 5, 7, 5);
+        DockBar.CornerRadius = new CornerRadius(compact ? 12 : 16);
+        StatusRight.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        foreach (var separator in new[] { DockSep1, DockSep2, DockSep3 })
+        {
+            separator.Margin = compact ? new Thickness(2, 0, 2, 0) : new Thickness(5, 0, 5, 0);
+            separator.Height = compact ? 18 : 22;
         }
     }
 
@@ -405,42 +434,223 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void ApplyTitleBar(bool narrow)
     {
+        _narrowTitleBar = narrow;
         CrumbRoot.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
         CrumbSlash.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
         LocalModeGroup.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
-        CommandLabel.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
-        CommandKeycap.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
-    }
-
-    private IEnumerable<NavItem> EnumerateNavItems()
-    {
-        foreach (var child in NavEntriesPanel.Children)
+        RepoButton.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+        if (narrow)
         {
-            if (child is NavItem item) yield return item;
+            PendingButton.Visibility = Visibility.Collapsed;
         }
-        foreach (var child in RailFooter.Children)
+        else
         {
-            if (child is NavItem item) yield return item;
+            UpdateShellInfo();
         }
     }
 
-    private void NavItem_Click(object sender, RoutedEventArgs e)
+    /// <summary>Dock 覆盖在内容上，窄屏时让右侧控制台贴近可用宽度，但它本身仍是覆盖层。</summary>
+    private void ApplyInspectorWidth(double width)
     {
-        if (sender is NavItem { Tag: string tag })
+        InspectorPanel.Width = width < 700 ? Math.Max(260, width - 24) : 320;
+    }
+
+    private Button[] EnumerateDockItems() => new[]
+    {
+        DockOverview, DockItems, DockDiagnostics, DockStartup,
+        DockGames, DockDriver, DockBackup, DockLog, DockSettings, DockAbout
+    };
+
+    private void RefreshDockVisuals()
+    {
+        var selectedFill = ThemeResources.Get("AccentSoftBrush");
+        var clear = new SolidColorBrush(Colors.Transparent);
+        foreach (var button in EnumerateDockItems())
+        {
+            var active = string.Equals(button.Tag as string, _currentTag, StringComparison.Ordinal);
+            button.Background = active ? selectedFill : clear;
+            button.Foreground = ThemeResources.Get(active ? "AccentBrush" : "SubTextBrush");
+        }
+        DockCommand.Background = ThemeResources.Get("AccentSoftBrush");
+        DockCommand.Foreground = ThemeResources.Get("AccentBrush");
+    }
+
+    private void DockItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string tag })
         {
             SelectNav(tag, navigate: true);
         }
+        HideDockHint();
     }
+
+    private string DockLabel(Button button)
+    {
+        if (ReferenceEquals(button, DockCommand)) return "命令面板 · Ctrl K";
+        return (button.Tag as string) switch
+        {
+            "overview" => "概览",
+            "items" => "优化项",
+            "diagnostics" => "诊断报告",
+            "startup" => "启动项与后台",
+            "games" => "游戏库",
+            "driver" => "驱动中心",
+            "backup" => "备份还原",
+            "log" => "运行日志",
+            "settings" => "设置",
+            "about" => "关于与支持",
+            _ => ""
+        };
+    }
+
+    private void DockButton_PointerEntered(object sender, PointerRoutedEventArgs e)
+    {
+        if (sender is not Button button) return;
+        var label = DockLabel(button);
+        if (string.IsNullOrEmpty(label)) return;
+
+        DockHintText.Text = label;
+        DockHintHost.Visibility = Visibility.Visible;
+        // 先让提示按内容完成一次布局，才能拿到真实宽度做居中；此前用 Measure 得到的是脏值。
+        DockHintHost.UpdateLayout();
+        var hintWidth = DockHintHost.ActualWidth > 0 ? DockHintHost.ActualWidth : 72;
+        var origin = button.TransformToVisual(StatusBar)
+            .TransformPoint(new Windows.Foundation.Point(0, 0));
+        var x = origin.X + (button.ActualWidth - hintWidth) / 2;
+        x = Math.Clamp(x, 8, Math.Max(8, StatusBar.ActualWidth - hintWidth - 8));
+        DockHintHost.Margin = new Thickness(x, 0, 0, 0);
+        AnimateOpacity(DockHintHost, 1, 120);
+    }
+
+    private void DockButton_PointerExited(object sender, PointerRoutedEventArgs e) => HideDockHint();
+
+    private void HideDockHint()
+    {
+        if (DockHintHost.Visibility != Visibility.Visible) return;
+        AnimateOpacity(DockHintHost, 0, 100, collapse: true);
+    }
+
+    private static void AnimateOpacity(UIElement element, double to, int milliseconds, bool collapse = false)
+    {
+        if (!Motion.Enabled)
+        {
+            element.Opacity = to;
+            if (collapse) element.Visibility = Visibility.Collapsed;
+            return;
+        }
+        var storyboard = new Storyboard();
+        var animation = new DoubleAnimation
+        {
+            To = to,
+            Duration = new Duration(TimeSpan.FromMilliseconds(milliseconds)),
+            EnableDependentAnimation = true
+        };
+        Storyboard.SetTarget(animation, element);
+        Storyboard.SetTargetProperty(animation, "Opacity");
+        storyboard.Children.Add(animation);
+        if (collapse)
+        {
+            storyboard.Completed += (_, _) =>
+            {
+                if (element.Opacity <= 0.01) element.Visibility = Visibility.Collapsed;
+            };
+        }
+        storyboard.Begin();
+    }
+
+    private void InspectorToggle_Click(object sender, RoutedEventArgs e) => SetInspectorOpen(!_inspectorOpen);
+    private void InspectorClose_Click(object sender, RoutedEventArgs e) => SetInspectorOpen(false);
+
+    private void SetInspectorOpen(bool open)
+    {
+        if (_inspectorOpen == open) return;
+        _inspectorOpen = open;
+        InspectorToggleButton.Background = open
+            ? ThemeResources.Get("AccentSoftBrush")
+            : new SolidColorBrush(Colors.Transparent);
+        InspectorToggleButton.Foreground = ThemeResources.Get(open ? "AccentBrush" : "SubTextBrush");
+        AutomationProperties.SetName(InspectorToggleButton, open ? "收起控制台" : "展开控制台");
+        ToolTipService.SetToolTip(InspectorToggleButton, open ? "收起控制台" : "展开控制台");
+
+        if (open)
+        {
+            InspectorPanel.Visibility = Visibility.Visible;
+            InspectorSlide.X = 24;
+            InspectorPanel.Opacity = 0;
+            AnimateInspector(0, 1);
+        }
+        else
+        {
+            AnimateInspector(24, 0, collapse: true);
+        }
+    }
+
+    private void AnimateInspector(double x, double opacity, bool collapse = false)
+    {
+        if (!Motion.Enabled)
+        {
+            InspectorSlide.X = x;
+            InspectorPanel.Opacity = opacity;
+            if (collapse) InspectorPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+        var storyboard = new Storyboard();
+        var slide = new DoubleAnimation
+        {
+            To = x,
+            Duration = new Duration(TimeSpan.FromMilliseconds(180)),
+            EnableDependentAnimation = true,
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        Storyboard.SetTarget(slide, InspectorSlide);
+        Storyboard.SetTargetProperty(slide, "X");
+        var fade = new DoubleAnimation
+        {
+            To = opacity,
+            Duration = new Duration(TimeSpan.FromMilliseconds(150)),
+            EnableDependentAnimation = true
+        };
+        Storyboard.SetTarget(fade, InspectorPanel);
+        Storyboard.SetTargetProperty(fade, "Opacity");
+        storyboard.Children.Add(slide);
+        storyboard.Children.Add(fade);
+        if (collapse)
+        {
+            storyboard.Completed += (_, _) =>
+            {
+                if (InspectorPanel.Opacity <= 0.01) InspectorPanel.Visibility = Visibility.Collapsed;
+            };
+        }
+        storyboard.Begin();
+    }
+
+    private void DrawerRefresh_Click(object sender, RoutedEventArgs e) => RefreshFromTray();
+    private void DrawerDataDir_Click(object sender, RoutedEventArgs e) => OpenDirectory(AppPaths.DataDir);
+    private void DrawerBackupDir_Click(object sender, RoutedEventArgs e) => OpenDirectory(AppPaths.BackupDir);
 
     private void SelectNav(string tag, bool navigate)
     {
-        foreach (var item in EnumerateNavItems())
-        {
-            item.IsSelected = string.Equals(item.Tag as string, tag, StringComparison.Ordinal);
-        }
+        _currentTag = tag;
         TopBreadcrumb.Text = PageName(tag);
+        DrawerPageTitle.Text = PageName(tag);
+        DrawerPageDesc.Text = PageDescription(tag);
+        RefreshDockVisuals();
         if (navigate) Navigate(tag);
     }
+
+    private static string PageDescription(string tag) => tag switch
+    {
+        "items" => "按分类筛选并应用可还原的系统优化。",
+        "diagnostics" => "只读检查 VBS、内存、PCIe、NVMe 与显示链路。",
+        "startup" => "查看开机自启项与内存占用较高的后台进程。",
+        "games" => "识别本地游戏并保存独立运行配置。",
+        "driver" => "显卡驱动版本、厂商工具与回退记录。",
+        "backup" => "原值备份、单项还原与全部回放。",
+        "log" => "本机操作与引擎输出，不上传。",
+        "settings" => "外观、托盘与配置文件。",
+        "about" => "版本信息、赞赏码与项目链接。",
+        _ => "实时负载、优化进度与硬件摘要。"
+    };
 
     private static string PageName(string tag) => tag switch
     {
@@ -639,8 +849,12 @@ public sealed partial class MainWindow : Window
 
         var pending = snap?.Summary.Pending ?? 0;
         TopPendingText.Text = $"待优化 {pending} 项";
-        PendingButton.Visibility = pending > 0 ? Visibility.Visible : Visibility.Collapsed;
+        PendingButton.Visibility = pending > 0 && !_narrowTitleBar
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         PendingButton.IsEnabled = pending > 0;
+        DrawerPendingText.Text = pending > 0 ? $"{pending} 项待应用" : "暂无待应用项";
+        DrawerPendingButton.Visibility = pending > 0 ? Visibility.Visible : Visibility.Collapsed;
 
         var kind = snap is null ? "" : snap.IsLaptop ? "笔记本" : "台式机";
         var engine = App.Services.Engine.IsRunning ? "引擎已连接" : "引擎未连接";
@@ -1004,7 +1218,10 @@ public sealed partial class MainWindow : Window
         App.Services.Settings.Material = key;
         App.Services.Settings.Save();
         ApplyMaterial();
-        ShowInfo("材质已切换", $"当前材质：{label}。卡片与导航保持实色，材质只作用于窗口背景。");
+        var detail = key == "glass"
+            ? "卡片同步降为半透明，让桌面与窗口背后真正透上来。"
+            : "卡片保持实色，材质只作用于窗口背景与留白。";
+        ShowInfo("材质已切换", $"当前材质：{label}。{detail}");
     }
 
     private void SetTheme(string key, string label)

@@ -17,7 +17,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <controls:PageHeader Title="优化项" Code="GAMEPERF // ITEM REGISTRY"
+        <controls:PageHeader Title="优化项"
                              Subtitle="哪些项值得改：勾选后预览或应用，所有改动都记录原值、可还原。">
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <Button Content="全选推荐" Style="{StaticResource SubtleButtonStyle}" Click="SelectRecommended_Click"
@@ -30,7 +30,7 @@
 
         <!-- 筛选条：过滤条件与结果计数是同一件事，压成一条控制台 -->
         <controls:TechPanel x:Name="FilterPanel" Grid.Row="1" Style="{StaticResource TechCardStyle}"
-                            Padding="14,12" Cut="10">
+                            Padding="14,12">
             <Grid x:Name="FilterGrid" ColumnSpacing="8">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -44,16 +44,8 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <Grid x:Name="SearchCell" ColumnSpacing="8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="SEARCH" Style="{StaticResource TechLabelStyle}"
-                               VerticalAlignment="Center" Margin="0,0,2,0" />
-                    <TextBox x:Name="SearchBox" Grid.Column="1" PlaceholderText="搜索名称、分类或说明..."
-                             TextChanged="SearchBox_TextChanged" MinHeight="32" />
-                </Grid>
+                <TextBox x:Name="SearchBox" PlaceholderText="搜索名称、分类或说明..."
+                         TextChanged="SearchBox_TextChanged" MinHeight="32" />
 
                 <ComboBox x:Name="CategoryBox" Grid.Column="1" PlaceholderText="全部分类"
                           SelectionChanged="Filter_Changed" MinHeight="32" MinWidth="132"
@@ -104,7 +96,7 @@
 
         <!-- 列表：表头用等宽微标签，行与行之间只有一条极细分割线 -->
         <controls:TechPanel x:Name="ListPanel" Grid.Row="2" Style="{StaticResource TechCardStyle}"
-                            Padding="14,10,14,6" Cut="12" CutBottom="12">
+                            Padding="14,10,14,6">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -118,11 +110,11 @@
                         <ColumnDefinition Width="150" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="SEL" Style="{StaticResource TechMicroStyle}" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="1" Text="ITEM / TARGET" Style="{StaticResource TechMicroStyle}" />
-                    <TextBlock Grid.Column="2" Text="STATUS" Style="{StaticResource TechMicroStyle}"
+                    <TextBlock Text="选择" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="优化项" Style="{StaticResource CaptionTextStyle}" />
+                    <TextBlock Grid.Column="2" Text="状态" Style="{StaticResource CaptionTextStyle}"
                                HorizontalAlignment="Right" />
-                    <TextBlock Grid.Column="3" Text="ACT" Style="{StaticResource TechMicroStyle}" Margin="0,0,4,0" />
+                    <TextBlock Grid.Column="3" Text="操作" Style="{StaticResource CaptionTextStyle}" Margin="0,0,4,0" />
                 </Grid>
 
                 <ListView x:Name="ItemsList" Grid.Row="1" SelectionMode="None"
@@ -182,7 +174,7 @@
                                                    MaxLines="1" TextTrimming="CharacterEllipsis"
                                                    ToolTipService.ToolTip="{x:Bind Desc}">
                                             <Run Text="{x:Bind Desc}" />
-                                            <Run Text="  //  TARGET " Foreground="{ThemeResource FaintTextBrush}" />
+                                            <Run Text="  目标：" Foreground="{ThemeResource FaintTextBrush}" />
                                             <Run Text="{x:Bind Target}" Foreground="{ThemeResource SubTextBrush}" />
                                         </TextBlock>
                                     </StackPanel>
@@ -218,7 +210,7 @@
                                 <Border Grid.Row="1" Padding="28,0,4,12" Tag="ItemDetail"
                                         Visibility="{x:Bind ExpandVisibility, Mode=OneWay}">
                                     <controls:TechPanel Style="{StaticResource TechInsetStyle}"
-                                                        Padding="14,12" Cut="0" Radius="8">
+                                                        Padding="14,12" Radius="8">
                                         <StackPanel Spacing="10">
                                             <TextBlock Text="{x:Bind Desc}" FontSize="12.5"
                                                        Foreground="{ThemeResource SubTextBrush}"
@@ -301,11 +293,11 @@
 
                 <StackPanel x:Name="EmptyHint" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center"
                             Spacing="6" Visibility="Collapsed">
-                    <TextBlock Text="NO MATCH" Style="{StaticResource TechLabelStyle}"
-                               Foreground="{ThemeResource DangerBrush}" HorizontalAlignment="Center" />
-                    <TextBlock Text="没有符合条件的优化项" Style="{StaticResource SecondaryTextStyle}" />
-                    <TextBlock Text="试试清空搜索词，或把分类、风险筛选恢复为全部。"
-                               Style="{StaticResource TechCodeStyle}" />
+                    <TextBlock x:Name="EmptyTitle" Text="没有符合条件的优化项" Style="{StaticResource BodyTextStyle}"
+                               HorizontalAlignment="Center" />
+                    <TextBlock x:Name="EmptyDetail" Text="试试清空搜索词，或把分类、风险筛选恢复为全部。"
+                               Style="{StaticResource CaptionTextStyle}" TextAlignment="Center"
+                               TextWrapping="Wrap" MaxWidth="320" />
                 </StackPanel>
             </Grid>
         </controls:TechPanel>
@@ -314,8 +306,7 @@
 
         <!-- 操作栏 -->
         <controls:TechPanel x:Name="ActionPanel" Grid.Row="4" Style="{StaticResource TechCardStyle}"
-                            Padding="14,10" Cut="10" CutBottom="10"
-                            TopLineBrush="{ThemeResource AccentDimBrush}" TopLineOpacity="0.9">
+                            Padding="14,10">
             <Grid ColumnSpacing="16">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />

@@ -20,6 +20,8 @@
             <SolidColorBrush x:Key="CardBrush" Color="#C4171C24" />
             <!-- 浮层（悬停预览、右键菜单）：需要压住下方内容，不能沿用半透明卡片底 -->
             <SolidColorBrush x:Key="FloatSurfaceBrush" Color="#F2131820" />
+            <!-- 右侧控制台：内容密集且覆盖正文，必须完全不透明，避免下方文字透上来 -->
+            <SolidColorBrush x:Key="DrawerSurfaceBrush" Color="#FF111823" />
             <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#F2131820" />
             <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="#48515E" />
             <LinearGradientBrush x:Key="CardSurfaceBrush" StartPoint="0,0" EndPoint="0.4,1">
@@ -196,6 +198,7 @@
             <SolidColorBrush x:Key="InsetBrush" Color="#C7E4EAF2" />
             <SolidColorBrush x:Key="CardBrush" Color="#EDFBFCFE" />
             <SolidColorBrush x:Key="FloatSurfaceBrush" Color="#FCFFFFFF" />
+            <SolidColorBrush x:Key="DrawerSurfaceBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#FCFFFFFF" />
             <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="#8996A9" />
             <LinearGradientBrush x:Key="CardSurfaceBrush" StartPoint="0,0" EndPoint="0.4,1">
@@ -369,6 +372,7 @@
             <SolidColorBrush x:Key="CardHoverBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="HeroSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="FloatSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="DrawerSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
 
@@ -493,11 +497,11 @@
 
     <Style x:Key="PageTitleStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource DisplayFontFamily}" />
-        <Setter Property="FontSize" Value="30" />
+        <Setter Property="FontSize" Value="26" />
         <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="Foreground" Value="{ThemeResource TextBrush}" />
         <Setter Property="TextWrapping" Value="NoWrap" />
-        <Setter Property="CharacterSpacing" Value="-20" />
+        <Setter Property="CharacterSpacing" Value="-10" />
     </Style>
 
     <Style x:Key="SectionTitleStyle" TargetType="TextBlock">
@@ -534,27 +538,24 @@
         <Setter Property="Foreground" Value="{ThemeResource SubTextBrush}" />
     </Style>
 
-    <!-- 战术控制台的小号等宽标签：只用于模块代号、采样说明与真实技术信息 -->
+    <!-- 小号辅助标签：沿用界面字体，不再用等宽大写字距营造“控制台”感 -->
     <Style x:Key="TechLabelStyle" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
-        <Setter Property="FontSize" Value="10" />
-        <Setter Property="CharacterSpacing" Value="120" />
-        <Setter Property="Foreground" Value="{ThemeResource MutedTextBrush}" />
+        <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="Foreground" Value="{ThemeResource SubTextBrush}" />
         <Setter Property="TextWrapping" Value="NoWrap" />
     </Style>
 
     <Style x:Key="TechCodeStyle" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
-        <Setter Property="FontSize" Value="9.5" />
-        <Setter Property="CharacterSpacing" Value="140" />
-        <Setter Property="Foreground" Value="{ThemeResource FaintTextBrush}" />
+        <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{ThemeResource SubTextBrush}" />
         <Setter Property="TextWrapping" Value="NoWrap" />
     </Style>
 
     <Style x:Key="TechMicroStyle" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{StaticResource MonoFontFamily}" />
-        <Setter Property="FontSize" Value="9" />
-        <Setter Property="CharacterSpacing" Value="100" />
+        <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
+        <Setter Property="FontSize" Value="11" />
         <Setter Property="Foreground" Value="{ThemeResource MutedTextBrush}" />
         <Setter Property="TextWrapping" Value="NoWrap" />
     </Style>
@@ -626,10 +627,6 @@
         <Setter Property="Cut" Value="0" />
         <Setter Property="Radius" Value="16" />
         <Setter Property="Padding" Value="22,20" />
-        <Setter Property="TopLineBrush" Value="{ThemeResource AccentDimBrush}" />
-        <Setter Property="TopLineOpacity" Value="0.8" />
-        <Setter Property="Brackets" Value="True" />
-        <Setter Property="BracketBrush" Value="{ThemeResource AccentDimBrush}" />
     </Style>
 
     <Style x:Key="TechInsetStyle" TargetType="controls:TechPanel">
@@ -729,11 +726,19 @@
                                              To="1" Duration="0:0:0.08" />
                         </Storyboard>
                     </VisualState>
+                    <!-- 禁用态改成中性底 + 禁用文字，避免强调色按钮变淡后仍像可点。 -->
                     <VisualState x:Name="Disabled">
                         <Storyboard>
-                            <DoubleAnimation Storyboard.TargetName="Root"
-                                             Storyboard.TargetProperty="Opacity"
-                                             To="0.45" Duration="0" />
+                            <ObjectAnimationUsingKeyFrames Storyboard.TargetName="Root"
+                                                           Storyboard.TargetProperty="Background">
+                                <DiscreteObjectKeyFrame KeyTime="0"
+                                                        Value="{ThemeResource ButtonBackgroundDisabled}" />
+                            </ObjectAnimationUsingKeyFrames>
+                            <ObjectAnimationUsingKeyFrames Storyboard.TargetName="Presenter"
+                                                           Storyboard.TargetProperty="Foreground">
+                                <DiscreteObjectKeyFrame KeyTime="0"
+                                                        Value="{ThemeResource ButtonForegroundDisabled}" />
+                            </ObjectAnimationUsingKeyFrames>
                         </Storyboard>
                     </VisualState>
                 </VisualStateGroup>
@@ -799,6 +804,22 @@
         <Setter Property="Template" Value="{StaticResource SoftButtonTemplate}" />
     </Style>
 
+    <!-- 页内筛选 chip：未选中为中性文字，选中态由页面代码切换底色与描边 -->
+    <Style x:Key="FilterChipStyle" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{ThemeResource SubTextBrush}" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="Padding" Value="11,5" />
+        <Setter Property="MinHeight" Value="30" />
+        <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
+        <Setter Property="FontSize" Value="12.5" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template" Value="{StaticResource SoftButtonTemplate}" />
+    </Style>
+
     <Style x:Key="DangerButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="{ThemeResource DangerSoftBrush}" />
         <Setter Property="Foreground" Value="{ThemeResource DangerBrush}" />
@@ -826,6 +847,24 @@
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Template" Value="{StaticResource SoftButtonTemplate}" />
+    </Style>
+
+    <!-- 顶栏主题图标：比常规图标按钮更紧凑，三个并排成小胶囊 -->
+    <Style x:Key="ThemeIconButtonStyle" TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
+        <Setter Property="Width" Value="27" />
+        <Setter Property="Height" Value="24" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="UseSystemFocusVisuals" Value="True" />
+    </Style>
+
+    <!-- 底部 Dock：方形图标按钮，hover 只叠中性遮罩，选中底由外壳代码设置 -->
+    <Style x:Key="DockButtonStyle" TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
+        <Setter Property="Width" Value="42" />
+        <Setter Property="Height" Value="38" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="UseSystemFocusVisuals" Value="True" />
     </Style>
 
     <!-- 设置页的材质选项：缩略预览 + 名称，选中态由页面代码切换描边与底色 -->
@@ -1081,14 +1120,14 @@
         </Setter>
     </Style>
 
-    <!-- 统一页头：强调条 + 标题 + 模块代号 + 操作区；窄窗口自动下移操作区 -->
+    <!-- 统一页头：标题 + 一句说明，操作区右对齐；窄窗口自动下移操作区 -->
     <Style x:Key="PageHeaderStyle" TargetType="controls:PageHeader">
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="VerticalContentAlignment" Value="Top" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="controls:PageHeader">
-                    <Grid x:Name="HeaderRoot" ColumnSpacing="18" RowSpacing="0">
+                    <Grid x:Name="HeaderRoot" ColumnSpacing="20" RowSpacing="0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
@@ -1098,30 +1137,16 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <Grid x:Name="TitleBlock">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="4" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Border x:Name="AccentBar" Width="4" Height="32" VerticalAlignment="Top" Margin="0,6,0,0"
-                                    CornerRadius="2" Background="{ThemeResource AccentBrush}" />
-                            <StackPanel Grid.Column="1" Margin="14,0,0,0" Spacing="4">
-                                <TextBlock x:Name="TitleText" Text="{TemplateBinding Title}"
-                                           Style="{StaticResource PageTitleStyle}" />
-                                <TextBlock x:Name="SubtitleText" Text="{TemplateBinding Subtitle}"
-                                           Style="{StaticResource SecondaryTextStyle}"
-                                           TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
-                            </StackPanel>
-                        </Grid>
-
-                        <StackPanel x:Name="RightBlock" Grid.Column="1" Spacing="8" VerticalAlignment="Top"
-                                    HorizontalAlignment="Right" MinWidth="180">
-                            <TextBlock x:Name="CodeBlock" Text="{TemplateBinding Code}"
-                                       Style="{StaticResource TechCodeStyle}" HorizontalAlignment="Right" />
-                            <Border x:Name="CodeLine" Height="1" Background="{ThemeResource BorderBrush}" />
-                            <ContentPresenter x:Name="ActionsHost" Content="{TemplateBinding Content}"
-                                              HorizontalAlignment="Right" VerticalAlignment="Center" />
+                        <StackPanel x:Name="TitleBlock" Spacing="3" VerticalAlignment="Center">
+                            <TextBlock x:Name="TitleText" Text="{TemplateBinding Title}"
+                                       Style="{StaticResource PageTitleStyle}" />
+                            <TextBlock x:Name="SubtitleText" Text="{TemplateBinding Subtitle}"
+                                       Style="{StaticResource SecondaryTextStyle}"
+                                       TextWrapping="Wrap" MaxLines="1" TextTrimming="CharacterEllipsis" />
                         </StackPanel>
+
+                        <ContentPresenter x:Name="ActionsHost" Grid.Column="1" Content="{TemplateBinding Content}"
+                                          HorizontalAlignment="Right" VerticalAlignment="Center" />
                     </Grid>
                 </ControlTemplate>
             </Setter.Value>

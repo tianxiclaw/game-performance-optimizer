@@ -17,6 +17,7 @@ public sealed partial class ItemsPage : Page, IThemeAware
 {
     private List<ProfileInfo> _profiles = new();
     private bool _loadingProfiles;
+    private bool _loading = true;
     private bool? _twoRow;
     private bool? _short;
 
@@ -48,9 +49,9 @@ public sealed partial class ItemsPage : Page, IThemeAware
             _twoRow = twoRow;
             if (twoRow)
             {
-                Grid.SetRow(SearchCell, 0);
-                Grid.SetColumn(SearchCell, 0);
-                Grid.SetColumnSpan(SearchCell, 4);
+                Grid.SetRow(SearchBox, 0);
+                Grid.SetColumn(SearchBox, 0);
+                Grid.SetColumnSpan(SearchBox, 4);
 
                 Grid.SetRow(CategoryBox, 1);
                 Grid.SetColumn(CategoryBox, 0);
@@ -75,9 +76,9 @@ public sealed partial class ItemsPage : Page, IThemeAware
             }
             else
             {
-                Grid.SetRow(SearchCell, 0);
-                Grid.SetColumn(SearchCell, 0);
-                Grid.SetColumnSpan(SearchCell, 1);
+                Grid.SetRow(SearchBox, 0);
+                Grid.SetColumn(SearchBox, 0);
+                Grid.SetColumnSpan(SearchBox, 1);
 
                 Grid.SetRow(CategoryBox, 0);
                 Grid.SetColumn(CategoryBox, 1);
@@ -119,17 +120,21 @@ public sealed partial class ItemsPage : Page, IThemeAware
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
+        _loading = true;
         InitFilters();
         RefreshView();
         try
         {
             await App.Services.State.EnsureSnapshotAsync();
+            _loading = false;
             InitFilters();
             RefreshView();
             await LoadProfilesAsync();
         }
         catch (Exception ex)
         {
+            _loading = false;
+            RefreshView();
             ShowInfo("状态读取失败", ex.Message, InfoBarSeverity.Error);
         }
     }
@@ -222,15 +227,21 @@ public sealed partial class ItemsPage : Page, IThemeAware
         EmptyHint.Visibility = View.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
         var all = App.Services.State.Items;
+        var initializing = _loading && all.Count == 0;
+        EmptyTitle.Text = initializing ? "正在读取优化项" : "没有符合条件的优化项";
+        EmptyDetail.Text = initializing
+            ? "正在读取当前系统状态，通常需要几秒。"
+            : "试试清空搜索词，或把分类、风险筛选恢复为全部。";
+
         var applied = all.Count(i => i.Status == "ok");
         var pending = all.Count(i => i.Status == "no");
         var na = all.Count(i => i.Status == "na");
         var selected = all.Where(i => i.Selected).ToList();
-        AppliedChip.Text = $"已生效 {applied}";
-        PendingChip.Text = $"待优化 {pending}";
-        NaChip.Text = $"不适用 {na}";
+        AppliedChip.Text = initializing ? "已生效 —" : $"已生效 {applied}";
+        PendingChip.Text = initializing ? "待优化 —" : $"待优化 {pending}";
+        NaChip.Text = initializing ? "不适用 —" : $"不适用 {na}";
         SelectedChip.Text = $"已选 {selected.Count}";
-        ViewCountText.Text = $"显示 {View.Count} / {all.Count} 项";
+        ViewCountText.Text = initializing ? "正在读取..." : $"显示 {View.Count} / {all.Count} 项";
 
         var low = selected.Count(i => i.Risk == "low");
         var mid = selected.Count(i => i.Risk == "mid");

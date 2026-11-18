@@ -8,11 +8,15 @@ namespace GamePerfCenter.Services;
 
 public sealed class LiveMetricsService
 {
+    private const double GpuIntervalSeconds = 1.0;
+
     private ulong _lastIdle, _lastKernel, _lastUser;
     private long _lastNetRecv, _lastNetSent;
     private DateTime _lastAt = DateTime.MinValue;
     private readonly object _gate = new();
     private bool _primed;
+    private double _lastGpu;
+    private DateTime _lastGpuAt = DateTime.MinValue;
 
     public bool GpuAvailable { get; private set; } = true;
     public string? GpuError { get; private set; }
@@ -31,8 +35,21 @@ public sealed class LiveMetricsService
             result.NetDownKbps = net.down;
             result.NetUpKbps = net.up;
         }
-        result.Gpu = SampleGpu();
+        result.Gpu = SampleGpuThrottled();
         return result;
+    }
+
+    /// <summary>
+    /// GPU 走 WMI，单次查询比 CPU / 内存 / 网络贵一个数量级。
+    /// 界面仍按 250ms 刷新，但 WMI 结果按 1 秒缓存，避免采样器自己吃掉一个核的十几%。
+    /// </summary>
+    private double SampleGpuThrottled()
+    {
+        var now = DateTime.UtcNow;
+        if (now - _lastGpuAt < TimeSpan.FromSeconds(GpuIntervalSeconds)) return _lastGpu;
+        _lastGpuAt = now;
+        _lastGpu = SampleGpu();
+        return _lastGpu;
     }
 
     private double SampleCpu()
