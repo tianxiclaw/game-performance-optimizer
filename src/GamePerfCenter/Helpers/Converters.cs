@@ -59,7 +59,7 @@ public sealed class RiskToBrushConverter : IValueConverter
     {
         return (value as string) switch
         {
-            "low" => UiPalette.Ok(),
+            "low" => UiPalette.Muted(),
             "mid" => UiPalette.Warn(),
             "high" => UiPalette.Danger(),
             _ => UiPalette.Muted()

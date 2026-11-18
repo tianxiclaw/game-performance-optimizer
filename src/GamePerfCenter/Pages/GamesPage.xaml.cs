@@ -17,6 +17,7 @@ public sealed partial class GamesPage : Page, IThemeAware
     private readonly List<GameInfo> _all = new();
     private readonly ObservableCollection<GameInfo> _view = new();
     private GameInfo? _selected;
+    private string? _detailKey;
     private bool _loaded;
     private bool _syncingSelection;
     private bool _narrow;
@@ -253,6 +254,14 @@ public sealed partial class GamesPage : Page, IThemeAware
         DetailFolderButton.IsEnabled = !string.IsNullOrWhiteSpace(game.Exe) && game.Exists;
         DetailRemoveButton.Visibility = game.Manual ? Visibility.Visible : Visibility.Collapsed;
         UpdateNarrowVisibility();
+
+        // 切换到另一款游戏时给详情一次安静的重置动画；同一游戏刷新不重复播放。
+        var key = game.Exe ?? game.Name;
+        if (key != _detailKey)
+        {
+            _detailKey = key;
+            Motion.FadeSlideIn(DetailContent, 10, 200);
+        }
     }
 
 

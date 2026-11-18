@@ -1,4 +1,4 @@
-using System.Security.Principal;
+﻿using System.Security.Principal;
 
 namespace GamePerfCenter.Services;
 
@@ -14,7 +14,7 @@ public static class AppPaths
     public static string DiagnosticsDir => Path.Combine(BaseDir, "diagnostics");
     public static string SettingsPath => Path.Combine(BaseDir, "gui-settings.json");
     public static string AppLogPath => Path.Combine(DataDir, "winui.log");
-    public static string Version => "6.6.0";
+    public static string Version => "6.7.0";
 
     public static string UserSid
     {

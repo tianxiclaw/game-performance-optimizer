@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Windows.Foundation;
@@ -15,12 +16,19 @@ public sealed partial class OverviewPage : Page, IThemeAware
     private const int HistoryLimit = 45;
     private const double RadarCenter = 132;
     private readonly List<double> _cpuHistory = new();
+    private readonly NumberRoll _cpuRoll;
+    private readonly NumberRoll _gpuRoll;
+    private readonly NumberRoll _ramRoll;
     private Storyboard? _sweep;
+    private Storyboard? _pulse;
     private MainWindow? _shell;
 
     public OverviewPage()
     {
         InitializeComponent();
+        _cpuRoll = new NumberRoll(CpuValue);
+        _gpuRoll = new NumberRoll(GpuValue);
+        _ramRoll = new NumberRoll(RamValue);
         NavigationCacheMode = Microsoft.UI.Xaml.Navigation.NavigationCacheMode.Required;
         App.Services.State.Changed += OnStateChanged;
         Loaded += OnLoaded;
@@ -122,6 +130,7 @@ public sealed partial class OverviewPage : Page, IThemeAware
     {
         BuildRadarTicks();
         StartRadarSweep();
+        StartLivePulse();
         RefreshUi();
         SubscribeMetrics();
         if (_shell?.LatestMetrics is { } latest) OnMetrics(latest);
@@ -180,11 +189,37 @@ public sealed partial class OverviewPage : Page, IThemeAware
         }
     }
 
+    /// <summary>LIVE 呼吸点：只表达采样在运行，不承载信息。</summary>
+    private void StartLivePulse()
+    {
+        if (_pulse is not null || !Motion.Enabled) return;
+        try
+        {
+            var animation = new DoubleAnimation
+            {
+                From = 1,
+                To = 0.3,
+                Duration = new Duration(TimeSpan.FromMilliseconds(1100)),
+                RepeatBehavior = RepeatBehavior.Forever,
+                AutoReverse = true
+            };
+            Storyboard.SetTarget(animation, LivePulseDot);
+            Storyboard.SetTargetProperty(animation, "Opacity");
+            _pulse = new Storyboard();
+            _pulse.Children.Add(animation);
+            _pulse.Begin();
+        }
+        catch { }
+    }
+
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         UnsubscribeMetrics();
         _sweep?.Stop();
         _sweep = null;
+        _pulse?.Stop();
+        _pulse = null;
+        LivePulseDot.Opacity = 1;
     }
 
     private void SubscribeMetrics()
@@ -315,20 +350,21 @@ public sealed partial class OverviewPage : Page, IThemeAware
 
     private void OnMetrics(LiveMetrics m)
     {
-        CpuValue.Text = m.Cpu.ToString("0");
+        _cpuRoll.To(m.Cpu);
         UpdateRing(CpuRing, m.Cpu, RadarCenter, 108);
         PushHistory(_cpuHistory, m.Cpu);
         RenderSpark(CpuSparkLine, _cpuHistory);
 
         var gpuAvailable = App.Services.Metrics.GpuAvailable;
-        GpuValue.Text = gpuAvailable ? m.Gpu.ToString("0") : "--";
+        if (gpuAvailable) _gpuRoll.To(m.Gpu);
+        else _gpuRoll.SetLiteral("—");
         GpuRingLabel.Text = gpuAvailable ? "GPU 3D" : "GPU 未提供";
         SignalGpu.Text = gpuAvailable ? "可用 · 2 秒采样" : "不可用";
         GpuRing.Opacity = gpuAvailable ? 0.85 : 0.25;
         UpdateRing(GpuRing, gpuAvailable ? m.Gpu : 0, RadarCenter, 90);
         GpuBar.Value = gpuAvailable ? m.Gpu : 0;
 
-        RamValue.Text = m.RamPercent.ToString("0") + "%";
+        _ramRoll.To(m.RamPercent, "0", "%");
         RamBar.Value = m.RamPercent;
         RamHint.Text = $"{m.RamUsedGb:0.0} / {m.RamTotalGb:0.0} GB 已用";
 
@@ -379,6 +415,37 @@ public sealed partial class OverviewPage : Page, IThemeAware
     {
         history.Add(value);
         if (history.Count > HistoryLimit) history.RemoveRange(0, history.Count - HistoryLimit);
+    }
+
+    /// <summary>趋势线悬停读数：按采样序号换算，不伪造插值。</summary>
+    private void Spark_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        var count = _cpuHistory.Count;
+        if (count < 2) return;
+        const double width = 264;
+        const double height = 28;
+
+        var pointerX = e.GetCurrentPoint(SparkCanvas).Position.X;
+        var index = (int)Math.Round(Math.Clamp(pointerX, 0, width) / width * (count - 1));
+        index = Math.Clamp(index, 0, count - 1);
+
+        var x = index * width / (count - 1);
+        var y = height - 2 - Math.Clamp(_cpuHistory[index], 0, 100) / 100 * (height - 4);
+        Canvas.SetLeft(SparkCursor, x);
+        Canvas.SetTop(SparkCursor, 2);
+        Canvas.SetLeft(SparkMarker, x - 3);
+        Canvas.SetTop(SparkMarker, y - 3);
+        SparkCursor.Visibility = Visibility.Visible;
+        SparkMarker.Visibility = Visibility.Visible;
+        SparkReadout.Text = $"{_cpuHistory[index]:0}% · {(count - 1 - index) * 2}s 前";
+        SparkReadout.Visibility = Visibility.Visible;
+    }
+
+    private void Spark_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        SparkCursor.Visibility = Visibility.Collapsed;
+        SparkMarker.Visibility = Visibility.Collapsed;
+        SparkReadout.Visibility = Visibility.Collapsed;
     }
 
     private static void RenderSpark(Microsoft.UI.Xaml.Shapes.Polyline line, IReadOnlyList<double> values)

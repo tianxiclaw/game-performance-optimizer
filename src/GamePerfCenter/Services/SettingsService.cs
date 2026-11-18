@@ -13,6 +13,17 @@ public sealed class SettingsService
     public bool MinimizeToTray { get; set; }
     public bool NotifyDriver { get; set; } = true;
 
+    /// <summary>命令面板的最近使用记录，最多 8 条，只存命令 Id。</summary>
+    public List<string> CommandRecents { get; private set; } = new();
+
+    public void RecordCommand(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return;
+        CommandRecents.Remove(id);
+        CommandRecents.Insert(0, id);
+        if (CommandRecents.Count > 8) CommandRecents.RemoveRange(8, CommandRecents.Count - 8);
+    }
+
     public SettingsService()
     {
         Load();
@@ -32,6 +43,17 @@ public sealed class SettingsService
             Material = material is "mica" or "glass" ? material : "deep";
             MinimizeToTray = GetBool("MinimizeToTray", false);
             NotifyDriver = GetBool("NotifyDriver", true);
+
+            CommandRecents = new List<string>();
+            if (_root["CommandRecents"] is JsonArray array)
+            {
+                foreach (var node in array)
+                {
+                    var id = node?.GetValue<string>();
+                    if (!string.IsNullOrWhiteSpace(id) && !CommandRecents.Contains(id)) CommandRecents.Add(id);
+                    if (CommandRecents.Count >= 8) break;
+                }
+            }
         }
         catch { }
     }
@@ -48,6 +70,9 @@ public sealed class SettingsService
             _root["Material"] = Material;
             _root["MinimizeToTray"] = MinimizeToTray;
             _root["NotifyDriver"] = NotifyDriver;
+            var recents = new JsonArray();
+            foreach (var id in CommandRecents) recents.Add(id);
+            _root["CommandRecents"] = recents;
             _root["Updated"] = DateTime.Now.ToString("s");
             _root["Ui"] = "winui3";
             var json = _root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });

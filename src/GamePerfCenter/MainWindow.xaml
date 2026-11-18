@@ -200,6 +200,23 @@
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right"
                         VerticalAlignment="Center" Spacing="6">
+                <Button x:Name="CommandButton" Style="{StaticResource SubtleButtonStyle}"
+                        Click="CommandButton_Click" Padding="8,4" MinHeight="28"
+                        VerticalAlignment="Center"
+                        ToolTipService.ToolTip="打开命令面板（Ctrl+K），可跳转页面、搜索优化项与启动游戏">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE721;" FontSize="12"
+                                  Foreground="{ThemeResource SubTextBrush}" />
+                        <TextBlock x:Name="CommandLabel" Text="命令" FontSize="11.5"
+                                   Foreground="{ThemeResource SubTextBrush}" VerticalAlignment="Center" />
+                        <Border x:Name="CommandKeycap" Background="{ThemeResource Surface2Brush}"
+                                CornerRadius="4" Padding="5,1" VerticalAlignment="Center">
+                            <TextBlock Text="Ctrl K" FontFamily="{StaticResource MonoFontFamily}"
+                                       FontSize="9.5" Foreground="{ThemeResource MutedTextBrush}" />
+                        </Border>
+                    </StackPanel>
+                </Button>
+
                 <Button x:Name="PendingButton" Click="PendingButton_Click" Visibility="Collapsed"
                         Background="{ThemeResource WarnSoftBrush}"
                         BorderBrush="{ThemeResource WarnBrush}" BorderThickness="1"
@@ -282,5 +299,9 @@
                 </StackPanel>
             </Grid>
         </Border>
+
+        <!-- 命令面板：覆盖整个窗口，Ctrl+K 或顶栏按钮打开 -->
+        <controls:CommandPalette x:Name="Palette" Grid.RowSpan="3" Grid.ColumnSpan="2"
+                                 VerticalAlignment="Stretch" HorizontalAlignment="Stretch" />
     </Grid>
 </Window>

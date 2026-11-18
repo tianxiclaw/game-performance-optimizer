@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -9,7 +9,7 @@ namespace GamePerfCenter.Cli;
 
 internal static class Program
 {
-    private const string Version = "6.6.0";
+    private const string Version = "6.7.0";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

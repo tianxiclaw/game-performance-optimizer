@@ -132,11 +132,23 @@
                                 <Grid Grid.Row="1" Height="28">
                                     <Border Height="1" VerticalAlignment="Bottom"
                                             Background="{ThemeResource BorderBrush}" Opacity="0.6" />
-                                    <Canvas Width="264" Height="28" HorizontalAlignment="Left"
-                                            VerticalAlignment="Top">
+                                    <Canvas x:Name="SparkCanvas" Width="264" Height="28"
+                                            HorizontalAlignment="Left" VerticalAlignment="Top"
+                                            Background="Transparent"
+                                            PointerMoved="Spark_PointerMoved"
+                                            PointerExited="Spark_PointerExited">
+                                        <Rectangle x:Name="SparkCursor" Width="1" Height="24"
+                                                   Fill="{ThemeResource AccentDimBrush}" Visibility="Collapsed" />
                                         <Polyline x:Name="CpuSparkLine" Stroke="{ThemeResource AccentBrush}"
                                                   StrokeThickness="1.2" />
+                                        <Ellipse x:Name="SparkMarker" Width="6" Height="6"
+                                                 Fill="{ThemeResource AccentBrush}" Visibility="Collapsed" />
                                     </Canvas>
+                                    <TextBlock x:Name="SparkReadout" HorizontalAlignment="Right"
+                                               VerticalAlignment="Top" Margin="0,-2,2,0"
+                                               Style="{StaticResource TechCodeStyle}"
+                                               Foreground="{ThemeResource AccentBrush}"
+                                               Visibility="Collapsed" />
                                 </Grid>
                             </Grid>
 
@@ -144,8 +156,8 @@
                                 <TextBlock x:Name="LiveStamp" Text="等待首次采样"
                                            Style="{StaticResource TechCodeStyle}" />
                                 <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Right">
-                                    <Ellipse Width="4" Height="4" Fill="{ThemeResource AccentBrush}"
-                                             VerticalAlignment="Center" />
+                                    <Ellipse x:Name="LivePulseDot" Width="4" Height="4"
+                                             Fill="{ThemeResource AccentBrush}" VerticalAlignment="Center" />
                                     <TextBlock Text="LIVE" Style="{StaticResource TechCodeStyle}"
                                                Foreground="{ThemeResource AccentBrush}" />
                                 </StackPanel>

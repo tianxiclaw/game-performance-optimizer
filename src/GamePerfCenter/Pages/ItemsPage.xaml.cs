@@ -3,7 +3,9 @@ using System.Text.Json;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Windows.ApplicationModel.DataTransfer;
 using GamePerfCenter.Helpers;
 using GamePerfCenter.Models;
 using GamePerfCenter.Services;
@@ -192,6 +194,16 @@ public sealed partial class ItemsPage : Page, IThemeAware
         var cat = SelectedTag(CategoryBox);
         var risk = SelectedTag(RiskBox);
 
+        // 上次应用时间来自快照，不随单项刷新变化；先写回模型，行内详情直接绑定。
+        var lastApply = App.Services.State.Snapshot?.LastApply;
+        foreach (var item in App.Services.State.Items)
+        {
+            var hit = lastApply?.Items?.FirstOrDefault(x => x.Id == item.Id);
+            item.LastAppliedText = hit is null
+                ? "尚未通过本工具应用"
+                : "上次应用 " + ShortTime(lastApply!.Time);
+        }
+
         var filtered = App.Services.State.Items.Where(i =>
         {
             if (!string.IsNullOrEmpty(cat) && !string.Equals(i.Cat, cat, StringComparison.OrdinalIgnoreCase)) return false;
@@ -230,6 +242,8 @@ public sealed partial class ItemsPage : Page, IThemeAware
         {
             ActionSummary.Text = $"已选 {selected.Count} 项 · 低风险 {low} · 中风险 {mid} · 高风险 {high}";
         }
+        PreviewButton.IsEnabled = selected.Count > 0;
+        ApplyButton.IsEnabled = selected.Count > 0;
     }
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e) => RefreshView();
@@ -326,38 +340,146 @@ public sealed partial class ItemsPage : Page, IThemeAware
         }
     }
 
-    private void Detail_Click(object sender, RoutedEventArgs e)
+    /// <summary>行内展开：同一时间只展开一项，避免列表被拉得过长。</summary>
+    private void ToggleExpanded(ItemInfo item)
     {
-        if ((sender as FrameworkElement)?.DataContext is not ItemInfo item) return;
-        var panel = new StackPanel { Spacing = 10 };
-        panel.Children.Add(new TextBlock { Text = item.Name, FontSize = 18, FontWeight = FontWeights.SemiBold });
-        panel.Children.Add(new TextBlock
-        {
-            Text = $"{item.Cat} · {RiskLabel(item.Risk)} · {StatusLabel(item.Status)}",
-            Opacity = 0.75
-        });
-        panel.Children.Add(new TextBlock { Text = item.Desc, TextWrapping = TextWrapping.Wrap, LineHeight = 21 });
-        panel.Children.Add(DetailRow("目标值", item.Target ?? "—"));
-        panel.Children.Add(DetailRow("当前状态", item.StatusText ?? "—"));
-        panel.Children.Add(DetailRow("需要重启", item.NeedsReboot ? "是" : "否"));
-        if (!string.IsNullOrWhiteSpace(item.Dep))
-            panel.Children.Add(DetailRow("依赖项", item.DepHint ?? item.Dep));
+        var expand = !item.IsExpanded;
+        foreach (var other in View) other.IsExpanded = false;
+        item.IsExpanded = expand;
+        if (!expand) return;
 
-        _ = new ContentDialog
+        ItemsList.ScrollIntoView(item);
+        DispatcherQueue.TryEnqueue(() =>
         {
-            XamlRoot = XamlRoot,
-            Title = "优化项详情",
-            Content = new ScrollViewer { Content = panel, MaxHeight = 480 },
-            CloseButtonText = "关闭"
-        }.ShowAsync();
+            if (ItemsList.ContainerFromItem(item) is not DependencyObject container) return;
+            var detail = FindDescendant<Border>(container, b => (b.Tag as string) == "ItemDetail");
+            if (detail is not null) Motion.FadeSlideIn(detail, 5, 150);
+        });
     }
 
-    private static StackPanel DetailRow(string label, string value)
+    private void Expand_Click(object sender, RoutedEventArgs e)
     {
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        row.Children.Add(new TextBlock { Text = label, Width = 76, Opacity = 0.6 });
-        row.Children.Add(new TextBlock { Text = value, TextWrapping = TextWrapping.Wrap, MaxWidth = 420 });
-        return row;
+        if ((sender as FrameworkElement)?.DataContext is ItemInfo item) ToggleExpanded(item);
+    }
+
+    private void Row_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        if (IsInteractiveSource(e.OriginalSource as DependencyObject)) return;
+        if (sender is not FrameworkElement { DataContext: ItemInfo item }) return;
+        ToggleExpanded(item);
+        e.Handled = true;
+    }
+
+    /// <summary>按钮、勾选框与已展开的详情区域不参与整行展开。</summary>
+    private static bool IsInteractiveSource(DependencyObject? source)
+    {
+        for (var i = 0; i < 12 && source is not null; i++)
+        {
+            if (source is Button or CheckBox or TextBox) return true;
+            if (source is FrameworkElement { Tag: "ItemDetail" }) return true;
+            source = VisualTreeHelper.GetParent(source);
+        }
+        return false;
+    }
+
+    private static T? FindDescendant<T>(DependencyObject root, Func<T, bool>? match = null)
+        where T : DependencyObject
+    {
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T typed && (match is null || match(typed))) return typed;
+            var found = FindDescendant(child, match);
+            if (found is not null) return found;
+        }
+        return null;
+    }
+
+    private async void ApplyItem_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not ItemInfo item ||
+            string.IsNullOrWhiteSpace(item.Id)) return;
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = $"应用「{item.Name}」",
+            Content = new TextBlock
+            {
+                Text = $"目标：{item.Target}\n风险：{RiskLabel(item.Risk)}\n\n" +
+                       "应用前会自动生成原值备份与 .reg 快照，可在「备份还原」中撤销。",
+                TextWrapping = TextWrapping.Wrap,
+                LineHeight = 22
+            },
+            PrimaryButtonText = "应用",
+            CloseButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary
+        };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+        await RunApplyAsync(new List<string> { item.Id! }, dryRun: false);
+    }
+
+    private void CopyId_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not ItemInfo item ||
+            string.IsNullOrWhiteSpace(item.Id)) return;
+        try
+        {
+            var package = new DataPackage();
+            package.SetText(item.Id);
+            Clipboard.SetContent(package);
+            Clipboard.Flush();
+            ShowInfo("已复制 ID", item.Id + " 已写入剪贴板。", InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowInfo("复制失败", ex.Message, InfoBarSeverity.Error);
+        }
+    }
+
+    private static string ShortTime(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "时间未知";
+        var text = value.Replace('T', ' ');
+        return text.Length >= 16 && text[4] == '-' ? text.Substring(5, 11) : text;
+    }
+
+    /// <summary>命令面板定位：清空筛选、展开目标行并滚动到可见位置。</summary>
+    public void FocusItem(string id)
+    {
+        _loadingProfiles = true;
+        SearchBox.Text = string.Empty;
+        if (CategoryBox.Items.Count > 0) CategoryBox.SelectedIndex = 0;
+        if (RiskBox.Items.Count > 0) RiskBox.SelectedIndex = 0;
+        _loadingProfiles = false;
+        RefreshView();
+
+        var item = View.FirstOrDefault(i => string.Equals(i.Id, id, StringComparison.OrdinalIgnoreCase));
+        if (item is null)
+        {
+            var source = App.Services.State.Items
+                .FirstOrDefault(i => string.Equals(i.Id, id, StringComparison.OrdinalIgnoreCase));
+            if (source is null) return;
+            SearchBox.Text = source.Name ?? "";
+            RefreshView();
+            item = View.FirstOrDefault(i => string.Equals(i.Id, id, StringComparison.OrdinalIgnoreCase));
+        }
+        if (item is null) return;
+
+        foreach (var other in View) other.IsExpanded = false;
+        item.IsExpanded = true;
+        ItemsList.ScrollIntoView(item);
+        ItemsList.Focus(FocusState.Programmatic);
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            ItemsList.ScrollIntoView(item);
+            if (ItemsList.ContainerFromItem(item) is DependencyObject container)
+            {
+                var detail = FindDescendant<Border>(container, b => (b.Tag as string) == "ItemDetail");
+                if (detail is not null) Motion.FadeSlideIn(detail, 5, 150);
+            }
+        });
     }
 
     private static string RiskLabel(string? risk) => risk switch

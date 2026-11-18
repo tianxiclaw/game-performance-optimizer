@@ -1,10 +1,18 @@
 using System.Diagnostics;
+using System.Numerics;
+using System.Text.Json;
 using Microsoft.UI;
+using Microsoft.UI.Composition;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Hosting;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
+using Microsoft.UI.Xaml.Navigation;
 using Windows.Graphics;
+using Windows.System;
 using GamePerfCenter.Controls;
 using GamePerfCenter.Helpers;
 using GamePerfCenter.Models;
@@ -22,9 +30,14 @@ public sealed partial class MainWindow : Window
     private TrayIcon? _tray;
     private bool _initialized;
     private bool _metricsBusy;
+    private bool _sizedOnActivate;
     private EngineFailure? _shownFailure;
     private double _starWidth;
     private double _starHeight;
+    private string? _pendingItemFocus;
+    private List<GameInfo>? _paletteGames;
+    private DateTime _paletteGamesAt;
+    private bool _paletteGamesLoading;
 
     /// <summary>最近一次实时采样。概览页进入时先拿这里的数据，不用等下一个采样周期。</summary>
     public LiveMetrics? LatestMetrics { get; private set; }
@@ -49,12 +62,28 @@ public sealed partial class MainWindow : Window
         App.Services.State.StatusChanged += OnStatusChanged;
         App.Services.State.Changed += OnStateChanged;
         App.Services.Engine.Crashed += OnEngineCrashed;
+        Palette.CommandInvoked += OnCommandInvoked;
+        ContentFrame.Navigated += OnFrameNavigated;
+
+        var paletteAccelerator = new KeyboardAccelerator
+        {
+            Key = VirtualKey.K,
+            Modifiers = VirtualKeyModifiers.Control
+        };
+        paletteAccelerator.Invoked += (_, args) =>
+        {
+            args.Handled = true;
+            ToggleCommandPalette();
+        };
+        RootGrid.KeyboardAccelerators.Add(paletteAccelerator);
+
         NavEntriesPanel.Loaded += Nav_Loaded;
         Responsive.Watch(RootGrid, 1120, ApplyShellWidth);
         Responsive.Watch(RootGrid, 900, ApplyTitleBar);
         StarLayer.Loaded += (_, _) => BuildTechGrid();
         StarLayer.SizeChanged += (_, _) => BuildTechGrid();
         AppWindow.Closing += OnAppWindowClosing;
+        Activated += OnFirstActivated;
         Closed += OnClosed;
 
         _metricsTimer = _dispatcher.CreateTimer();
@@ -85,6 +114,15 @@ public sealed partial class MainWindow : Window
             var work = display.WorkArea;
             var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
             var dpi = GetDpiForWindow(hwnd);
+            // 构造期窗口尚未激活，GetDpiForWindow 可能先返回 96；直接问所在显示器要真实 DPI，
+            // 否则 200% 缩放下窗口第一次出现只有应有尺寸的一半。
+            var monitor = MonitorFromWindow(hwnd, 2 /* MONITOR_DEFAULTTONEAREST */);
+            if (monitor != IntPtr.Zero &&
+                GetDpiForMonitor(monitor, 0 /* MDT_EFFECTIVE_DPI */, out var monitorDpi, out _) == 0 &&
+                monitorDpi > 0)
+            {
+                dpi = monitorDpi;
+            }
             if (dpi == 0) dpi = 96;
             var scale = dpi / 96.0;
 
@@ -99,6 +137,7 @@ public sealed partial class MainWindow : Window
             var height = (int)Math.Round(heightDip * scale);
             var x = work.X + (work.Width - width) / 2;
             var y = work.Y + (work.Height - height) / 2;
+            AppLog.Write($"窗口尺寸: dpi={dpi} work={work.Width}x{work.Height} -> {width}x{height}");
             AppWindow.MoveAndResize(new RectInt32(x, y, width, height));
         }
         catch { }
@@ -106,6 +145,24 @@ public sealed partial class MainWindow : Window
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+
+    [System.Runtime.InteropServices.DllImport("Shcore.dll")]
+    private static extern int GetDpiForMonitor(IntPtr monitor, int dpiType, out uint dpiX, out uint dpiY);
+
+    /// <summary>
+    /// 构造期窗口还没落到真实显示器上，GetDpiForWindow 可能先返回 96，
+    /// 在 200% 缩放下会让窗口只有应有尺寸的一半。首次激活后再按真实 DPI 校正一次。
+    /// </summary>
+    private async void OnFirstActivated(object sender, WindowActivatedEventArgs args)
+    {
+        if (_sizedOnActivate || args.WindowActivationState == WindowActivationState.Deactivated) return;
+        _sizedOnActivate = true;
+        await Task.Delay(120);
+        SizeWindow();
+    }
 
     private void ApplyTheme()
     {
@@ -315,6 +372,8 @@ public sealed partial class MainWindow : Window
         CrumbRoot.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
         CrumbSlash.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
         LocalModeGroup.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+        CommandLabel.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+        CommandKeycap.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private IEnumerable<NavItem> EnumerateNavItems()
@@ -618,7 +677,358 @@ public sealed partial class MainWindow : Window
         };
         TopBreadcrumb.Text = PageName(tag);
         if (ContentFrame.CurrentSourcePageType == pageType) return;
-        ContentFrame.Navigate(pageType, null, new Microsoft.UI.Xaml.Media.Animation.EntranceNavigationTransitionInfo());
+        ContentFrame.Navigate(pageType, null, new SuppressNavigationTransitionInfo());
+    }
+
+    /// <summary>页面本身不带动画，由外壳统一做 180ms 淡入 + 位移，切页节奏一致。</summary>
+    private void OnFrameNavigated(object sender, NavigationEventArgs e)
+    {
+        AnimateFrameIn();
+        if (_pendingItemFocus is { } id && ContentFrame.Content is ItemsPage page)
+        {
+            _pendingItemFocus = null;
+            DispatcherQueue.TryEnqueue(() => page.FocusItem(id));
+        }
+    }
+
+    private void AnimateFrameIn()
+    {
+        if (!Motion.Enabled) return;
+        try
+        {
+            var visual = ElementCompositionPreview.GetElementVisual(ContentFrame);
+            var compositor = visual.Compositor;
+            visual.Opacity = 0f;
+            visual.Offset = new Vector3(0, 10, 0);
+
+            var ease = compositor.CreateCubicBezierEasingFunction(new Vector2(0.2f, 0f), new Vector2(0f, 1f));
+            var duration = TimeSpan.FromMilliseconds(180);
+
+            var fade = compositor.CreateScalarKeyFrameAnimation();
+            fade.InsertKeyFrame(0f, 0f);
+            fade.InsertKeyFrame(1f, 1f, ease);
+            fade.Duration = duration;
+
+            var slide = compositor.CreateVector3KeyFrameAnimation();
+            slide.InsertKeyFrame(0f, new Vector3(0, 10, 0));
+            slide.InsertKeyFrame(1f, Vector3.Zero, ease);
+            slide.Duration = duration;
+
+            var batch = compositor.CreateScopedBatch(CompositionBatchTypes.Animation);
+            visual.StartAnimation("Opacity", fade);
+            visual.StartAnimation("Offset", slide);
+            batch.Completed += (_, _) =>
+            {
+                try
+                {
+                    visual.Opacity = 1f;
+                    visual.Offset = Vector3.Zero;
+                }
+                catch { }
+            };
+            batch.End();
+        }
+        catch { }
+    }
+
+    private void CommandButton_Click(object sender, RoutedEventArgs e) => ToggleCommandPalette();
+
+    private void ToggleCommandPalette()
+    {
+        if (Palette.IsOpen)
+        {
+            Palette.Close();
+            return;
+        }
+        Palette.Open(BuildCommands(), App.Services.Settings.CommandRecents);
+        _ = LoadGamesForPaletteAsync();
+    }
+
+    private void OnCommandInvoked(CommandItem item)
+    {
+        App.Services.Settings.RecordCommand(item.Id);
+        App.Services.Settings.Save();
+        try { item.Invoke?.Invoke(); }
+        catch (Exception ex)
+        {
+            AppLog.Write("命令执行失败: " + ex);
+            ShowError("命令执行失败", ex.Message);
+        }
+    }
+
+    private List<CommandItem> BuildCommands()
+    {
+        var commands = new List<CommandItem>();
+        void Page(string tag, string title, string glyph, string detail, string keywords)
+        {
+            commands.Add(new CommandItem
+            {
+                Id = "page:" + tag,
+                Title = title,
+                Detail = detail,
+                Glyph = glyph,
+                Group = "页面",
+                Keywords = tag + " " + keywords,
+                Invoke = () => NavigateTo(tag)
+            });
+        }
+
+        Page("overview", "概览", "\uE80F", "实时负载、优化进度与硬件摘要", "home dashboard 首页 工作台");
+        Page("items", "优化项", "\uE9D9", "按分类筛选并应用可还原的系统优化", "optimize items 优化 项目 应用");
+        Page("diagnostics", "诊断报告", "\uE9D5", "只读检查 VBS、内存、PCIe、NVMe 与显示链路", "diagnostics report 诊断 报告");
+        Page("startup", "启动项与后台", "\uE7C4", "查看开机自启项与内存占用较高的后台进程", "startup background 启动 后台");
+        Page("games", "游戏库", "\uE7FC", "识别本地游戏并保存独立运行配置", "games library 游戏 库 steam epic");
+        Page("driver", "驱动中心", "\uE7F8", "显卡驱动版本、厂商工具与回退记录", "driver gpu 驱动 显卡");
+        Page("backup", "备份还原", "\uE777", "原值备份、单项还原与全部回放", "backup restore 备份 还原 回滚");
+        Page("log", "运行日志", "\uE8A5", "本机操作与引擎输出，不上传", "log 日志 输出");
+        Page("settings", "设置", "\uE713", "外观、托盘与配置文件", "settings 设置 配置 主题 材质");
+        Page("about", "关于与支持", "\uE946", "版本信息、赞赏码与项目链接", "about version support 关于 版本");
+
+        commands.Add(new CommandItem
+        {
+            Id = "action:refresh",
+            Title = "刷新硬件与优化项",
+            Detail = "重新采样 CPU、GPU、内存与本机状态",
+            Glyph = "\uE72C",
+            Group = "操作",
+            Keywords = "refresh snapshot 刷新 状态 采样",
+            Invoke = () => _ = RefreshSnapshotAsync()
+        });
+        commands.Add(new CommandItem
+        {
+            Id = "action:open-base",
+            Title = "打开程序目录",
+            Detail = AppPaths.BaseDir,
+            Glyph = "\uE838",
+            Group = "操作",
+            Keywords = "open folder 打开 目录 程序",
+            Invoke = () => OpenDirectory(AppPaths.BaseDir)
+        });
+        commands.Add(new CommandItem
+        {
+            Id = "action:open-backups",
+            Title = "打开备份目录",
+            Detail = AppPaths.BackupDir,
+            Glyph = "\uE777",
+            Group = "操作",
+            Keywords = "open backup folder 打开 备份 目录",
+            Invoke = () => OpenDirectory(AppPaths.BackupDir)
+        });
+        commands.Add(new CommandItem
+        {
+            Id = "action:open-data",
+            Title = "打开数据目录",
+            Detail = AppPaths.DataDir,
+            Glyph = "\uE8A5",
+            Group = "操作",
+            Keywords = "open data log folder 打开 数据 日志 目录",
+            Invoke = () => OpenDirectory(AppPaths.DataDir)
+        });
+        commands.Add(new CommandItem
+        {
+            Id = "action:open-settings",
+            Title = "打开配置文件",
+            Detail = AppPaths.SettingsPath,
+            Glyph = "\uE713",
+            Group = "操作",
+            Keywords = "open settings json 打开 配置 文件",
+            Invoke = () => OpenFile(AppPaths.SettingsPath)
+        });
+
+        var material = MaterialService.Normalize(App.Services.Settings.Material);
+        void Material(string key, string title, string detail, string glyph)
+        {
+            var supported = MaterialService.IsSupported(key);
+            commands.Add(new CommandItem
+            {
+                Id = "material:" + key,
+                Title = title,
+                Detail = (material == key ? "当前材质 · " : "") + detail +
+                         (supported ? "" : " · 当前系统不支持，会回退深空"),
+                Glyph = glyph,
+                Group = "材质",
+                Keywords = "material theme 材质 外观 " + key,
+                Invoke = () => SetMaterial(key, title.Replace("材质：", ""))
+            });
+        }
+        Material("deep", "材质：深空", "自带渐变背景，不依赖系统合成层", "\uE790");
+        Material("mica", "材质：云母", "Windows 11 Mica，桌面颜色直接透出", "\uE790");
+        Material("glass", "材质：液态玻璃", "Acrylic 半透明，适合浅色桌面", "\uE790");
+
+        var theme = App.Services.Settings.Theme;
+        void Theme(string key, string title)
+        {
+            commands.Add(new CommandItem
+            {
+                Id = "theme:" + key,
+                Title = title,
+                Detail = theme == key ? "当前主题" : "切换后立即生效",
+                Glyph = "\uE793",
+                Group = "操作",
+                Keywords = "theme 主题 外观 " + key,
+                Invoke = () => SetTheme(key, title.Replace("主题：", ""))
+            });
+        }
+        Theme("dark", "主题：深色");
+        Theme("light", "主题：浅色");
+        Theme("system", "主题：跟随系统");
+
+        foreach (var item in App.Services.State.Items)
+        {
+            if (string.IsNullOrWhiteSpace(item.Id)) continue;
+            commands.Add(new CommandItem
+            {
+                Id = "item:" + item.Id,
+                Title = item.Name ?? item.Id,
+                Detail = $"{item.Cat} · {item.StatusText}",
+                Glyph = "\uE9D9",
+                Group = "优化项",
+                Keywords = $"{item.Id} {item.Cat} {item.Desc} {item.StatusText}",
+                Invoke = () => FocusItem(item.Id)
+            });
+        }
+
+        if (_paletteGames is not null)
+        {
+            foreach (var game in _paletteGames)
+            {
+                if (string.IsNullOrWhiteSpace(game.Exe)) continue;
+                commands.Add(new CommandItem
+                {
+                    Id = "game:" + game.Exe,
+                    Title = string.IsNullOrWhiteSpace(game.Name) ? Path.GetFileNameWithoutExtension(game.Exe) : game.Name!,
+                    Detail = $"{game.SourceText} · {game.ProfileText}",
+                    Glyph = "\uE7FC",
+                    Group = "游戏",
+                    Keywords = $"{game.Exe} {game.SourceText} 游戏 启动 launch play",
+                    Invoke = () => _ = LaunchGameFromPaletteAsync(game)
+                });
+            }
+        }
+
+        return commands;
+    }
+
+    private async Task RefreshSnapshotAsync()
+    {
+        try
+        {
+            SetStatus("正在刷新硬件与优化项...", true);
+            await App.Services.State.EnsureSnapshotAsync(force: true);
+            UpdateShellInfo();
+            SetStatus("就绪", false);
+            ShowInfo("刷新完成", "硬件与优化项状态已更新。");
+        }
+        catch (Exception ex)
+        {
+            SetStatus("刷新失败", false);
+            ShowError("刷新失败", ex.Message);
+        }
+    }
+
+    private void OpenDirectory(string path)
+    {
+        try
+        {
+            Directory.CreateDirectory(path);
+            Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            ShowError("打开目录失败", ex.Message);
+        }
+    }
+
+    private void OpenFile(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) File.WriteAllText(path, "{}", new System.Text.UTF8Encoding(true));
+            Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            ShowError("打开文件失败", ex.Message);
+        }
+    }
+
+    private void SetMaterial(string key, string label)
+    {
+        if (!MaterialService.IsSupported(key))
+        {
+            ShowInfo("系统不支持该材质", "已回退为深空材质。", InfoBarSeverity.Warning);
+            return;
+        }
+        App.Services.Settings.Material = key;
+        App.Services.Settings.Save();
+        ApplyMaterial();
+        ShowInfo("材质已切换", $"当前材质：{label}。卡片与导航保持实色，材质只作用于窗口背景。");
+    }
+
+    private void SetTheme(string key, string label)
+    {
+        App.Services.Settings.Theme = key;
+        App.Services.Settings.Save();
+        RefreshTheme();
+        ShowInfo("主题已切换", $"当前主题：{label}。");
+    }
+
+    private void FocusItem(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return;
+        _pendingItemFocus = id;
+        NavigateTo("items");
+        if (ContentFrame.Content is ItemsPage page)
+        {
+            _pendingItemFocus = null;
+            page.FocusItem(id);
+        }
+    }
+
+    private async Task LoadGamesForPaletteAsync()
+    {
+        if (_paletteGamesLoading) return;
+        if (_paletteGames is not null && DateTime.Now - _paletteGamesAt < TimeSpan.FromMinutes(5)) return;
+
+        _paletteGamesLoading = true;
+        try
+        {
+            _paletteGames = await App.Services.State.GetGamesAsync(false);
+            _paletteGamesAt = DateTime.Now;
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("命令面板游戏库读取失败: " + ex.Message);
+            return;
+        }
+        finally
+        {
+            _paletteGamesLoading = false;
+        }
+
+        if (Palette.IsOpen) Palette.SetCommands(BuildCommands());
+    }
+
+    private async Task LaunchGameFromPaletteAsync(GameInfo game)
+    {
+        try
+        {
+            SetStatus("正在启动游戏...", true);
+            var result = await App.Services.State.StartGameAsync(game.Exe ?? "", game.Profile);
+            var ok = !result.TryGetProperty("Ok", out var okEl) || okEl.ValueKind != JsonValueKind.False;
+            var message = result.TryGetProperty("Message", out var msg) ? msg.ToString() : "";
+            ShowInfo(ok ? "已启动" : "启动失败",
+                string.IsNullOrEmpty(message) ? (game.Name ?? "游戏") + " 已交给系统启动。" : message,
+                ok ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+        }
+        catch (Exception ex)
+        {
+            ShowError("启动失败", ex.Message);
+        }
+        finally
+        {
+            SetStatus("就绪", false);
+        }
     }
 
     private void ThemeSegment_Click(object sender, RoutedEventArgs e)

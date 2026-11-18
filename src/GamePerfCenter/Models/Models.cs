@@ -49,12 +49,19 @@ public sealed class DisplayInfo
 public sealed class ItemInfo : INotifyPropertyChanged
 {
     private bool _selected;
+    private bool _expanded;
+    private string _lastAppliedText = "尚未通过本工具应用";
 
     public string? Id { get; set; }
     public string? Cat { get; set; }
     public string? Name { get; set; }
     public string? Desc { get; set; }
     public string? Kind { get; set; }
+    /// <summary>
+    /// 界面勾选状态。引擎快照里的 Selected 表示“该项当前是否已启用”，与勾选无关，
+    /// 反序列化时必须忽略，否则所有已生效项会被自动勾上。
+    /// </summary>
+    [JsonIgnore]
     public bool Selected
     {
         get => _selected;
@@ -72,6 +79,53 @@ public sealed class ItemInfo : INotifyPropertyChanged
     public bool NeedsReboot { get; set; }
     public string? Dep { get; set; }
     public string? DepHint { get; set; }
+
+    /// <summary>行内展开状态。列表重建时由页面重置，不参与序列化。</summary>
+    [JsonIgnore]
+    public bool IsExpanded
+    {
+        get => _expanded;
+        set
+        {
+            if (_expanded == value) return;
+            _expanded = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ExpandVisibility));
+            OnPropertyChanged(nameof(ExpandLabel));
+            OnPropertyChanged(nameof(ExpandGlyph));
+        }
+    }
+
+    [JsonIgnore]
+    public Microsoft.UI.Xaml.Visibility ExpandVisibility
+        => _expanded ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+
+    [JsonIgnore]
+    public string ExpandLabel => _expanded ? "收起" : "详情";
+
+    [JsonIgnore]
+    public string ExpandGlyph => _expanded ? "\uE70E" : "\uE70D";
+
+    [JsonIgnore]
+    public string RebootText => NeedsReboot ? "需要重启后生效" : "无需重启";
+
+    [JsonIgnore]
+    public string DependencyText => !string.IsNullOrWhiteSpace(DepHint)
+        ? DepHint!
+        : !string.IsNullOrWhiteSpace(Dep) ? Dep! : "无依赖";
+
+    /// <summary>由页面根据快照里的 LastApply 写入，不来自引擎。</summary>
+    [JsonIgnore]
+    public string LastAppliedText
+    {
+        get => _lastAppliedText;
+        set
+        {
+            if (_lastAppliedText == value) return;
+            _lastAppliedText = value;
+            OnPropertyChanged();
+        }
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? name = null)
