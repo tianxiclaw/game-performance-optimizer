@@ -35,6 +35,9 @@ internal sealed class TrayIcon : IDisposable
     private bool _visible;
 
     public Action? OnOpen { get; set; }
+    public Action? OnItems { get; set; }
+    public Action? OnGames { get; set; }
+    public Action? OnRefresh { get; set; }
     public Action? OnExit { get; set; }
 
     public TrayIcon(string iconPath)
@@ -125,14 +128,23 @@ internal sealed class TrayIcon : IDisposable
         try
         {
             AppendMenu(menu, MF_STRING, 1, "打开主界面");
+            AppendMenu(menu, MF_STRING, 2, "优化项");
+            AppendMenu(menu, MF_STRING, 3, "游戏库");
+            AppendMenu(menu, MF_STRING, 4, "刷新状态");
             AppendMenu(menu, MF_SEPARATOR, 0, null);
-            AppendMenu(menu, MF_STRING, 2, "退出");
+            AppendMenu(menu, MF_STRING, 5, "退出");
             if (!GetCursorPos(out var pt)) return;
             SetForegroundWindow(_hwnd);
             var cmd = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.X, pt.Y, 0, _hwnd, IntPtr.Zero);
             PostMessage(_hwnd, WM_NULL, IntPtr.Zero, IntPtr.Zero);
-            if (cmd == 1) OnOpen?.Invoke();
-            else if (cmd == 2) OnExit?.Invoke();
+            switch (cmd)
+            {
+                case 1: OnOpen?.Invoke(); break;
+                case 2: OnItems?.Invoke(); break;
+                case 3: OnGames?.Invoke(); break;
+                case 4: OnRefresh?.Invoke(); break;
+                case 5: OnExit?.Invoke(); break;
+            }
         }
         finally
         {

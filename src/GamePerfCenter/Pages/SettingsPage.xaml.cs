@@ -60,6 +60,7 @@ public sealed partial class SettingsPage : Page, IThemeAware
     private void LoadIntoUi()
     {
         _loading = true;
+        ThemeService.RefreshHighContrast();
         try
         {
             var settings = App.Services.Settings;
@@ -67,20 +68,35 @@ public sealed partial class SettingsPage : Page, IThemeAware
             LightOption.IsChecked = settings.Theme == "light";
             SystemOption.IsChecked = settings.Theme == "system";
             var material = MaterialService.Normalize(settings.Material);
+            var highContrast = ThemeService.IsHighContrast;
             var micaSupported = MaterialService.IsSupported("mica");
+            var micaAltSupported = MaterialService.IsSupported("mica-alt");
             var glassSupported = MaterialService.IsSupported("glass");
             // 配置可能来自另一台机器；本机不支持时窗口已回退深空，选项也要显示真实状态。
-            if ((material == "mica" && !micaSupported) || (material == "glass" && !glassSupported))
+            if ((material == "mica" && !micaSupported) ||
+                (material == "mica-alt" && !micaAltSupported) ||
+                (material == "glass" && !glassSupported))
                 material = "deep";
+            if (highContrast) material = "deep";
             UpdateMaterialTiles(material);
-            MaterialMicaOption.IsEnabled = micaSupported;
-            MaterialGlassOption.IsEnabled = glassSupported;
+            MaterialMicaOption.IsEnabled = micaSupported && !highContrast;
+            MaterialMicaAltOption.IsEnabled = micaAltSupported && !highContrast;
+            MaterialGlassOption.IsEnabled = glassSupported && !highContrast;
             ToolTipService.SetToolTip(MaterialMicaOption,
-                MaterialMicaOption.IsEnabled ? "使用 Windows 11 云母背景" : "当前系统不支持云母材质");
+                highContrast ? "高对比度开启时停用窗口材质"
+                : MaterialMicaOption.IsEnabled ? "使用 Windows 11 云母背景" : "当前系统不支持云母材质");
+            ToolTipService.SetToolTip(MaterialMicaAltOption,
+                highContrast ? "高对比度开启时停用窗口材质"
+                : MaterialMicaAltOption.IsEnabled ? "Mica Alt：比云母更深的底色，文字与卡片对比更稳" : "当前系统不支持云母材质");
             ToolTipService.SetToolTip(MaterialGlassOption,
-                MaterialGlassOption.IsEnabled ? "使用系统亚克力与高光层模拟液态玻璃" : "当前系统不支持液态玻璃");
+                highContrast ? "高对比度开启时停用窗口材质"
+                : MaterialGlassOption.IsEnabled ? "使用系统亚克力与高光层模拟液态玻璃" : "当前系统不支持液态玻璃");
             TraySwitch.IsOn = settings.MinimizeToTray;
             DriverNotifySwitch.IsOn = settings.NotifyDriver;
+            ReduceMotionSwitch.IsOn = settings.ReduceMotion;
+            HighContrastText.Text = highContrast
+                ? "已开启：界面改用 Windows 系统色，窗口材质停用。"
+                : "跟随 Windows 高对比度设置；开启时使用系统色并停用窗口材质。";
         }
         finally
         {
@@ -105,9 +121,16 @@ public sealed partial class SettingsPage : Page, IThemeAware
         if (_loading || sender is not Button { Tag: string material }) return;
         if (App.Services.Settings.Material == material) return;
 
+        if (ThemeService.IsHighContrast && material != "deep")
+        {
+            ShowInfo("高对比度已开启", "系统高对比度要求不透明高反差，窗口材质已停用。", InfoBarSeverity.Warning);
+            UpdateMaterialTiles("deep");
+            return;
+        }
+
         if (!MaterialService.IsSupported(material))
         {
-            ShowInfo("当前系统不支持", "云母与液态玻璃需要 Windows 11 的系统合成层，已保留当前材质。",
+            ShowInfo("当前系统不支持", "云母、云母 Alt 与液态玻璃需要 Windows 11 的系统合成层，已保留当前材质。",
                 InfoBarSeverity.Warning);
             UpdateMaterialTiles(App.Services.Settings.Material);
             return;
@@ -126,6 +149,7 @@ public sealed partial class SettingsPage : Page, IThemeAware
                  {
                      (MaterialDeepOption, "deep"),
                      (MaterialMicaOption, "mica"),
+                     (MaterialMicaAltOption, "mica-alt"),
                      (MaterialGlassOption, "glass")
                  })
         {
@@ -143,6 +167,34 @@ public sealed partial class SettingsPage : Page, IThemeAware
         settings.MinimizeToTray = TraySwitch.IsOn;
         settings.NotifyDriver = DriverNotifySwitch.IsOn;
         Save();
+    }
+
+    private void ReduceMotion_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        var reduce = ReduceMotionSwitch.IsOn;
+        App.Services.Settings.ReduceMotion = reduce;
+        Motion.Configure(reduce);
+        Save();
+        ShowInfo("动效已更新",
+            reduce ? "已关闭界面动效，数值与列表直接跳到最终状态。" : "已恢复系统动效设置。",
+            InfoBarSeverity.Success);
+    }
+
+    private void OpenContrast_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "ms-settings:easeofaccess-highcontrast",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            ShowInfo("无法打开系统设置", ex.Message, InfoBarSeverity.Error);
+        }
     }
 
     private void Save()
@@ -299,7 +351,7 @@ public sealed partial class SettingsPage : Page, IThemeAware
             Title = "恢复默认设置",
             Content = new TextBlock
             {
-                Text = "将外观与行为设置恢复为默认值（深色主题、深空材质、关闭托盘、开启驱动提醒）。\n\n备份、日志与游戏库不会受影响。",
+                Text = "将外观与行为设置恢复为默认值（深色主题、深空材质、关闭托盘、开启驱动提醒、关闭减弱动效）。\n\n备份、日志与游戏库不会受影响。",
                 TextWrapping = TextWrapping.Wrap,
                 LineHeight = 22
             },
@@ -314,6 +366,8 @@ public sealed partial class SettingsPage : Page, IThemeAware
         settings.Material = "deep";
         settings.MinimizeToTray = false;
         settings.NotifyDriver = true;
+        settings.ReduceMotion = false;
+        Motion.Configure(false);
         Save();
         LoadIntoUi();
         if (App.MainWindow is MainWindow main) main.RefreshTheme();
@@ -330,4 +384,7 @@ public sealed partial class SettingsPage : Page, IThemeAware
 
     // 顶栏也能切换主题；回到本页时同步单选项，避免界面显示与已保存设置不一致。
     public void OnThemeChanged() => LoadIntoUi();
+
+    /// <summary>系统高对比度可能在窗口失焦期间变化，窗口激活时由外壳通知本页重读状态。</summary>
+    public void OnAccessibilityChanged() => LoadIntoUi();
 }

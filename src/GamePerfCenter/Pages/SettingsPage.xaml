@@ -66,11 +66,12 @@
                                 <StackPanel Spacing="12">
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="窗口材质" Style="{StaticResource BodyTextStyle}" />
-                                        <TextBlock Text="云母与液态玻璃直接透出 Windows 11 系统合成层，卡片与导航保持可读；系统不支持时自动回退深空。"
+                                        <TextBlock Text="云母、云母 Alt 与液态玻璃直接透出 Windows 11 系统合成层，卡片与导航保持可读；系统不支持或开启高对比度时自动回退深空。"
                                                    Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                                     </StackPanel>
                                     <Grid ColumnSpacing="8" HorizontalAlignment="Stretch">
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="*" />
@@ -103,7 +104,21 @@
                                                            TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                                             </StackPanel>
                                         </Button>
-                                        <Button x:Name="MaterialGlassOption" Grid.Column="2" Tag="glass" MinWidth="0"
+                                        <Button x:Name="MaterialMicaAltOption" Grid.Column="2" Tag="mica-alt" MinWidth="0"
+                                                Style="{StaticResource MaterialTileStyle}"
+                                                Click="MaterialOption_Click"
+                                                ToolTipService.ToolTip="Mica Alt：比云母更深的底色，文字与卡片对比更稳">
+                                            <StackPanel Spacing="7">
+                                                <Border Height="34" CornerRadius="7"
+                                                        Background="{ThemeResource MicaAltPreviewBrush}"
+                                                        BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1" />
+                                                <TextBlock Text="云母 Alt" FontSize="12.5" FontWeight="SemiBold"
+                                                           Foreground="{ThemeResource TextBrush}" TextWrapping="NoWrap" />
+                                                <TextBlock Text="加深底色" Style="{StaticResource CaptionTextStyle}"
+                                                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button x:Name="MaterialGlassOption" Grid.Column="3" Tag="glass" MinWidth="0"
                                                 Style="{StaticResource MaterialTileStyle}"
                                                 Click="MaterialOption_Click"
                                                 ToolTipService.ToolTip="使用系统亚克力与高光层模拟液态玻璃">
@@ -142,6 +157,7 @@
                                                    Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                                     </StackPanel>
                                     <ToggleSwitch x:Name="TraySwitch" Grid.Column="1"
+                                                  AutomationProperties.Name="关闭时最小化到托盘"
                                                   Toggled="Setting_Toggled" VerticalAlignment="Center" />
                                 </Grid>
                             </Border>
@@ -158,7 +174,53 @@
                                                    Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                                     </StackPanel>
                                     <ToggleSwitch x:Name="DriverNotifySwitch" Grid.Column="1"
+                                                  AutomationProperties.Name="驱动变化提醒"
                                                   Toggled="Setting_Toggled" VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                </controls:TechPanel>
+
+                    <controls:TechPanel Style="{StaticResource TechCardStyle}" Padding="18,16" Cut="12" CutBottom="12">
+                        <StackPanel Spacing="0">
+                            <StackPanel Spacing="3" Margin="0,0,0,6">
+                                <TextBlock Text="无障碍" Style="{StaticResource SectionTitleStyle}" />
+                                <TextBlock Text="跟随系统设置，修改后立即生效"
+                                           Style="{StaticResource CaptionTextStyle}" />
+                            </StackPanel>
+
+                            <Border Style="{StaticResource SettingsRowStyle}">
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Text="减弱动效" Style="{StaticResource BodyTextStyle}" />
+                                        <TextBlock Text="关闭数值滚动与入场淡入，界面直接呈现最终状态"
+                                                   Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ToggleSwitch x:Name="ReduceMotionSwitch" Grid.Column="1"
+                                                  AutomationProperties.Name="减弱动效"
+                                                  Toggled="ReduceMotion_Toggled" VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingsRowStyle}" BorderThickness="0">
+                                <Grid ColumnSpacing="16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Text="高对比度" Style="{StaticResource BodyTextStyle}" />
+                                        <TextBlock x:Name="HighContrastText"
+                                                   Text="跟随 Windows 高对比度设置；开启时使用系统色并停用窗口材质。"
+                                                   Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="系统设置" Style="{StaticResource GhostButtonStyle}"
+                                            Click="OpenContrast_Click" VerticalAlignment="Center"
+                                            ToolTipService.ToolTip="打开 Windows 辅助功能中的对比度设置" />
                                 </Grid>
                             </Border>
                         </StackPanel>

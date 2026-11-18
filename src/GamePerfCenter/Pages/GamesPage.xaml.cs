@@ -7,6 +7,8 @@ using GamePerfCenter.Services;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.Windows.Storage.Pickers;
 
@@ -14,6 +16,7 @@ namespace GamePerfCenter.Pages;
 
 public sealed partial class GamesPage : Page, IThemeAware
 {
+    private const double PreviewWidth = 292;
     private readonly List<GameInfo> _all = new();
     private readonly ObservableCollection<GameInfo> _view = new();
     private GameInfo? _selected;
@@ -22,6 +25,10 @@ public sealed partial class GamesPage : Page, IThemeAware
     private bool _syncingSelection;
     private bool _narrow;
     private bool? _short;
+    private bool _loadingFilters;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _hoverTimer;
+    private FrameworkElement? _hoverRow;
+    private GameInfo? _hoverGame;
 
     public GamesPage()
     {
@@ -31,6 +38,106 @@ public sealed partial class GamesPage : Page, IThemeAware
         Loaded += (_, _) => ApplyDensity(ActualHeight);
         SizeChanged += (_, e) => ApplyDensity(e.NewSize.Height);
         Responsive.Watch(this, 920, ApplyWidth);
+
+        _hoverTimer = DispatcherQueue.CreateTimer();
+        _hoverTimer.Interval = TimeSpan.FromMilliseconds(360);
+        _hoverTimer.IsRepeating = false;
+        _hoverTimer.Tick += (_, _) => ShowHoverPreview();
+        GameList.AddHandler(UIElement.PointerMovedEvent,
+            new PointerEventHandler(GameList_PointerMoved), true);
+        GameList.AddHandler(UIElement.PointerExitedEvent,
+            new PointerEventHandler(GameList_PointerExited), true);
+        GameList.PointerWheelChanged += (_, _) => HideHoverPreview();
+        Unloaded += (_, _) => HideHoverPreview();
+    }
+
+    /// <summary>
+    /// 悬停按“游戏”去重：容器回收会反复触发指针事件，
+    /// 每次进入都重置计时器的话预览永远不会出现。
+    /// </summary>
+    private void GameList_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (_narrow) return;
+        var source = e.OriginalSource as DependencyObject;
+        var row = FindRow(source);
+        var game = row?.DataContext as GameInfo;
+        if (game is null && FindRowContainer(source) is { } container &&
+            GameList.ItemFromContainer(container) is GameInfo fallback)
+        {
+            row = container;
+            game = fallback;
+        }
+        if (row is null || game is null)
+        {
+            HideHoverPreview();
+            return;
+        }
+        if (string.Equals(game.Exe, _hoverGame?.Exe, StringComparison.OrdinalIgnoreCase)) return;
+        _hoverGame = game;
+        _hoverRow = row;
+        _hoverTimer?.Stop();
+        _hoverTimer?.Start();
+    }
+
+    private void GameList_PointerExited(object sender, PointerRoutedEventArgs e) => HideHoverPreview();
+
+    private static FrameworkElement? FindRow(DependencyObject? source)
+    {
+        for (var i = 0; i < 12 && source is not null; i++)
+        {
+            if (source is FrameworkElement { DataContext: GameInfo } element) return element;
+            source = VisualTreeHelper.GetParent(source);
+        }
+        return null;
+    }
+
+    private static ListViewItem? FindRowContainer(DependencyObject? source)
+    {
+        for (var i = 0; i < 16 && source is not null; i++)
+        {
+            if (source is ListViewItem item) return item;
+            source = VisualTreeHelper.GetParent(source);
+        }
+        return null;
+    }
+
+    private void ShowHoverPreview()
+    {
+        if (_narrow || _hoverGame is not { } game || _hoverRow is not { IsLoaded: true } row) return;
+        HoverInitial.Text = game.Initial;
+        HoverName.Text = string.IsNullOrWhiteSpace(game.Name) ? "未命名游戏" : game.Name;
+        HoverMeta.Text = $"{game.SourceText} · {game.StateText}";
+        HoverProfile.Text = game.ProfileText;
+        HoverPath.Text = string.IsNullOrWhiteSpace(game.Exe) ? "未记录可执行文件路径" : game.Exe;
+
+        HoverPreview.Visibility = Visibility.Visible;
+        HoverPreview.Measure(new Windows.Foundation.Size(PreviewWidth, double.PositiveInfinity));
+        var width = HoverPreview.DesiredSize.Width;
+        var height = HoverPreview.DesiredSize.Height;
+        try
+        {
+            var origin = row.TransformToVisual(HoverLayer).TransformPoint(new Windows.Foundation.Point(0, 0));
+            var maxX = Math.Max(4, HoverLayer.ActualWidth - width - 4);
+            var x = origin.X + row.ActualWidth + 10;
+            if (x > maxX) x = origin.X - width - 10;
+            x = Math.Clamp(x, 4, maxX);
+            var y = Math.Clamp(origin.Y, 4, Math.Max(4, HoverLayer.ActualHeight - height - 4));
+            Canvas.SetLeft(HoverPreview, x);
+            Canvas.SetTop(HoverPreview, y);
+        }
+        catch (Exception ex)
+        {
+            AppLog.Write("悬停预览失败: " + ex.Message);
+            HideHoverPreview();
+        }
+    }
+
+    private void HideHoverPreview()
+    {
+        _hoverTimer?.Stop();
+        _hoverGame = null;
+        _hoverRow = null;
+        HoverPreview.Visibility = Visibility.Collapsed;
     }
 
     /// <summary>矮窗口把详情面板的内边距与底部说明收掉，让游戏名留在首屏。</summary>
@@ -99,6 +206,7 @@ public sealed partial class GamesPage : Page, IThemeAware
             var games = await App.Services.State.GetGamesAsync(force);
             _all.Clear();
             _all.AddRange(games);
+            InitFilters();
             ApplyFilter(keepExe);
         }
         catch (Exception ex)
@@ -111,10 +219,71 @@ public sealed partial class GamesPage : Page, IThemeAware
         }
     }
 
+    /// <summary>来源筛选项按当前库动态生成；方案状态是固定三档。</summary>
+    private void InitFilters()
+    {
+        _loadingFilters = true;
+        try
+        {
+            var keepSource = (SourceBox.SelectedItem as ComboBoxItem)?.Tag as string;
+            var keepProfile = (ProfileFilterBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "all";
+
+            SourceBox.Items.Clear();
+            SourceBox.Items.Add(new ComboBoxItem { Content = "全部来源", Tag = null });
+            foreach (var label in _all.Select(g => g.SourceText)
+                         .Where(s => !string.IsNullOrWhiteSpace(s))
+                         .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(s => s))
+                SourceBox.Items.Add(new ComboBoxItem { Content = label, Tag = label });
+            SourceBox.SelectedIndex = 0;
+            if (keepSource is not null)
+            {
+                for (var i = 1; i < SourceBox.Items.Count; i++)
+                {
+                    if (SourceBox.Items[i] is ComboBoxItem { Tag: string tag } &&
+                        string.Equals(tag, keepSource, StringComparison.OrdinalIgnoreCase))
+                    {
+                        SourceBox.SelectedIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            if (ProfileFilterBox.Items.Count == 0)
+            {
+                ProfileFilterBox.Items.Add(new ComboBoxItem { Content = "全部游戏", Tag = "all" });
+                ProfileFilterBox.Items.Add(new ComboBoxItem { Content = "已有方案", Tag = "saved" });
+                ProfileFilterBox.Items.Add(new ComboBoxItem { Content = "未配置方案", Tag = "none" });
+            }
+            ProfileFilterBox.SelectedIndex = 0;
+            for (var i = 0; i < ProfileFilterBox.Items.Count; i++)
+            {
+                if (ProfileFilterBox.Items[i] is ComboBoxItem { Tag: string tag } &&
+                    string.Equals(tag, keepProfile, StringComparison.OrdinalIgnoreCase))
+                {
+                    ProfileFilterBox.SelectedIndex = i;
+                    break;
+                }
+            }
+        }
+        finally
+        {
+            _loadingFilters = false;
+        }
+    }
+
+    private void Filter_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loadingFilters) return;
+        ApplyFilter();
+    }
+
     private void ApplyFilter(string? keepExe = null)
     {
+        HideHoverPreview();
         keepExe ??= _selected?.Exe;
         var keyword = SearchBox.Text?.Trim() ?? "";
+        var source = (SourceBox.SelectedItem as ComboBoxItem)?.Tag as string;
+        var profileFilter = (ProfileFilterBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "all";
         _view.Clear();
         foreach (var game in _all)
         {
@@ -122,6 +291,12 @@ public sealed partial class GamesPage : Page, IThemeAware
                 !(game.Name ?? "").Contains(keyword, StringComparison.OrdinalIgnoreCase) &&
                 !(game.Exe ?? "").Contains(keyword, StringComparison.OrdinalIgnoreCase))
                 continue;
+            if (!string.IsNullOrEmpty(source) &&
+                !string.Equals(game.SourceText, source, StringComparison.OrdinalIgnoreCase))
+                continue;
+            var saved = game.Profile?.HasSaved == true;
+            if (profileFilter == "saved" && !saved) continue;
+            if (profileFilter == "none" && saved) continue;
             _view.Add(game);
         }
         CountText.Text = $"{_view.Count} / {_all.Count} 个游戏";
@@ -147,6 +322,7 @@ public sealed partial class GamesPage : Page, IThemeAware
     private void GameList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_syncingSelection) return;
+        HideHoverPreview();
         _selected = GameList.SelectedItem as GameInfo;
         UpdateDetail(_selected);
     }

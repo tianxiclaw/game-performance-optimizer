@@ -128,11 +128,11 @@
                 <ListView x:Name="ItemsList" Grid.Row="1" SelectionMode="None"
                           ItemContainerStyle="{StaticResource DenseListViewItemStyle}"
                           ItemsSource="{x:Bind View}" IsItemClickEnabled="False"
-                          Padding="0">
+                          AutomationProperties.Name="优化项列表" Padding="0">
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="models:ItemInfo">
                             <Grid BorderBrush="{ThemeResource BorderBrush}" BorderThickness="0,1,0,0"
-                                  Tapped="Row_Tapped">
+                                  Tapped="Row_Tapped" RightTapped="Row_RightTapped">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />

@@ -12,6 +12,8 @@ public sealed class SettingsService
     public string Material { get; set; } = "deep";
     public bool MinimizeToTray { get; set; }
     public bool NotifyDriver { get; set; } = true;
+    /// <summary>关闭界面动效：数值滚动与入场淡入直接跳到终态。</summary>
+    public bool ReduceMotion { get; set; }
 
     /// <summary>命令面板的最近使用记录，最多 8 条，只存命令 Id。</summary>
     public List<string> CommandRecents { get; private set; } = new();
@@ -40,9 +42,10 @@ public sealed class SettingsService
             var theme = GetString("Theme", "dark").ToLowerInvariant();
             Theme = theme is "light" or "system" ? theme : "dark";
             var material = GetString("Material", "deep").ToLowerInvariant();
-            Material = material is "mica" or "glass" ? material : "deep";
+            Material = material is "mica" or "mica-alt" or "glass" ? material : "deep";
             MinimizeToTray = GetBool("MinimizeToTray", false);
             NotifyDriver = GetBool("NotifyDriver", true);
+            ReduceMotion = GetBool("ReduceMotion", false);
 
             CommandRecents = new List<string>();
             if (_root["CommandRecents"] is JsonArray array)
@@ -70,6 +73,7 @@ public sealed class SettingsService
             _root["Material"] = Material;
             _root["MinimizeToTray"] = MinimizeToTray;
             _root["NotifyDriver"] = NotifyDriver;
+            _root["ReduceMotion"] = ReduceMotion;
             var recents = new JsonArray();
             foreach (var id in CommandRecents) recents.Add(id);
             _root["CommandRecents"] = recents;

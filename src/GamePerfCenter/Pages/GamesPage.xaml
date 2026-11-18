@@ -8,7 +8,7 @@
     NavigationCacheMode="Required"
     Background="Transparent">
 
-    <Grid Padding="24,18,24,18" RowSpacing="10">
+    <Grid x:Name="RootGrid" Padding="24,18,24,18" RowSpacing="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -44,6 +44,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
@@ -67,16 +68,29 @@
                                  MinHeight="32" TextChanged="SearchBox_TextChanged" />
                     </Grid>
 
-                    <Grid Grid.Row="2" Margin="0,8,0,0">
+                    <!-- 来源与方案状态组合筛选：只改列表视图，不影响已选中的详情 -->
+                    <Grid Grid.Row="2" ColumnSpacing="8" Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <ComboBox x:Name="SourceBox" MinHeight="32" HorizontalAlignment="Stretch"
+                                  SelectionChanged="Filter_Changed"
+                                  AutomationProperties.Name="按来源筛选游戏" />
+                        <ComboBox x:Name="ProfileFilterBox" Grid.Column="1" MinHeight="32"
+                                  HorizontalAlignment="Stretch" SelectionChanged="Filter_Changed"
+                                  AutomationProperties.Name="按方案状态筛选游戏" />
+                    </Grid>
+
+                    <Grid Grid.Row="3" Margin="0,8,0,0">
                         <ListView x:Name="GameList" SelectionMode="Single"
                                   SelectionChanged="GameList_SelectionChanged"
                                   ItemContainerStyle="{StaticResource DenseListViewItemStyle}"
-                                  Padding="0">
+                                  AutomationProperties.Name="游戏列表" Padding="0">
                             <ListView.ItemTemplate>
                                 <DataTemplate x:DataType="models:GameInfo">
                                     <Grid Padding="4,8" DoubleTapped="Row_DoubleTapped"
-                                          BorderBrush="{ThemeResource BorderBrush}" BorderThickness="0,1,0,0"
-                                          ToolTipService.ToolTip="选中后在右侧查看方案；双击直接编辑">
+                                          BorderBrush="{ThemeResource BorderBrush}" BorderThickness="0,1,0,0">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="*" />
@@ -287,5 +301,45 @@
                 </Grid>
             </controls:TechPanel>
         </Grid>
+
+        <!-- 悬停预览：页面内覆盖层，位置由代码按行计算；不抢焦点、不参与命中测试 -->
+        <Canvas x:Name="HoverLayer" Grid.RowSpan="3" IsHitTestVisible="False">
+            <Border x:Name="HoverPreview" Width="292" Padding="12,10" CornerRadius="10"
+                    Visibility="Collapsed"
+                    Background="{ThemeResource FloatSurfaceBrush}"
+                    BorderBrush="{ThemeResource BorderStrongBrush}" BorderThickness="1">
+                <StackPanel Spacing="5">
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="28" Height="28" CornerRadius="7"
+                                Background="{ThemeResource InsetBrush}"
+                                BorderBrush="{ThemeResource BorderBrush}" BorderThickness="1"
+                                VerticalAlignment="Center">
+                            <TextBlock x:Name="HoverInitial" Text="?" FontSize="12" FontWeight="SemiBold"
+                                       FontFamily="{StaticResource MonoFontFamily}"
+                                       Foreground="{ThemeResource SubTextBrush}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                            <TextBlock x:Name="HoverName" Text="游戏" FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{ThemeResource TextBrush}" MaxLines="1"
+                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                            <TextBlock x:Name="HoverMeta" Text="—"
+                                       Style="{StaticResource TechCodeStyle}" MaxLines="1"
+                                       TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock x:Name="HoverProfile" Text="—" FontSize="12"
+                               Foreground="{ThemeResource TextBrush}" TextWrapping="Wrap" />
+                    <TextBlock x:Name="HoverPath" Text="—" Style="{StaticResource TechCodeStyle}"
+                               MaxLines="2" TextTrimming="CharacterEllipsis" TextWrapping="Wrap" />
+                    <TextBlock Text="单击固定到右侧详情" Style="{StaticResource TechCodeStyle}" />
+                </StackPanel>
+            </Border>
+        </Canvas>
+
     </Grid>
 </Page>

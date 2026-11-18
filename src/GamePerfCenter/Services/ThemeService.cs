@@ -4,7 +4,24 @@ namespace GamePerfCenter.Services;
 
 public static class ThemeService
 {
+    private static bool? _highContrast;
+
     public static bool IsDark { get; private set; } = true;
+
+    /// <summary>系统高对比度模式。开启时窗口材质强制回退深空，颜色改走系统色。</summary>
+    public static bool IsHighContrast
+    {
+        get
+        {
+            if (_highContrast is null) RefreshHighContrast();
+            return _highContrast ?? false;
+        }
+    }
+
+    public static void RefreshHighContrast()
+    {
+        _highContrast = Helpers.HighContrast.IsEnabled;
+    }
 
     public static ElementTheme Resolve(string theme)
     {

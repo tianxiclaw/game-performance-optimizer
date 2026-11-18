@@ -15,7 +15,13 @@ namespace GamePerfCenter.Helpers;
 /// </summary>
 public static class Motion
 {
-    public static bool Enabled { get; } = Detect();
+    public static bool Enabled { get; private set; } = Detect();
+
+    /// <summary>用户在设置里关闭动效时覆盖系统值；关闭后再打开则回到系统设置。</summary>
+    public static void Configure(bool reduceMotion)
+    {
+        Enabled = !reduceMotion && Detect();
+    }
 
     private static bool Detect()
     {

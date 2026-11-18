@@ -13,7 +13,11 @@ public static class ThemeResources
 {
     public static Brush Get(string key)
     {
-        var themeKey = ThemeService.IsDark ? "Default" : "Light";
+        // 高对比度优先于深/浅色：系统换主题时 XAML 里的 ThemeResource 会自动切换，
+        // 代码侧取色必须走同一本字典，否则会出现半套系统色、半套品牌色。
+        var themeKey = ThemeService.IsHighContrast
+            ? "HighContrast"
+            : ThemeService.IsDark ? "Default" : "Light";
         return Find(Application.Current.Resources, themeKey, key)
                ?? new SolidColorBrush(Colors.Transparent);
     }

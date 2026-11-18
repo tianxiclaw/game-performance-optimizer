@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer;
@@ -370,6 +371,44 @@ public sealed partial class ItemsPage : Page, IThemeAware
         e.Handled = true;
     }
 
+    private ItemInfo? _contextItem;
+    private MenuFlyout? _rowMenu;
+
+    /// <summary>右键菜单复用行内操作，避免为每个功能再开一个入口。</summary>
+    private void Row_RightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        var row = sender as FrameworkElement;
+        var item = row?.DataContext as ItemInfo;
+        if (item is null && FindRowContainer(e.OriginalSource as DependencyObject) is { } container)
+            item = ItemsList.ItemFromContainer(container) as ItemInfo;
+        if (row is null || item is null) return;
+        _contextItem = item;
+        _rowMenu ??= BuildRowMenu();
+        if (_rowMenu.Items[0] is MenuFlyoutItem expand)
+            expand.Text = item.IsExpanded ? "收起详情" : "查看详情";
+        _rowMenu.ShowAt(row, new FlyoutShowOptions { Position = e.GetPosition(row) });
+        e.Handled = true;
+    }
+
+    private MenuFlyout BuildRowMenu()
+    {
+        var expand = new MenuFlyoutItem { Text = "查看详情", Icon = new FontIcon { Glyph = "\uE70D" } };
+        expand.Click += (_, _) => { if (_contextItem is { } item) ToggleExpanded(item); };
+
+        var apply = new MenuFlyoutItem { Text = "应用此项", Icon = new FontIcon { Glyph = "\uE768" } };
+        apply.Click += (_, _) => { if (_contextItem is { } item) _ = ApplyItemAsync(item); };
+
+        var copy = new MenuFlyoutItem { Text = "复制 ID" };
+        copy.Click += (_, _) => { if (_contextItem is { } item) CopyItemId(item); };
+
+        var menu = new MenuFlyout();
+        menu.Items.Add(expand);
+        menu.Items.Add(apply);
+        menu.Items.Add(new MenuFlyoutSeparator());
+        menu.Items.Add(copy);
+        return menu;
+    }
+
     /// <summary>按钮、勾选框与已展开的详情区域不参与整行展开。</summary>
     private static bool IsInteractiveSource(DependencyObject? source)
     {
@@ -380,6 +419,17 @@ public sealed partial class ItemsPage : Page, IThemeAware
             source = VisualTreeHelper.GetParent(source);
         }
         return false;
+    }
+
+    /// <summary>从命中的子元素向上找所属行容器，不依赖 DataContext 是否传播。</summary>
+    private static ListViewItem? FindRowContainer(DependencyObject? source)
+    {
+        for (var i = 0; i < 16 && source is not null; i++)
+        {
+            if (source is ListViewItem item) return item;
+            source = VisualTreeHelper.GetParent(source);
+        }
+        return null;
     }
 
     private static T? FindDescendant<T>(DependencyObject root, Func<T, bool>? match = null)
@@ -398,8 +448,12 @@ public sealed partial class ItemsPage : Page, IThemeAware
 
     private async void ApplyItem_Click(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is not ItemInfo item ||
-            string.IsNullOrWhiteSpace(item.Id)) return;
+        if ((sender as FrameworkElement)?.DataContext is ItemInfo item) await ApplyItemAsync(item);
+    }
+
+    private async Task ApplyItemAsync(ItemInfo item)
+    {
+        if (string.IsNullOrWhiteSpace(item.Id)) return;
 
         var dialog = new ContentDialog
         {
@@ -422,8 +476,12 @@ public sealed partial class ItemsPage : Page, IThemeAware
 
     private void CopyId_Click(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is not ItemInfo item ||
-            string.IsNullOrWhiteSpace(item.Id)) return;
+        if ((sender as FrameworkElement)?.DataContext is ItemInfo item) CopyItemId(item);
+    }
+
+    private void CopyItemId(ItemInfo item)
+    {
+        if (string.IsNullOrWhiteSpace(item.Id)) return;
         try
         {
             var package = new DataPackage();

@@ -18,6 +18,10 @@
             <SolidColorBrush x:Key="Surface2Brush" Color="#C2202733" />
             <SolidColorBrush x:Key="InsetBrush" Color="#8C11151C" />
             <SolidColorBrush x:Key="CardBrush" Color="#C4171C24" />
+            <!-- 浮层（悬停预览、右键菜单）：需要压住下方内容，不能沿用半透明卡片底 -->
+            <SolidColorBrush x:Key="FloatSurfaceBrush" Color="#F2131820" />
+            <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#F2131820" />
+            <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="#48515E" />
             <LinearGradientBrush x:Key="CardSurfaceBrush" StartPoint="0,0" EndPoint="0.4,1">
                 <GradientStop Color="#CC171C24" Offset="0" />
                 <GradientStop Color="#C2121620" Offset="1" />
@@ -104,6 +108,11 @@
                 <GradientStop Color="#232D3C" Offset="0.55" />
                 <GradientStop Color="#2E3A4C" Offset="1" />
             </LinearGradientBrush>
+            <LinearGradientBrush x:Key="MicaAltPreviewBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#2A3546" Offset="0" />
+                <GradientStop Color="#171F2B" Offset="0.55" />
+                <GradientStop Color="#202938" Offset="1" />
+            </LinearGradientBrush>
             <LinearGradientBrush x:Key="GlassPreviewBrush" StartPoint="0,0" EndPoint="1,1">
                 <GradientStop Color="#6E8098" Offset="0" />
                 <GradientStop Color="#2C3A4D" Offset="0.45" />
@@ -186,6 +195,9 @@
             <SolidColorBrush x:Key="Surface2Brush" Color="#D9E8EEF6" />
             <SolidColorBrush x:Key="InsetBrush" Color="#C7E4EAF2" />
             <SolidColorBrush x:Key="CardBrush" Color="#EDFBFCFE" />
+            <SolidColorBrush x:Key="FloatSurfaceBrush" Color="#FCFFFFFF" />
+            <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#FCFFFFFF" />
+            <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="#8996A9" />
             <LinearGradientBrush x:Key="CardSurfaceBrush" StartPoint="0,0" EndPoint="0.4,1">
                 <GradientStop Color="#EDFFFFFF" Offset="0" />
                 <GradientStop Color="#E6F7FAFD" Offset="1" />
@@ -269,6 +281,10 @@
                 <GradientStop Color="#E8EFF8" Offset="0" />
                 <GradientStop Color="#CBD8E8" Offset="1" />
             </LinearGradientBrush>
+            <LinearGradientBrush x:Key="MicaAltPreviewBrush" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#D6E0EC" Offset="0" />
+                <GradientStop Color="#B4C4D7" Offset="1" />
+            </LinearGradientBrush>
             <LinearGradientBrush x:Key="GlassPreviewBrush" StartPoint="0,0" EndPoint="1,1">
                 <GradientStop Color="#FFFFFF" Offset="0" />
                 <GradientStop Color="#D7E7F6" Offset="0.55" />
@@ -335,6 +351,133 @@
             <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="#CDE7EE" />
             <SolidColorBrush x:Key="ListViewItemForegroundPointerOver" Color="#111824" />
             <SolidColorBrush x:Key="ListViewItemForegroundSelected" Color="#111824" />
+        </ResourceDictionary>
+
+        <!-- 高对比度：只覆盖承载内容的键，其余沿用 Default 兜底。
+             所有颜色来自 Windows 系统色板，自定义青色在这里会失去对比度。
+             选中态用强调色描边与文字表达，不再依赖半透明填充。 -->
+        <ResourceDictionary x:Key="HighContrast">
+            <SolidColorBrush x:Key="AppBgBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="AppBackdropBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="PaneBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="NavBgBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="SurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="Surface2Brush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="InsetBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="CardBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="CardSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="CardHoverBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="HeroSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FloatSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+
+            <SolidColorBrush x:Key="BorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="BorderStrongBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="HeroBorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+
+            <SolidColorBrush x:Key="TextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="SubTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="MutedTextBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
+            <SolidColorBrush x:Key="FaintTextBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
+            <SolidColorBrush x:Key="NavTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="NavIconBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="NavSelectedBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="NavHoverBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="NavSelectedStrokeBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+
+            <SolidColorBrush x:Key="AccentBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="AccentDimBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="AccentSoftBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="AccentForegroundBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="AccentGradientBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+
+            <SolidColorBrush x:Key="OkBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="OkSoftBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="WarnBrush" Color="{ThemeResource SystemColorHotlightColor}" />
+            <SolidColorBrush x:Key="WarnSoftBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="DangerBrush" Color="{ThemeResource SystemColorHotlightColor}" />
+            <SolidColorBrush x:Key="DangerSoftBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="InfoBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="InfoSoftBrush" Color="{ThemeResource SystemColorWindowColor}" />
+
+            <SolidColorBrush x:Key="TechLineBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="TechGridBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="TopEdgeBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="RadarGlowBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="NebulaBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="GaugeGlowBrush" Color="Transparent" />
+
+            <SolidColorBrush x:Key="MicaTintBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="MicaSheenBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="GlassTintBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="GlassSheenBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="DeepPreviewBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="MicaPreviewBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="MicaAltPreviewBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="GlassPreviewBrush" Color="{ThemeResource SystemColorWindowColor}" />
+
+            <SolidColorBrush x:Key="OverlayBrush" Color="{ThemeResource SystemColorWindowColor}" Opacity="0.86" />
+            <SolidColorBrush x:Key="ButtonHoverOverlayBrush" Color="{ThemeResource SystemColorHighlightColor}" Opacity="0.24" />
+            <SolidColorBrush x:Key="ButtonPressedOverlayBrush" Color="{ThemeResource SystemColorHighlightColor}" Opacity="0.38" />
+
+            <SolidColorBrush x:Key="TextControlBackground" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="TextControlBorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="TextControlForeground" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="TextControlForegroundPointerOver" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="TextControlForegroundFocused" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="TextControlPlaceholderForeground" Color="{ThemeResource SystemColorGrayTextColor}" />
+            <SolidColorBrush x:Key="TextControlPlaceholderForegroundPointerOver" Color="{ThemeResource SystemColorGrayTextColor}" />
+            <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused" Color="{ThemeResource SystemColorGrayTextColor}" />
+
+            <SolidColorBrush x:Key="ComboBoxBackground" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="ComboBoxBackgroundPointerOver" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="ComboBoxBackgroundFocused" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="ComboBoxBorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="ComboBoxBorderBrushPointerOver" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="ComboBoxBorderBrushFocused" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="ComboBoxForeground" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="ComboBoxForegroundPointerOver" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="ComboBoxForegroundFocused" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+
+            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="ButtonForegroundPressed" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="{ThemeResource SystemColorGrayTextColor}" />
+            <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="{ThemeResource SystemColorHighlightColor}" />
+
+            <SolidColorBrush x:Key="ProgressBarForeground" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="ProgressBarBackground" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOff" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOff" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="CheckBoxCheckBackgroundFillChecked" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="CheckBoxCheckBackgroundStrokeChecked" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedFill" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="RadioButtonOuterEllipseCheckedStroke" Color="{ThemeResource SystemColorHighlightColor}" />
+
+            <SolidColorBrush x:Key="ToolTipBackground" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="ToolTipForeground" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="ContentDialogBackground" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="ContentDialogBorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+
+            <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="ListViewItemForegroundPointerOver" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="ListViewItemForegroundSelected" Color="{ThemeResource SystemColorWindowTextColor}" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 

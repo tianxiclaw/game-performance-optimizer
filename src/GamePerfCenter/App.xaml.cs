@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Security.Principal;
 using Microsoft.UI.Xaml;
+using GamePerfCenter.Helpers;
 using GamePerfCenter.Services;
 
 namespace GamePerfCenter;
@@ -41,7 +42,9 @@ public partial class App : Application
         }
 
         AppPaths.EnsureDirectories();
+        ThemeService.RefreshHighContrast();
         Services = new AppServices();
+        Motion.Configure(Services.Settings.ReduceMotion);
         var window = new MainWindow();
         MainWindow = window;
         if (SelfTest)

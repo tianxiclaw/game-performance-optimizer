@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Text.Json;
 using Microsoft.UI;
 using Microsoft.UI.Composition;
+using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -59,6 +60,8 @@ public sealed partial class MainWindow : Window
         ApplyTheme();
         SizeWindow();
 
+        Activated += OnWindowActivated;
+
         App.Services.State.StatusChanged += OnStatusChanged;
         App.Services.State.Changed += OnStateChanged;
         App.Services.Engine.Crashed += OnEngineCrashed;
@@ -98,6 +101,9 @@ public sealed partial class MainWindow : Window
         {
             _tray = new TrayIcon(Path.Combine(AppPaths.BaseDir, "Assets", "AppIcon.ico"));
             _tray.OnOpen = RestoreFromTray;
+            _tray.OnItems = () => OpenFromTray("items");
+            _tray.OnGames = () => OpenFromTray("games");
+            _tray.OnRefresh = RefreshFromTray;
             _tray.OnExit = ExitFromTray;
         }
         catch (Exception ex)
@@ -164,8 +170,28 @@ public sealed partial class MainWindow : Window
         SizeWindow();
     }
 
+    /// <summary>
+    /// 系统高对比度切换不会经过本进程的消息循环，回到窗口时重新读一次标志。
+    /// 变化时重跑主题与材质；设置页缓存在 Frame 里，也要同步它的状态文案。
+    /// </summary>
+    private void OnWindowActivated(object sender, WindowActivatedEventArgs args)
+    {
+        if (args.WindowActivationState == WindowActivationState.Deactivated) return;
+        var before = ThemeService.IsHighContrast;
+        ThemeService.RefreshHighContrast();
+        if (before != ThemeService.IsHighContrast)
+        {
+            ApplyTheme();
+        }
+        else if (ContentFrame.Content is SettingsPage settingsPage)
+        {
+            settingsPage.OnAccessibilityChanged();
+        }
+    }
+
     private void ApplyTheme()
     {
+        ThemeService.RefreshHighContrast();
         var theme = App.Services.Settings.Theme;
         ThemeService.Apply(RootGrid, theme);
         UpdateThemeSegments();
@@ -201,6 +227,8 @@ public sealed partial class MainWindow : Window
     private void ApplyMaterial()
     {
         var material = MaterialService.Normalize(App.Services.Settings.Material);
+        // 高对比度下系统要求不透明高反差，材质透出背景会破坏可读性，统一回退深空。
+        if (ThemeService.IsHighContrast) material = "deep";
         if (!MaterialService.IsSupported(material)) material = "deep";
 
         try
@@ -217,6 +245,14 @@ public sealed partial class MainWindow : Window
                     // 材质模式不再叠加星空网格：网格会盖住 Mica 的细微噪点与明暗层次。
                     StarLayer.Opacity = 0;
                     break;
+                case "mica-alt":
+                    SystemBackdrop = new MicaBackdrop { Kind = MicaKind.BaseAlt };
+                    RootGrid.Background = ThemeResources.Get("MicaTintBrush");
+                    SheenLayer.Background = ThemeResources.Get("MicaSheenBrush");
+                    SheenLayer.Opacity = 0.35;
+                    ApplyChrome(unified: true);
+                    StarLayer.Opacity = 0;
+                    break;
                 case "glass":
                     SystemBackdrop = new DesktopAcrylicBackdrop();
                     RootGrid.Background = ThemeResources.Get("GlassTintBrush");
@@ -229,7 +265,7 @@ public sealed partial class MainWindow : Window
                     RootGrid.Background = ThemeResources.Get("AppBackdropBrush");
                     SheenLayer.Opacity = 0;
                     ApplyChrome(unified: false);
-                    StarLayer.Opacity = ThemeService.IsDark ? 1 : 0.55;
+                    StarLayer.Opacity = ThemeService.IsHighContrast ? 0 : (ThemeService.IsDark ? 1 : 0.55);
                     break;
             }
         }
@@ -240,7 +276,7 @@ public sealed partial class MainWindow : Window
             RootGrid.Background = ThemeResources.Get("AppBackdropBrush");
             SheenLayer.Opacity = 0;
             ApplyChrome(unified: false);
-            StarLayer.Opacity = ThemeService.IsDark ? 1 : 0.55;
+            StarLayer.Opacity = ThemeService.IsHighContrast ? 0 : (ThemeService.IsDark ? 1 : 0.55);
         }
     }
 
@@ -853,6 +889,7 @@ public sealed partial class MainWindow : Window
         }
         Material("deep", "材质：深空", "自带渐变背景，不依赖系统合成层", "\uE790");
         Material("mica", "材质：云母", "Windows 11 Mica，桌面颜色直接透出", "\uE790");
+        Material("mica-alt", "材质：云母 Alt", "Mica Alt 底色更深，适合深色桌面与高对比内容", "\uE790");
         Material("glass", "材质：液态玻璃", "Acrylic 半透明，适合浅色桌面", "\uE790");
 
         var theme = App.Services.Settings.Theme;
@@ -954,6 +991,11 @@ public sealed partial class MainWindow : Window
 
     private void SetMaterial(string key, string label)
     {
+        if (ThemeService.IsHighContrast && key != "deep")
+        {
+            ShowInfo("高对比度已开启", "系统高对比度要求不透明高反差，窗口材质已停用。", InfoBarSeverity.Warning);
+            return;
+        }
         if (!MaterialService.IsSupported(key))
         {
             ShowInfo("系统不支持该材质", "已回退为深空材质。", InfoBarSeverity.Warning);
@@ -1083,6 +1125,27 @@ public sealed partial class MainWindow : Window
         catch (Exception ex)
         {
             AppLog.Write("从托盘恢复失败: " + ex.Message);
+        }
+    }
+
+    /// <summary>托盘快捷入口：先恢复窗口，再切到目标页面。</summary>
+    private void OpenFromTray(string tag)
+    {
+        RestoreFromTray();
+        NavigateTo(tag);
+    }
+
+    private async void RefreshFromTray()
+    {
+        RestoreFromTray();
+        try
+        {
+            await App.Services.State.EnsureSnapshotAsync(force: true);
+            ShowInfo("状态已刷新", "优化项状态与硬件快照已更新。", InfoBarSeverity.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowError("刷新失败", ex.Message);
         }
     }
 
