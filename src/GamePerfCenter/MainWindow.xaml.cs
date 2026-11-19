@@ -98,22 +98,15 @@ public sealed partial class MainWindow : Window
         }
 
         // 图标型按钮统一加悬浮放大 / 按下收缩；按钮布局尺寸不变，只动图标本身。
-        foreach (var button in EnumerateIconButtons())
-        {
-            button.AddHandler(UIElement.PointerEnteredEvent,
-                new PointerEventHandler(IconButton_PointerEntered), handledEventsToo: true);
-            button.AddHandler(UIElement.PointerExitedEvent,
-                new PointerEventHandler(IconButton_PointerExited), handledEventsToo: true);
-            button.AddHandler(UIElement.PointerPressedEvent,
-                new PointerEventHandler(IconButton_PointerPressed), handledEventsToo: true);
-            button.AddHandler(UIElement.PointerReleasedEvent,
-                new PointerEventHandler(IconButton_PointerReleased), handledEventsToo: true);
-            // 拖拽、窗口失焦、UAC 抢占等情况下收不到 PointerExited，图标会卡在放大状态。
-            button.AddHandler(UIElement.PointerCanceledEvent,
-                new PointerEventHandler(IconButton_PointerCanceled), handledEventsToo: true);
-            button.AddHandler(UIElement.PointerCaptureLostEvent,
-                new PointerEventHandler(IconButton_PointerCanceled), handledEventsToo: true);
-        }
+        RegisterIconButtons(EnumerateIconButtons());
+
+        // 兜底复位：指针只要还在窗口内移动，就用实时命中结果校正悬浮状态。
+        // 只依赖按钮的 PointerExited 时，快速划出或提示层抢占会漏事件，
+        // 图标就会永久停在放大位置。
+        RootGrid.AddHandler(UIElement.PointerMovedEvent,
+            new PointerEventHandler(RootGrid_PointerMoved), handledEventsToo: true);
+        RootGrid.AddHandler(UIElement.PointerExitedEvent,
+            new PointerEventHandler(RootGrid_PointerExited), handledEventsToo: true);
 
         // 加速键挂在 RootGrid 上时，WinUI 会在指针 hover 时自动弹一个 "Ctrl+K" 提示，
         // 与 Dock 自定义标签冲突。这里关掉自动提示，快捷键说明交给 Dock 标签。
@@ -494,50 +487,136 @@ public sealed partial class MainWindow : Window
         InspectorToggleButton, RepoButton
     };
 
-    private static FrameworkElement? IconOf(object sender)
-        => sender is Button { Content: FrameworkElement icon } ? icon : null;
-
-    private float IconScaleFor(object sender)
-        => ReferenceEquals(sender, DockCommand) ? 1.15f : 1.22f;
-
-    private bool _motionTraceLogged;
-
-    /// <summary>首次真正执行缩放时写一条日志，便于确认动效在提权后的进程里同样生效。</summary>
-    private void TraceMotionOnce(float scale)
+    private static FrameworkElement? IconTarget(Button button)
     {
-        if (_motionTraceLogged) return;
-        _motionTraceLogged = true;
-        AppLog.Write($"动效生效: 图标 1.00 -> {scale:0.00}，Windows 动画={(Motion.SystemEnabled ? "开" : "关")}");
+        // Dock 与顶栏按钮直接以 FontIcon 作为 Content；页面按钮可能是
+        // “图标 + 文字”的容器，只取里面的图标，避免文字跟着缩放。
+        if (button.Content is FontIcon icon) return icon;
+        return FindIcon(button, 0) ?? button.Content as FrameworkElement;
+    }
+
+    private float IconScaleFor(Button button)
+        => ReferenceEquals(button, DockCommand) ? 1.15f
+            : _pageIconButtons.Contains(button) ? 1.14f
+            : 1.22f;
+
+    private readonly HashSet<Button> _iconButtons = new();
+    private readonly HashSet<Button> _hoveredIcons = new();
+    private bool _motionTraceLogged;
+    private bool _motionResetLogged;
+
+    private void RegisterIconButtons(IEnumerable<Button> buttons)
+    {
+        foreach (var button in buttons)
+        {
+            if (!_iconButtons.Add(button)) continue;
+            button.AddHandler(UIElement.PointerEnteredEvent,
+                new PointerEventHandler(IconButton_PointerEntered), handledEventsToo: true);
+            button.AddHandler(UIElement.PointerExitedEvent,
+                new PointerEventHandler(IconButton_PointerExited), handledEventsToo: true);
+            button.AddHandler(UIElement.PointerPressedEvent,
+                new PointerEventHandler(IconButton_PointerPressed), handledEventsToo: true);
+            button.AddHandler(UIElement.PointerReleasedEvent,
+                new PointerEventHandler(IconButton_PointerReleased), handledEventsToo: true);
+            button.AddHandler(UIElement.PointerCanceledEvent,
+                new PointerEventHandler(IconButton_PointerCanceled), handledEventsToo: true);
+            button.AddHandler(UIElement.PointerCaptureLostEvent,
+                new PointerEventHandler(IconButton_PointerCanceled), handledEventsToo: true);
+        }
+    }
+
+    /// <summary>唯一的悬浮状态入口：进和出都走这里，避免重复动画和状态失配。</summary>
+    private void SetIconHover(Button button, bool hover)
+    {
+        if (hover)
+        {
+            if (!_hoveredIcons.Add(button)) return;
+            var scale = IconScaleFor(button);
+            if (!_motionTraceLogged)
+            {
+                _motionTraceLogged = true;
+                AppLog.Write($"动效生效: 图标 1.00 -> {scale:0.00}，Windows 动画={(Motion.SystemEnabled ? "开" : "关")}");
+            }
+            Motion.IconHover(IconTarget(button), true, scale);
+            return;
+        }
+
+        if (!_hoveredIcons.Remove(button)) return;
+        if (!_motionResetLogged)
+        {
+            _motionResetLogged = true;
+            AppLog.Write("动效复位: 图标 -> 1.00");
+        }
+        Motion.IconHover(IconTarget(button), false);
     }
 
     private void IconButton_PointerEntered(object sender, PointerRoutedEventArgs e)
     {
-        var scale = IconScaleFor(sender);
-        TraceMotionOnce(scale);
-        Motion.IconHover(IconOf(sender), true, scale);
+        if (sender is Button button) SetIconHover(button, true);
     }
 
     private void IconButton_PointerExited(object sender, PointerRoutedEventArgs e)
-        => Motion.IconHover(IconOf(sender), false);
+    {
+        if (sender is Button button) SetIconHover(button, false);
+    }
 
     private void IconButton_PointerPressed(object sender, PointerRoutedEventArgs e)
-        => Motion.IconPress(IconOf(sender), true, IconScaleFor(sender));
+    {
+        if (sender is Button button) Motion.IconPress(IconTarget(button), true, IconScaleFor(button));
+    }
 
     private void IconButton_PointerReleased(object sender, PointerRoutedEventArgs e)
-        => Motion.IconPress(IconOf(sender), false, IconScaleFor(sender));
+    {
+        if (sender is Button button) Motion.IconPress(IconTarget(button), false, IconScaleFor(button));
+    }
 
     private void IconButton_PointerCanceled(object sender, PointerRoutedEventArgs e)
     {
-        var hover = sender is Button { IsPointerOver: true };
-        Motion.IconHover(IconOf(sender), hover, IconScaleFor(sender));
+        if (sender is Button button) SetIconHover(button, button.IsPointerOver);
     }
 
-    /// <summary>窗口失焦时指针必然已经离开，统一复位，避免图标停留在放大或按下状态。</summary>
+    /// <summary>
+    /// 以实时命中结果为准校正悬浮状态。只在有图标处于悬浮时执行，
+    /// 正常浏览时没有额外开销。
+    /// </summary>
+    private void RootGrid_PointerMoved(object sender, PointerRoutedEventArgs e)
+    {
+        if (_hoveredIcons.Count == 0) return;
+        Button? hit = null;
+        try
+        {
+            var point = e.GetCurrentPoint(RootGrid).Position;
+            foreach (var element in VisualTreeHelper.FindElementsInHostCoordinates(point, RootGrid))
+            {
+                if (element is Button button && _iconButtons.Contains(button))
+                {
+                    hit = button;
+                    break;
+                }
+            }
+        }
+        catch { }
+
+        foreach (var button in _hoveredIcons.ToArray())
+        {
+            if (!ReferenceEquals(button, hit)) SetIconHover(button, false);
+        }
+        if (hit is not null) SetIconHover(hit, true);
+    }
+
+    private void RootGrid_PointerExited(object sender, PointerRoutedEventArgs e)
+    {
+        ResetIconScales();
+        HideDockHint();
+    }
+
+    /// <summary>统一复位所有图标，覆盖失焦、指针离开窗口、页面切换等场景。</summary>
     private void ResetIconScales()
     {
-        foreach (var button in EnumerateIconButtons())
+        _hoveredIcons.Clear();
+        foreach (var button in _iconButtons)
         {
-            Motion.IconHover(IconOf(button), false);
+            Motion.IconHover(IconTarget(button), false);
         }
     }
 
@@ -1017,6 +1096,14 @@ public sealed partial class MainWindow : Window
     /// <summary>页面本身不带动画，由外壳统一做 180ms 淡入 + 位移，切页节奏一致。</summary>
     private void OnFrameNavigated(object sender, NavigationEventArgs e)
     {
+        // 旧页面即将被丢弃，把它的按钮从追踪表里移除，避免集合随切页持续增长。
+        foreach (var button in _pageIconButtons)
+        {
+            _iconButtons.Remove(button);
+            _hoveredIcons.Remove(button);
+        }
+        _pageIconButtons.Clear();
+
         AnimateFrameIn();
         if (e.Content is Page page && _pageFeedbackHooked.Add(page))
             page.Loaded += (_, _) => AttachPageIconFeedback(page);
@@ -1033,20 +1120,16 @@ public sealed partial class MainWindow : Window
 
     private void AttachPageIconFeedback(DependencyObject root)
     {
+        var found = new List<Button>();
         foreach (var child in Descendants(root))
         {
             if (child is not Button button || _pageIconButtons.Contains(button)) continue;
             if (FindIcon(button, 0) is null) continue;
             _pageIconButtons.Add(button);
-            button.AddHandler(UIElement.PointerEnteredEvent,
-                new PointerEventHandler(PageIcon_PointerEntered), handledEventsToo: true);
-            button.AddHandler(UIElement.PointerExitedEvent,
-                new PointerEventHandler(PageIcon_PointerExited), handledEventsToo: true);
-            button.AddHandler(UIElement.PointerPressedEvent,
-                new PointerEventHandler(PageIcon_PointerPressed), handledEventsToo: true);
-            button.AddHandler(UIElement.PointerReleasedEvent,
-                new PointerEventHandler(PageIcon_PointerReleased), handledEventsToo: true);
+            found.Add(button);
         }
+        // 与 Dock / 顶栏共用同一套进出手柄，命中检测兜底才能覆盖页面控件。
+        RegisterIconButtons(found);
     }
 
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
@@ -1071,18 +1154,6 @@ public sealed partial class MainWindow : Window
         }
         return null;
     }
-
-    private void PageIcon_PointerEntered(object sender, PointerRoutedEventArgs e)
-        => Motion.IconHover(sender is Button b ? FindIcon(b, 0) : null, true, 1.14f, -1f);
-
-    private void PageIcon_PointerExited(object sender, PointerRoutedEventArgs e)
-        => Motion.IconHover(sender is Button b ? FindIcon(b, 0) : null, false);
-
-    private void PageIcon_PointerPressed(object sender, PointerRoutedEventArgs e)
-        => Motion.IconPress(sender is Button b ? FindIcon(b, 0) : null, true, 1.14f);
-
-    private void PageIcon_PointerReleased(object sender, PointerRoutedEventArgs e)
-        => Motion.IconPress(sender is Button b ? FindIcon(b, 0) : null, false, 1.14f);
 
     private void AnimateFrameIn()
     {

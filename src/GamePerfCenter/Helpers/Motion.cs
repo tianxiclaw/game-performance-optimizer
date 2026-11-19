@@ -43,31 +43,48 @@ public static class Motion
                 : "已启用：Windows 的“动画效果”处于关闭状态，本应用的控件反馈仍然生效。";
 
     /// <summary>
-    /// 图标悬浮反馈：放大并上浮 2px。只作用在图标本身，不改变按钮布局。
+    /// 图标悬浮反馈：以图标中心为原点放大。只动画 Scale，不碰 Offset / 布局，
+    /// 因此缩放结束后一定会回到原尺寸与原位置，不会与 XAML 布局互相覆盖。
     /// </summary>
-    public static void IconHover(FrameworkElement? element, bool hover, float scale = 1.2f, float lift = -2f)
+    public static void IconHover(FrameworkElement? element, bool hover, float scale = 1.2f)
     {
         if (!Enabled || element is null) return;
         try
         {
             var visual = ElementCompositionPreview.GetElementVisual(element);
+            if (element.ActualWidth <= 0 || element.ActualHeight <= 0) return;
             var compositor = visual.Compositor;
-            var width = (float)element.ActualWidth;
-            var height = (float)element.ActualHeight;
-            visual.CenterPoint = new Vector3(width / 2f, height / 2f, 0);
+            visual.CenterPoint = new Vector3((float)element.ActualWidth / 2f, (float)element.ActualHeight / 2f, 0);
+
+            var state = States.GetOrCreateValue(element);
+            var token = ++state.Token;
             var ease = compositor.CreateCubicBezierEasingFunction(new Vector2(0.2f, 0f), new Vector2(0f, 1f));
             var duration = TimeSpan.FromMilliseconds(hover ? 180 : 130);
 
             var target = hover ? scale : 1f;
-            var scaleAnim = compositor.CreateVector3KeyFrameAnimation();
-            scaleAnim.InsertKeyFrame(1f, new Vector3(target, target, 1f), ease);
-            scaleAnim.Duration = duration;
-            visual.StartAnimation("Scale", scaleAnim);
+            // 从当前动画值起步，快速进出时平滑反向，而不是跳变。
+            var from = visual.Scale.X;
 
-            var offsetAnim = compositor.CreateVector3KeyFrameAnimation();
-            offsetAnim.InsertKeyFrame(1f, new Vector3(0, hover ? lift : 0, 0), ease);
-            offsetAnim.Duration = duration;
-            visual.StartAnimation("Offset", offsetAnim);
+            var anim = compositor.CreateVector3KeyFrameAnimation();
+            anim.InsertKeyFrame(0f, new Vector3(from, from, 1f));
+            anim.InsertKeyFrame(1f, new Vector3(target, target, 1f), ease);
+            anim.Duration = duration;
+
+            var batch = compositor.CreateScopedBatch(CompositionBatchTypes.Animation);
+            batch.Completed += (_, _) =>
+            {
+                // 快速进出时旧批次会晚一步完成，只允许最后一次写入基础值。
+                if (state.Token != token) return;
+                try
+                {
+                    visual.StopAnimation("Scale");
+                    visual.Scale = new Vector3(target, target, 1f);
+                }
+                catch { }
+            };
+
+            visual.StartAnimation("Scale", anim);
+            batch.End();
         }
         catch { }
     }
@@ -79,19 +96,45 @@ public static class Motion
         try
         {
             var visual = ElementCompositionPreview.GetElementVisual(element);
+            if (element.ActualWidth <= 0 || element.ActualHeight <= 0) return;
             var compositor = visual.Compositor;
-            var width = (float)element.ActualWidth;
-            var height = (float)element.ActualHeight;
-            visual.CenterPoint = new Vector3(width / 2f, height / 2f, 0);
+            visual.CenterPoint = new Vector3((float)element.ActualWidth / 2f, (float)element.ActualHeight / 2f, 0);
+
+            var state = States.GetOrCreateValue(element);
+            var token = ++state.Token;
             var ease = compositor.CreateCubicBezierEasingFunction(new Vector2(0.2f, 0f), new Vector2(0f, 1f));
             var target = pressed ? 0.9f : hoverScale;
+            var from = visual.Scale.X;
+
             var anim = compositor.CreateVector3KeyFrameAnimation();
+            anim.InsertKeyFrame(0f, new Vector3(from, from, 1f));
             anim.InsertKeyFrame(1f, new Vector3(target, target, 1f), ease);
             anim.Duration = TimeSpan.FromMilliseconds(pressed ? 80 : 140);
+
+            var batch = compositor.CreateScopedBatch(CompositionBatchTypes.Animation);
+            batch.Completed += (_, _) =>
+            {
+                if (state.Token != token) return;
+                try
+                {
+                    visual.StopAnimation("Scale");
+                    visual.Scale = new Vector3(target, target, 1f);
+                }
+                catch { }
+            };
+
             visual.StartAnimation("Scale", anim);
+            batch.End();
         }
         catch { }
     }
+
+    private sealed class HoverState
+    {
+        public int Token;
+    }
+
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<FrameworkElement, HoverState> States = new();
 
     /// <summary>透明度 + 垂直位移的入场，200ms 以内，只用于容器出现。</summary>
     public static void FadeSlideIn(UIElement element, double fromY = 8, int milliseconds = 190)
