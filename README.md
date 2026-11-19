@@ -206,9 +206,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\publish.ps1
 
 需要换位置时用 `-OutputDir` 指定；不指定时始终是 `发布`。
 
+版本号采用年份 + 年内改动序号：2026 年第 1 次改动为 `26.1`，之后依次为 `26.2`、`26.3`，跨年后从 `27.1` 重新计数。
+
+仓库建议放在短路径下（例如 `D:\GamePerfCenter`）。构建产物与脚本都按仓库相对路径解析，移动仓库后重新构建即可，不需要改脚本。
+
 ## 本地安装
 
-桌面快捷方式固定指向 `%LOCALAPPDATA%\Programs\游戏性能优化中心`。发布新版本后执行：
+桌面快捷方式指向仓库内的稳定安装目录 `发布\游戏性能优化中心`。发布新版本后执行：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-local.ps1

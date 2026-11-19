@@ -217,7 +217,7 @@ public sealed partial class ItemsPage : Page, IThemeAware
             if (search.Length > 0)
             {
                 var hay = $"{i.Name} {i.Cat} {i.Desc} {i.StatusText}".ToLowerInvariant();
-                if (!hay.Contains(search.ToLowerInvariant())) return false;
+                if (hay.IndexOf(search.ToLowerInvariant(), StringComparison.Ordinal) < 0) return false;
             }
             return true;
         }).ToList();
@@ -557,14 +557,6 @@ public sealed partial class ItemsPage : Page, IThemeAware
         "mid" => "中风险",
         "high" => "高风险",
         _ => "未知风险"
-    };
-
-    private static string StatusLabel(string? status) => status switch
-    {
-        "ok" => "已生效",
-        "no" => "待优化",
-        "checking" => "检测中",
-        _ => "不适用"
     };
 
     private List<string> SelectedIds()

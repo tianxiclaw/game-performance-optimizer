@@ -6,6 +6,8 @@ namespace GamePerfCenter.Services;
 
 public sealed class SettingsService
 {
+    private static readonly JsonSerializerOptions SaveJson = new() { WriteIndented = true };
+
     private JsonObject _root = new();
 
     public string Theme { get; set; } = "dark";
@@ -39,16 +41,16 @@ public sealed class SettingsService
             var text = File.ReadAllText(AppPaths.SettingsPath, Encoding.UTF8).TrimStart('\uFEFF');
             if (string.IsNullOrWhiteSpace(text)) return;
             _root = JsonNode.Parse(text) as JsonObject ?? new JsonObject();
-            var theme = GetString("Theme", "dark").ToLowerInvariant();
+            var theme = GetString(nameof(Theme), "dark").ToLowerInvariant();
             Theme = theme is "light" or "system" ? theme : "dark";
-            var material = GetString("Material", "deep").ToLowerInvariant();
+            var material = GetString(nameof(Material), "deep").ToLowerInvariant();
             Material = material is "mica" or "mica-alt" or "glass" ? material : "deep";
-            MinimizeToTray = GetBool("MinimizeToTray", false);
-            NotifyDriver = GetBool("NotifyDriver", true);
-            ReduceMotion = GetBool("ReduceMotion", false);
+            MinimizeToTray = GetBool(nameof(MinimizeToTray), false);
+            NotifyDriver = GetBool(nameof(NotifyDriver), true);
+            ReduceMotion = GetBool(nameof(ReduceMotion), false);
 
             CommandRecents = new List<string>();
-            if (_root["CommandRecents"] is JsonArray array)
+            if (_root[nameof(CommandRecents)] is JsonArray array)
             {
                 foreach (var node in array)
                 {
@@ -69,17 +71,17 @@ public sealed class SettingsService
             _root["Version"] = 3;
             _root.Remove("ExperimentalDpi");
             _root.Remove("ShowRenderInfo");
-            _root["Theme"] = Theme;
-            _root["Material"] = Material;
-            _root["MinimizeToTray"] = MinimizeToTray;
-            _root["NotifyDriver"] = NotifyDriver;
-            _root["ReduceMotion"] = ReduceMotion;
+            _root[nameof(Theme)] = Theme;
+            _root[nameof(Material)] = Material;
+            _root[nameof(MinimizeToTray)] = MinimizeToTray;
+            _root[nameof(NotifyDriver)] = NotifyDriver;
+            _root[nameof(ReduceMotion)] = ReduceMotion;
             var recents = new JsonArray();
             foreach (var id in CommandRecents) recents.Add(id);
-            _root["CommandRecents"] = recents;
+            _root[nameof(CommandRecents)] = recents;
             _root["Updated"] = DateTime.Now.ToString("s");
             _root["Ui"] = "winui3";
-            var json = _root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+            var json = _root.ToJsonString(SaveJson);
             File.WriteAllText(AppPaths.SettingsPath, json, new UTF8Encoding(true));
             return true;
         }

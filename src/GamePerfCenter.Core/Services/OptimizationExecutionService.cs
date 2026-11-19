@@ -22,7 +22,6 @@ public sealed class OptimizationExecutionService
     private const string PnpCleanPath = @"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches\Device Driver Packages";
     private const string NicClassPath = @"HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}";
     private const string DwmExe = @"C:\Windows\System32\dwm.exe";
-    private const uint AllBits = 0xFFFFFFFF;
     private const uint PnpPowerBits = 24;
     private const uint DpstBit = 16;
     private const uint PsrBit = 0x80000000;
@@ -39,6 +38,12 @@ public sealed class OptimizationExecutionService
         WriteIndented = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
+    /// <summary>读取备份文件专用。只读、不可变，避免每次反序列化都新建选项对象。</summary>
+    private static readonly JsonSerializerOptions BackupReadJson = new()
+    {
+        PropertyNameCaseInsensitive = true
     };
 
     public OptimizationExecutionService(string? baseDirectory = null, string? backupDirectory = null,
@@ -188,7 +193,7 @@ public sealed class OptimizationExecutionService
         try
         {
             data = JsonSerializer.Deserialize<OptimizationBackupFile>(File.ReadAllText(path, Encoding.UTF8),
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                BackupReadJson);
         }
         catch (Exception ex)
         {
@@ -267,7 +272,7 @@ public sealed class OptimizationExecutionService
             {
                 var data = JsonSerializer.Deserialize<OptimizationBackupFile>(
                     File.ReadAllText(file.FullName, Encoding.UTF8),
-                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    BackupReadJson);
                 if (!string.IsNullOrWhiteSpace(data?.Time)) time = data!.Time!;
                 count = data?.Records.Count ?? 0;
             }
@@ -292,7 +297,7 @@ public sealed class OptimizationExecutionService
         try
         {
             return JsonSerializer.Deserialize<OptimizationPendingState>(File.ReadAllText(path, Encoding.UTF8),
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                BackupReadJson);
         }
         catch { return null; }
     }

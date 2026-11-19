@@ -35,11 +35,6 @@
             <SolidColorBrush x:Key="SubTextBrush" Color="#A3AAB5" />
             <SolidColorBrush x:Key="MutedTextBrush" Color="#6B7482" />
             <SolidColorBrush x:Key="FaintTextBrush" Color="#4E5866" />
-            <SolidColorBrush x:Key="NavTextBrush" Color="#A3AAB5" />
-            <SolidColorBrush x:Key="NavIconBrush" Color="#7E8998" />
-            <SolidColorBrush x:Key="NavSelectedBrush" Color="#0E2A31" />
-            <SolidColorBrush x:Key="NavHoverBrush" Color="#14171C" />
-            <SolidColorBrush x:Key="NavSelectedStrokeBrush" Color="#1E4B55" />
             <SolidColorBrush x:Key="AccentBrush" Color="#22D3EE" />
             <SolidColorBrush x:Key="AccentDimBrush" Color="#6622D3EE" />
             <SolidColorBrush x:Key="AccentSoftBrush" Color="#0D2A31" />
@@ -212,11 +207,6 @@
             <SolidColorBrush x:Key="SubTextBrush" Color="#4C596C" />
             <SolidColorBrush x:Key="MutedTextBrush" Color="#5F6D80" />
             <SolidColorBrush x:Key="FaintTextBrush" Color="#7C8A9C" />
-            <SolidColorBrush x:Key="NavTextBrush" Color="#4C596C" />
-            <SolidColorBrush x:Key="NavIconBrush" Color="#6B7889" />
-            <SolidColorBrush x:Key="NavSelectedBrush" Color="#D7ECF1" />
-            <SolidColorBrush x:Key="NavHoverBrush" Color="#ECF1F7" />
-            <SolidColorBrush x:Key="NavSelectedStrokeBrush" Color="#AFDDE7" />
             <SolidColorBrush x:Key="AccentBrush" Color="#00738C" />
             <SolidColorBrush x:Key="AccentDimBrush" Color="#3300738C" />
             <SolidColorBrush x:Key="AccentSoftBrush" Color="#DDF3F7" />
@@ -384,11 +374,6 @@
             <SolidColorBrush x:Key="SubTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="MutedTextBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
             <SolidColorBrush x:Key="FaintTextBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
-            <SolidColorBrush x:Key="NavTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
-            <SolidColorBrush x:Key="NavIconBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
-            <SolidColorBrush x:Key="NavSelectedBrush" Color="{ThemeResource SystemColorWindowColor}" />
-            <SolidColorBrush x:Key="NavHoverBrush" Color="{ThemeResource SystemColorWindowColor}" />
-            <SolidColorBrush x:Key="NavSelectedStrokeBrush" Color="{ThemeResource SystemColorHighlightColor}" />
 
             <SolidColorBrush x:Key="AccentBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="AccentDimBrush" Color="{ThemeResource SystemColorHighlightColor}" />
@@ -568,14 +553,6 @@
         <Setter Property="TextWrapping" Value="NoWrap" />
     </Style>
 
-    <Style x:Key="MetricUnitStyle" TargetType="TextBlock">
-        <Setter Property="FontFamily" Value="{StaticResource AppFontFamily}" />
-        <Setter Property="FontSize" Value="12" />
-        <Setter Property="Foreground" Value="{ThemeResource MutedTextBrush}" />
-        <Setter Property="VerticalAlignment" Value="Bottom" />
-        <Setter Property="Margin" Value="4,0,0,5" />
-    </Style>
-
     <Style x:Key="LiveValueStyle" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="{StaticResource DisplayFontFamily}" />
         <Setter Property="FontSize" Value="40" />
@@ -638,41 +615,11 @@
         <Setter Property="Padding" Value="12" />
     </Style>
 
-    <Style x:Key="CardBorderStyle" TargetType="Border">
-        <Setter Property="Background" Value="{ThemeResource CardSurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{ThemeResource BorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="12" />
-        <Setter Property="Padding" Value="18" />
-    </Style>
-
-    <Style x:Key="HeroBorderStyle" TargetType="Border">
-        <Setter Property="Background" Value="{ThemeResource HeroSurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{ThemeResource HeroBorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="16" />
-        <Setter Property="Padding" Value="22" />
-    </Style>
-
-    <Style x:Key="FeaturedCardBorderStyle" TargetType="Border">
-        <Setter Property="Background" Value="{ThemeResource HeroSurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{ThemeResource HeroBorderBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="16" />
-        <Setter Property="Padding" Value="22,20" />
-    </Style>
-
     <Style x:Key="DataRowStyle" TargetType="Border">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="{ThemeResource BorderBrush}" />
         <Setter Property="BorderThickness" Value="0,0,0,1" />
         <Setter Property="Padding" Value="0,10" />
-    </Style>
-
-    <Style x:Key="DataRowLastStyle" TargetType="Border">
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Padding" Value="0,10,0,2" />
     </Style>
 
     <Style x:Key="DividerStyle" TargetType="Border">
@@ -960,22 +907,6 @@
         </Setter>
     </Style>
 
-    <Style x:Key="CardListViewItemStyle" TargetType="ListViewItem">
-        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-        <Setter Property="Padding" Value="0" />
-        <Setter Property="Margin" Value="0,0,0,6" />
-        <Setter Property="CornerRadius" Value="8" />
-        <Setter Property="MinHeight" Value="0" />
-    </Style>
-
-    <Style x:Key="PlainListViewItemStyle" TargetType="ListViewItem">
-        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-        <Setter Property="Padding" Value="0" />
-        <Setter Property="Margin" Value="0,0,0,6" />
-        <Setter Property="CornerRadius" Value="8" />
-        <Setter Property="MinHeight" Value="0" />
-    </Style>
-
     <Style x:Key="DenseListViewItemStyle" TargetType="ListViewItem">
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="Padding" Value="0" />
@@ -1077,47 +1008,6 @@
         <Setter Property="BorderBrush" Value="{ThemeResource BorderBrush}" />
         <Setter Property="BorderThickness" Value="0,0,0,1" />
         <Setter Property="Padding" Value="0,15" />
-    </Style>
-
-    <!-- 左侧导航项：完全自定义选中态与紧凑态 -->
-    <Style x:Key="NavItemStyle" TargetType="controls:NavItem">
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Padding" Value="0" />
-        <Setter Property="MinHeight" Value="42" />
-        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-        <Setter Property="VerticalContentAlignment" Value="Center" />
-        <Setter Property="UseSystemFocusVisuals" Value="True" />
-        <Setter Property="FocusVisualPrimaryBrush" Value="{ThemeResource AccentBrush}" />
-        <Setter Property="FocusVisualSecondaryBrush" Value="Transparent" />
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="controls:NavItem">
-                    <Grid Height="42" Margin="4,0,4,0" Background="Transparent">
-                        <controls:TechPanel x:Name="Face" Cut="0" Radius="8" Fill="Transparent" Stroke="Transparent"
-                                            IsHitTestVisible="False" />
-                        <Border x:Name="Bar" Width="3" HorizontalAlignment="Left"
-                                Background="{ThemeResource AccentBrush}" Visibility="Collapsed" />
-                        <Grid x:Name="Inner" Padding="14,0,12,0" ColumnSpacing="12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition x:Name="IconColumn" Width="20" />
-                                <ColumnDefinition x:Name="LabelColumn" Width="*" />
-                                <ColumnDefinition x:Name="CodeColumn" Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <FontIcon x:Name="Icon" Glyph="{TemplateBinding Glyph}" FontSize="16"
-                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            <TextBlock x:Name="LabelText" Grid.Column="1" Text="{TemplateBinding Label}"
-                                       FontSize="13.5" FontWeight="Normal" TextWrapping="NoWrap"
-                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                            <TextBlock x:Name="CodeText" Grid.Column="2" Text="{TemplateBinding Code}"
-                                       FontFamily="{StaticResource MonoFontFamily}" FontSize="9"
-                                       CharacterSpacing="80" Foreground="{ThemeResource MutedTextBrush}"
-                                       VerticalAlignment="Center" />
-                        </Grid>
-                    </Grid>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
     </Style>
 
     <!-- 统一页头：标题 + 一句说明，操作区右对齐；窄窗口自动下移操作区 -->

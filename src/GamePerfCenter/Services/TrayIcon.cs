@@ -20,7 +20,6 @@ internal sealed class TrayIcon : IDisposable
     private const int NIF_TIP = 0x4;
     private const int IMAGE_ICON = 1;
     private const int LR_LOADFROMFILE = 0x10;
-    private const int LR_DEFAULTSIZE = 0x40;
     private const int MF_STRING = 0;
     private const int MF_SEPARATOR = 0x800;
     private const int TPM_RETURNCMD = 0x100;

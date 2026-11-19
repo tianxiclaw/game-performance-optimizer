@@ -58,6 +58,12 @@ public sealed class EngineBridge : IAsyncDisposable
         NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString
     };
 
+    /// <summary>发送命令时复用同一份选项，避免每条命令都新建序列化配置。</summary>
+    private static readonly JsonSerializerOptions PayloadJson = new()
+    {
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    };
+
     public async Task StartAsync(CancellationToken ct = default)
     {
         if (IsRunning) return;
@@ -199,10 +205,7 @@ public sealed class EngineBridge : IAsyncDisposable
 
         try
         {
-            var payload = JsonSerializer.Serialize(new { id, cmd, args }, new JsonSerializerOptions
-            {
-                DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-            });
+            var payload = JsonSerializer.Serialize(new { id, cmd, args }, PayloadJson);
             await _writeLock.WaitAsync(ct).ConfigureAwait(false);
             try
             {

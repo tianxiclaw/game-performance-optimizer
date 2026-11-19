@@ -78,10 +78,12 @@ public static class PortableExportService
         }
     }
 
+    private static readonly char[] PathSeparators = { '\\', '/' };
+
     private static bool IsInExcludedDir(string path, string baseDir)
     {
         var relative = Path.GetRelativePath(baseDir, path);
-        var separator = relative.IndexOfAny(new[] { '\\', '/' });
+        var separator = relative.IndexOfAny(PathSeparators);
         return separator > 0 && ExcludedDirs.Contains(relative[..separator]);
     }
 

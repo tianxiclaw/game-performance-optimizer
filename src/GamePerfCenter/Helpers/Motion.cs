@@ -29,6 +29,57 @@ public static class Motion
         catch { return true; }
     }
 
+    /// <summary>
+    /// 图标悬浮反馈：轻微放大并上浮 1px。只作用在图标本身，不改变按钮布局。
+    /// </summary>
+    public static void IconHover(FrameworkElement? element, bool hover, float scale = 1.12f, float lift = -1f)
+    {
+        if (!Enabled || element is null) return;
+        try
+        {
+            var visual = ElementCompositionPreview.GetElementVisual(element);
+            var compositor = visual.Compositor;
+            var width = (float)element.ActualWidth;
+            var height = (float)element.ActualHeight;
+            visual.CenterPoint = new Vector3(width / 2f, height / 2f, 0);
+            var ease = compositor.CreateCubicBezierEasingFunction(new Vector2(0.2f, 0f), new Vector2(0f, 1f));
+            var duration = TimeSpan.FromMilliseconds(hover ? 160 : 120);
+
+            var target = hover ? scale : 1f;
+            var scaleAnim = compositor.CreateVector3KeyFrameAnimation();
+            scaleAnim.InsertKeyFrame(1f, new Vector3(target, target, 1f), ease);
+            scaleAnim.Duration = duration;
+            visual.StartAnimation("Scale", scaleAnim);
+
+            var offsetAnim = compositor.CreateVector3KeyFrameAnimation();
+            offsetAnim.InsertKeyFrame(1f, new Vector3(0, hover ? lift : 0, 0), ease);
+            offsetAnim.Duration = duration;
+            visual.StartAnimation("Offset", offsetAnim);
+        }
+        catch { }
+    }
+
+    /// <summary>按下反馈：缩到 92%，松开回到悬浮尺寸。</summary>
+    public static void IconPress(FrameworkElement? element, bool pressed, float hoverScale = 1.12f)
+    {
+        if (!Enabled || element is null) return;
+        try
+        {
+            var visual = ElementCompositionPreview.GetElementVisual(element);
+            var compositor = visual.Compositor;
+            var width = (float)element.ActualWidth;
+            var height = (float)element.ActualHeight;
+            visual.CenterPoint = new Vector3(width / 2f, height / 2f, 0);
+            var ease = compositor.CreateCubicBezierEasingFunction(new Vector2(0.2f, 0f), new Vector2(0f, 1f));
+            var target = pressed ? 0.92f : hoverScale;
+            var anim = compositor.CreateVector3KeyFrameAnimation();
+            anim.InsertKeyFrame(1f, new Vector3(target, target, 1f), ease);
+            anim.Duration = TimeSpan.FromMilliseconds(pressed ? 80 : 140);
+            visual.StartAnimation("Scale", anim);
+        }
+        catch { }
+    }
+
     /// <summary>透明度 + 垂直位移的入场，200ms 以内，只用于容器出现。</summary>
     public static void FadeSlideIn(UIElement element, double fromY = 8, int milliseconds = 190)
     {
@@ -90,7 +141,8 @@ public sealed class NumberRoll
     {
         _target = target;
         _timer = DispatcherQueue.GetForCurrentThread().CreateTimer();
-        _timer.Interval = TimeSpan.FromMilliseconds(16);
+        // 30fps 对数字滚动已经足够顺滑，比 60fps 少一半格式化与布局开销。
+        _timer.Interval = TimeSpan.FromMilliseconds(33);
         _timer.IsRepeating = true;
         _timer.Tick += (_, _) => Step();
     }
@@ -103,6 +155,9 @@ public sealed class NumberRoll
             _target.Text = value.ToString(format) + suffix;
             return;
         }
+
+        // 采样噪声级别的变化不值得重新起一段动画；未在滚动时仍照常刷新终值。
+        if (_timer.IsRunning && Math.Abs(value - _to) < 0.05) return;
 
         _from = _to;
         _to = value;

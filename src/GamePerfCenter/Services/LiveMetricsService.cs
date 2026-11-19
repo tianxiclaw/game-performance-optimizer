@@ -8,7 +8,9 @@ namespace GamePerfCenter.Services;
 
 public sealed class LiveMetricsService
 {
-    private const double GpuIntervalSeconds = 1.0;
+    private static readonly TimeSpan GpuInterval = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan GpuRetryInterval = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan NicRefreshInterval = TimeSpan.FromSeconds(10);
 
     private ulong _lastIdle, _lastKernel, _lastUser;
     private long _lastNetRecv, _lastNetSent;
@@ -17,6 +19,15 @@ public sealed class LiveMetricsService
     private bool _primed;
     private double _lastGpu;
     private DateTime _lastGpuAt = DateTime.MinValue;
+    private NetworkInterface[] _activeNics = Array.Empty<NetworkInterface>();
+    private DateTime _nicsAt = DateTime.MinValue;
+
+    public LiveMetricsService()
+    {
+        // 先取一次基线，让 250ms 后的首个采样就能给出真实的 CPU / 网络数值。
+        SampleCpu();
+        SampleNetwork();
+    }
 
     public bool GpuAvailable { get; private set; } = true;
     public string? GpuError { get; private set; }
@@ -46,7 +57,9 @@ public sealed class LiveMetricsService
     private double SampleGpuThrottled()
     {
         var now = DateTime.UtcNow;
-        if (now - _lastGpuAt < TimeSpan.FromSeconds(GpuIntervalSeconds)) return _lastGpu;
+        // 查询失败后拉长重试间隔：没有GPU性能计数器的机器不必每秒撞一次 WMI。
+        var interval = GpuAvailable ? GpuInterval : GpuRetryInterval;
+        if (now - _lastGpuAt < interval) return _lastGpu;
         _lastGpuAt = now;
         _lastGpu = SampleGpu();
         return _lastGpu;
@@ -80,25 +93,44 @@ public sealed class LiveMetricsService
         return (pct, used, total);
     }
 
-    private (double down, double up) SampleNetwork()
+    /// <summary>
+    /// 网卡集合变化很慢，没必要每 250ms 枚举一次全部接口。
+    /// 这里缓存 10 秒，期间只读已筛选网卡的计数器。
+    /// </summary>
+    private NetworkInterface[] ActiveNics()
     {
-        long recv = 0, sent = 0;
+        var now = DateTime.UtcNow;
+        if (now - _nicsAt < NicRefreshInterval) return _activeNics;
+
+        var list = new List<NetworkInterface>();
         try
         {
             foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
             {
                 if (nic.OperationalStatus != OperationalStatus.Up) continue;
                 if (nic.NetworkInterfaceType is NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel) continue;
-                try
-                {
-                    var stats = nic.GetIPv4Statistics();
-                    recv += stats.BytesReceived;
-                    sent += stats.BytesSent;
-                }
-                catch { }
+                list.Add(nic);
             }
         }
         catch { }
+        _activeNics = list.ToArray();
+        _nicsAt = now;
+        return _activeNics;
+    }
+
+    private (double down, double up) SampleNetwork()
+    {
+        long recv = 0, sent = 0;
+        foreach (var nic in ActiveNics())
+        {
+            try
+            {
+                var stats = nic.GetIPv4Statistics();
+                recv += stats.BytesReceived;
+                sent += stats.BytesSent;
+            }
+            catch { }
+        }
 
         var now = DateTime.UtcNow;
         if (_lastAt == DateTime.MinValue)

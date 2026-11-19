@@ -32,6 +32,8 @@ public sealed partial class MainWindow : Window
     private TrayIcon? _tray;
     private bool _initialized;
     private bool _metricsBusy;
+    private bool _metricsPaused;
+    private int _metricsTick;
     private bool _sizedOnActivate;
     private EngineFailure? _shownFailure;
     private double _starWidth;
@@ -93,6 +95,19 @@ public sealed partial class MainWindow : Window
                 new PointerEventHandler(DockButton_PointerEntered), handledEventsToo: true);
             button.AddHandler(UIElement.PointerExitedEvent,
                 new PointerEventHandler(DockButton_PointerExited), handledEventsToo: true);
+        }
+
+        // 图标型按钮统一加悬浮放大 / 按下收缩；按钮布局尺寸不变，只动图标本身。
+        foreach (var button in EnumerateIconButtons())
+        {
+            button.AddHandler(UIElement.PointerEnteredEvent,
+                new PointerEventHandler(IconButton_PointerEntered), handledEventsToo: true);
+            button.AddHandler(UIElement.PointerExitedEvent,
+                new PointerEventHandler(IconButton_PointerExited), handledEventsToo: true);
+            button.AddHandler(UIElement.PointerPressedEvent,
+                new PointerEventHandler(IconButton_PointerPressed), handledEventsToo: true);
+            button.AddHandler(UIElement.PointerReleasedEvent,
+                new PointerEventHandler(IconButton_PointerReleased), handledEventsToo: true);
         }
 
         // 加速键挂在 RootGrid 上时，WinUI 会在指针 hover 时自动弹一个 "Ctrl+K" 提示，
@@ -461,6 +476,33 @@ public sealed partial class MainWindow : Window
         DockGames, DockDriver, DockBackup, DockLog, DockSettings, DockAbout
     };
 
+    /// <summary>Dock 与顶栏中“只有图标”的按钮；文字按钮不参与缩放，避免整块文字抖动。</summary>
+    private Button[] EnumerateIconButtons() => new[]
+    {
+        DockOverview, DockItems, DockDiagnostics, DockStartup,
+        DockGames, DockDriver, DockBackup, DockLog, DockSettings, DockAbout, DockCommand,
+        ThemeLightButton, ThemeDarkButton, ThemeSystemButton,
+        InspectorToggleButton, RepoButton
+    };
+
+    private static FrameworkElement? IconOf(object sender)
+        => sender is Button { Content: FrameworkElement icon } ? icon : null;
+
+    private float IconScaleFor(object sender)
+        => ReferenceEquals(sender, DockCommand) ? 1.1f : 1.14f;
+
+    private void IconButton_PointerEntered(object sender, PointerRoutedEventArgs e)
+        => Motion.IconHover(IconOf(sender), true, IconScaleFor(sender));
+
+    private void IconButton_PointerExited(object sender, PointerRoutedEventArgs e)
+        => Motion.IconHover(IconOf(sender), false);
+
+    private void IconButton_PointerPressed(object sender, PointerRoutedEventArgs e)
+        => Motion.IconPress(IconOf(sender), true, IconScaleFor(sender));
+
+    private void IconButton_PointerReleased(object sender, PointerRoutedEventArgs e)
+        => Motion.IconPress(IconOf(sender), false, IconScaleFor(sender));
+
     private void RefreshDockVisuals()
     {
         var selectedFill = ThemeResources.Get("AccentSoftBrush");
@@ -817,13 +859,17 @@ public sealed partial class MainWindow : Window
             var m = await Task.Run(() => App.Services.Metrics.Sample());
             LatestMetrics = m;
 
-            PaneCpuValue.Text = m.Cpu.ToString("0") + "%";
-            PaneCpuBar.Value = m.Cpu;
-            var gpuAvailable = App.Services.Metrics.GpuAvailable;
-            PaneGpuValue.Text = gpuAvailable ? m.Gpu.ToString("0") + "%" : "--";
-            PaneGpuBar.Value = gpuAvailable ? m.Gpu : 0;
-            PaneRamValue.Text = m.RamPercent.ToString("0") + "%";
-            PaneRamBar.Value = m.RamPercent;
+            // 侧栏只是常驻摘要，1 秒一次足够；概览页仍按 250ms 拿实时数据。
+            if (++_metricsTick % 4 == 1)
+            {
+                PaneCpuValue.Text = m.Cpu.ToString("0") + "%";
+                PaneCpuBar.Value = m.Cpu;
+                var gpuAvailable = App.Services.Metrics.GpuAvailable;
+                PaneGpuValue.Text = gpuAvailable ? m.Gpu.ToString("0") + "%" : "--";
+                PaneGpuBar.Value = gpuAvailable ? m.Gpu : 0;
+                PaneRamValue.Text = m.RamPercent.ToString("0") + "%";
+                PaneRamBar.Value = m.RamPercent;
+            }
 
             MetricsUpdated?.Invoke(m);
         }
@@ -934,12 +980,71 @@ public sealed partial class MainWindow : Window
     private void OnFrameNavigated(object sender, NavigationEventArgs e)
     {
         AnimateFrameIn();
-        if (_pendingItemFocus is { } id && ContentFrame.Content is ItemsPage page)
+        if (e.Content is Page page && _pageFeedbackHooked.Add(page))
+            page.Loaded += (_, _) => AttachPageIconFeedback(page);
+        if (_pendingItemFocus is { } id && ContentFrame.Content is ItemsPage itemsPage)
         {
             _pendingItemFocus = null;
-            DispatcherQueue.TryEnqueue(() => page.FocusItem(id));
+            DispatcherQueue.TryEnqueue(() => itemsPage.FocusItem(id));
         }
     }
+
+    /// <summary>页面内带图标的按钮同样获得悬浮反馈，只缩放图标，不缩放文字。</summary>
+    private readonly HashSet<Button> _pageIconButtons = new();
+    private readonly HashSet<Page> _pageFeedbackHooked = new();
+
+    private void AttachPageIconFeedback(DependencyObject root)
+    {
+        foreach (var child in Descendants(root))
+        {
+            if (child is not Button button || _pageIconButtons.Contains(button)) continue;
+            if (FindIcon(button, 0) is null) continue;
+            _pageIconButtons.Add(button);
+            button.AddHandler(UIElement.PointerEnteredEvent,
+                new PointerEventHandler(PageIcon_PointerEntered), handledEventsToo: true);
+            button.AddHandler(UIElement.PointerExitedEvent,
+                new PointerEventHandler(PageIcon_PointerExited), handledEventsToo: true);
+            button.AddHandler(UIElement.PointerPressedEvent,
+                new PointerEventHandler(PageIcon_PointerPressed), handledEventsToo: true);
+            button.AddHandler(UIElement.PointerReleasedEvent,
+                new PointerEventHandler(PageIcon_PointerReleased), handledEventsToo: true);
+        }
+    }
+
+    private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
+    {
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            yield return child;
+            foreach (var nested in Descendants(child)) yield return nested;
+        }
+    }
+
+    private static FontIcon? FindIcon(DependencyObject root, int depth)
+    {
+        if (root is FontIcon icon) return icon;
+        if (depth >= 4) return null;
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+        {
+            if (FindIcon(VisualTreeHelper.GetChild(root, i), depth + 1) is { } found) return found;
+        }
+        return null;
+    }
+
+    private void PageIcon_PointerEntered(object sender, PointerRoutedEventArgs e)
+        => Motion.IconHover(sender is Button b ? FindIcon(b, 0) : null, true, 1.08f, -0.5f);
+
+    private void PageIcon_PointerExited(object sender, PointerRoutedEventArgs e)
+        => Motion.IconHover(sender is Button b ? FindIcon(b, 0) : null, false);
+
+    private void PageIcon_PointerPressed(object sender, PointerRoutedEventArgs e)
+        => Motion.IconPress(sender is Button b ? FindIcon(b, 0) : null, true, 1.08f);
+
+    private void PageIcon_PointerReleased(object sender, PointerRoutedEventArgs e)
+        => Motion.IconPress(sender is Button b ? FindIcon(b, 0) : null, false, 1.08f);
 
     private void AnimateFrameIn()
     {
@@ -1324,6 +1429,7 @@ public sealed partial class MainWindow : Window
         {
             AppWindow.Hide();
             _tray?.Show();
+            PauseMetrics();
         }
         catch (Exception ex)
         {
@@ -1338,11 +1444,29 @@ public sealed partial class MainWindow : Window
             _tray?.Hide();
             AppWindow.Show();
             Activate();
+            ResumeMetrics();
         }
         catch (Exception ex)
         {
             AppLog.Write("从托盘恢复失败: " + ex.Message);
         }
+    }
+
+    /// <summary>窗口隐藏到托盘后没有可见的实时数据，停掉采样避免空转。</summary>
+    private void PauseMetrics()
+    {
+        if (_metricsPaused) return;
+        _metricsPaused = true;
+        _metricsTimer.Stop();
+    }
+
+    private void ResumeMetrics()
+    {
+        if (!_metricsPaused) return;
+        _metricsPaused = false;
+        _metricsTick = 0;
+        _metricsTimer.Start();
+        _ = SampleMetricsAsync();
     }
 
     /// <summary>托盘快捷入口：先恢复窗口，再切到目标页面。</summary>
@@ -1366,17 +1490,17 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void ExitFromTray()
+    private async void ExitFromTray()
     {
         try { _tray?.Dispose(); } catch { }
-        try { _ = App.Services.Engine.DisposeAsync(); } catch { }
+        try { await App.Services.Engine.DisposeAsync(); } catch { }
         Environment.Exit(0);
     }
 
-    private void OnClosed(object sender, WindowEventArgs args)
+    private async void OnClosed(object sender, WindowEventArgs args)
     {
         try { _tray?.Dispose(); } catch { }
-        try { _ = App.Services.Engine.DisposeAsync(); } catch { }
+        try { await App.Services.Engine.DisposeAsync(); } catch { }
     }
 }
 

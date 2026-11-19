@@ -17,6 +17,9 @@ public sealed partial class OverviewPage : Page, IThemeAware
     private const int HistoryLimit = (int)(90 / SampleSeconds);
     private const double SparkHeight = 44;
     private readonly List<double> _cpuHistory = new();
+    private int _sparkTick;
+    private bool? _gpuWasAvailable;
+    private string _lastStamp = "";
     private readonly NumberRoll _cpuRoll;
     private readonly NumberRoll _gpuRoll;
     private readonly NumberRoll _ramRoll;
@@ -267,13 +270,19 @@ public sealed partial class OverviewPage : Page, IThemeAware
     {
         _cpuRoll.To(m.Cpu);
         PushHistory(_cpuHistory, m.Cpu);
-        RenderSpark(CpuSparkLine, _cpuHistory, SparkCanvas.ActualWidth);
+        // 趋势线保留 4Hz 采样，但重绘降到 2Hz，减少无意义的点位重建。
+        if (++_sparkTick % 2 == 0)
+            RenderSpark(CpuSparkLine, _cpuHistory, SparkCanvas.ActualWidth);
 
         var gpuAvailable = App.Services.Metrics.GpuAvailable;
         if (gpuAvailable) _gpuRoll.To(m.Gpu);
         else _gpuRoll.SetLiteral("—");
-        GpuRingLabel.Text = gpuAvailable ? "专用显卡 3D 引擎" : "GPU 数据不可用";
-        SignalGpu.Text = gpuAvailable ? "可用 · 1 秒刷新" : "不可用";
+        if (_gpuWasAvailable != gpuAvailable)
+        {
+            _gpuWasAvailable = gpuAvailable;
+            GpuRingLabel.Text = gpuAvailable ? "专用显卡 3D 引擎" : "GPU 数据不可用";
+            SignalGpu.Text = gpuAvailable ? "可用 · 1 秒刷新" : "不可用";
+        }
         GpuBar.Value = gpuAvailable ? m.Gpu : 0;
 
         _ramRoll.To(m.RamPercent, "0", "%");
@@ -282,7 +291,12 @@ public sealed partial class OverviewPage : Page, IThemeAware
 
         NetValue.Text = "↓ " + FormatRate(m.NetDownKbps);
         NetHint.Text = "↑ " + FormatRate(m.NetUpKbps);
-        LiveStamp.Text = $"更新于 {DateTime.Now:HH:mm:ss} · 0.25 秒采样";
+        var stamp = $"更新于 {DateTime.Now:HH:mm:ss} · 0.25 秒采样";
+        if (stamp != _lastStamp)
+        {
+            _lastStamp = stamp;
+            LiveStamp.Text = stamp;
+        }
     }
 
     private static void PushHistory(List<double> history, double value)

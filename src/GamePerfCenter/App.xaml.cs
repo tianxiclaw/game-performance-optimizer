@@ -72,7 +72,8 @@ public partial class App : Application
                 .Substring("--page=".Length) ?? "overview";
             var seconds = 20;
             var secArg = cmd.FirstOrDefault(a => a.StartsWith("--seconds=", StringComparison.OrdinalIgnoreCase));
-            if (secArg is not null) int.TryParse(secArg.Substring("--seconds=".Length), out seconds);
+            if (secArg is not null && int.TryParse(secArg.Substring("--seconds=".Length), out var parsed))
+                seconds = parsed;
             if (seconds <= 0) seconds = 20;
 
             window.AppWindow.Show(false);
@@ -87,7 +88,7 @@ public partial class App : Application
         }
         finally
         {
-            try { _ = Services.Engine.DisposeAsync(); } catch { }
+            try { await Services.Engine.DisposeAsync(); } catch { }
             Environment.Exit(0);
         }
     }
@@ -135,7 +136,7 @@ public partial class App : Application
                 File.WriteAllLines(path, lines, new System.Text.UTF8Encoding(true));
             }
             catch { }
-            try { _ = Services.Engine.DisposeAsync(); } catch { }
+            try { await Services.Engine.DisposeAsync(); } catch { }
             Environment.Exit(lines.Any(l => l.Contains("FAIL")) ? 1 : 0);
         }
     }

@@ -466,23 +466,10 @@ public sealed class DiagGroup
     public List<DiagEntry> Items { get; set; } = new();
 }
 
-public sealed class SupportInfo
-{
-    public string? Version { get; set; }
-    public string? Path { get; set; }
-}
-
 public sealed class CapabilityInfo
 {
     public string? Name { get; set; }
     public string? Desc { get; set; }
-}
-
-public sealed class AppLogLine
-{
-    public string Text { get; set; } = "";
-    public string Color { get; set; } = "Gray";
-    public DateTime At { get; set; } = DateTime.Now;
 }
 
 public sealed class LiveMetrics
