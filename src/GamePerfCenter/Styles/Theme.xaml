@@ -942,7 +942,13 @@
                                           VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
                         <VisualStateManager.VisualStateGroups>
                             <VisualStateGroup x:Name="CommonStates">
-                                <VisualState x:Name="Normal" />
+                                <VisualState x:Name="Normal">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="HoverOverlay"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="0" />
+                                    </Storyboard>
+                                </VisualState>
                                 <VisualState x:Name="PointerOver">
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="HoverOverlay"
@@ -966,7 +972,13 @@
                                 </VisualState>
                             </VisualStateGroup>
                             <VisualStateGroup x:Name="SelectionStates">
-                                <VisualState x:Name="Unselected" />
+                                <VisualState x:Name="Unselected">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="SelectedOverlay"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0" Duration="0" />
+                                    </Storyboard>
+                                </VisualState>
                                 <VisualState x:Name="Selected">
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="SelectedOverlay"

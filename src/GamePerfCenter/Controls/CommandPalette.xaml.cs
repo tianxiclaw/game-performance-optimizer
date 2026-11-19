@@ -39,10 +39,33 @@ public sealed partial class CommandPalette : UserControl
         InitializeComponent();
         Card.RenderTransform = _cardShift;
         Results.SelectedIndex = -1;
+        // 列表容器会被回收复用：离开选中态的行如果不显式回到 Unselected，
+        // 复用后仍会带着强调色遮罩。选中变化与容器实化时都同步一次。
+        Results.SelectionChanged += (_, _) => SyncSelectionVisuals();
+        Results.ContainerContentChanging += (_, e) =>
+        {
+            if (e.InRecycleQueue) return;
+            if (e.ItemContainer is ListViewItem container) SyncContainerSelection(container);
+        };
         // 搜索框内部的 TextBox 会先把 Enter / 方向键处理掉，冒泡阶段的 KeyDown 收不到，
         // 因此所有面板快捷键统一在 PreviewKeyDown（隧道阶段）处理。
         AddHandler(PreviewKeyDownEvent, new KeyEventHandler(Layer_PreviewKeyDown), true);
     }
+
+    /// <summary>
+    /// 已实化的行逐个对齐到真实选中状态。上/下键只改 SelectedIndex，
+    /// 焦点仍在搜索框时框架未必更新旧行的选择状态，这里补一次。
+    /// </summary>
+    private void SyncSelectionVisuals()
+    {
+        for (var i = 0; i < _filtered.Count; i++)
+        {
+            if (Results.ContainerFromIndex(i) is ListViewItem container) SyncContainerSelection(container);
+        }
+    }
+
+    private static void SyncContainerSelection(ListViewItem container)
+        => VisualStateManager.GoToState(container, container.IsSelected ? "SelectedUnfocused" : "Unselected", false);
 
     public void Open(IEnumerable<CommandItem> commands, IEnumerable<string> recents)
     {
