@@ -108,6 +108,11 @@ public sealed partial class MainWindow : Window
                 new PointerEventHandler(IconButton_PointerPressed), handledEventsToo: true);
             button.AddHandler(UIElement.PointerReleasedEvent,
                 new PointerEventHandler(IconButton_PointerReleased), handledEventsToo: true);
+            // 拖拽、窗口失焦、UAC 抢占等情况下收不到 PointerExited，图标会卡在放大状态。
+            button.AddHandler(UIElement.PointerCanceledEvent,
+                new PointerEventHandler(IconButton_PointerCanceled), handledEventsToo: true);
+            button.AddHandler(UIElement.PointerCaptureLostEvent,
+                new PointerEventHandler(IconButton_PointerCanceled), handledEventsToo: true);
         }
 
         // 加速键挂在 RootGrid 上时，WinUI 会在指针 hover 时自动弹一个 "Ctrl+K" 提示，
@@ -210,7 +215,11 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void OnWindowActivated(object sender, WindowActivatedEventArgs args)
     {
-        if (args.WindowActivationState == WindowActivationState.Deactivated) return;
+        if (args.WindowActivationState == WindowActivationState.Deactivated)
+        {
+            ResetIconScales();
+            return;
+        }
         var before = ThemeService.IsHighContrast;
         ThemeService.RefreshHighContrast();
         if (before != ThemeService.IsHighContrast)
@@ -489,10 +498,24 @@ public sealed partial class MainWindow : Window
         => sender is Button { Content: FrameworkElement icon } ? icon : null;
 
     private float IconScaleFor(object sender)
-        => ReferenceEquals(sender, DockCommand) ? 1.1f : 1.14f;
+        => ReferenceEquals(sender, DockCommand) ? 1.15f : 1.22f;
+
+    private bool _motionTraceLogged;
+
+    /// <summary>首次真正执行缩放时写一条日志，便于确认动效在提权后的进程里同样生效。</summary>
+    private void TraceMotionOnce(float scale)
+    {
+        if (_motionTraceLogged) return;
+        _motionTraceLogged = true;
+        AppLog.Write($"动效生效: 图标 1.00 -> {scale:0.00}，Windows 动画={(Motion.SystemEnabled ? "开" : "关")}");
+    }
 
     private void IconButton_PointerEntered(object sender, PointerRoutedEventArgs e)
-        => Motion.IconHover(IconOf(sender), true, IconScaleFor(sender));
+    {
+        var scale = IconScaleFor(sender);
+        TraceMotionOnce(scale);
+        Motion.IconHover(IconOf(sender), true, scale);
+    }
 
     private void IconButton_PointerExited(object sender, PointerRoutedEventArgs e)
         => Motion.IconHover(IconOf(sender), false);
@@ -502,6 +525,21 @@ public sealed partial class MainWindow : Window
 
     private void IconButton_PointerReleased(object sender, PointerRoutedEventArgs e)
         => Motion.IconPress(IconOf(sender), false, IconScaleFor(sender));
+
+    private void IconButton_PointerCanceled(object sender, PointerRoutedEventArgs e)
+    {
+        var hover = sender is Button { IsPointerOver: true };
+        Motion.IconHover(IconOf(sender), hover, IconScaleFor(sender));
+    }
+
+    /// <summary>窗口失焦时指针必然已经离开，统一复位，避免图标停留在放大或按下状态。</summary>
+    private void ResetIconScales()
+    {
+        foreach (var button in EnumerateIconButtons())
+        {
+            Motion.IconHover(IconOf(button), false);
+        }
+    }
 
     private void RefreshDockVisuals()
     {
@@ -1035,16 +1073,16 @@ public sealed partial class MainWindow : Window
     }
 
     private void PageIcon_PointerEntered(object sender, PointerRoutedEventArgs e)
-        => Motion.IconHover(sender is Button b ? FindIcon(b, 0) : null, true, 1.08f, -0.5f);
+        => Motion.IconHover(sender is Button b ? FindIcon(b, 0) : null, true, 1.14f, -1f);
 
     private void PageIcon_PointerExited(object sender, PointerRoutedEventArgs e)
         => Motion.IconHover(sender is Button b ? FindIcon(b, 0) : null, false);
 
     private void PageIcon_PointerPressed(object sender, PointerRoutedEventArgs e)
-        => Motion.IconPress(sender is Button b ? FindIcon(b, 0) : null, true, 1.08f);
+        => Motion.IconPress(sender is Button b ? FindIcon(b, 0) : null, true, 1.14f);
 
     private void PageIcon_PointerReleased(object sender, PointerRoutedEventArgs e)
-        => Motion.IconPress(sender is Button b ? FindIcon(b, 0) : null, false, 1.08f);
+        => Motion.IconPress(sender is Button b ? FindIcon(b, 0) : null, false, 1.14f);
 
     private void AnimateFrameIn()
     {

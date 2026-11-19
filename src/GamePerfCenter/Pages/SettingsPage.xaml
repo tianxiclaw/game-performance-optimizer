@@ -199,6 +199,8 @@
                                         <TextBlock Text="减弱动效" Style="{StaticResource BodyTextStyle}" />
                                         <TextBlock Text="关闭数值滚动与入场淡入，界面直接呈现最终状态"
                                                    Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="MotionStateText" Margin="0,2,0,0"
+                                                   Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                                     </StackPanel>
                                     <ToggleSwitch x:Name="ReduceMotionSwitch" Grid.Column="1"
                                                   AutomationProperties.Name="减弱动效"

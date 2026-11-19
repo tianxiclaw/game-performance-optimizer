@@ -15,12 +15,17 @@ namespace GamePerfCenter.Helpers;
 /// </summary>
 public static class Motion
 {
-    public static bool Enabled { get; private set; } = Detect();
+    /// <summary>应用内动效开关，由“减弱动效”设置决定，与 Windows 系统动画开关解耦。</summary>
+    public static bool Enabled { get; private set; } = true;
 
-    /// <summary>用户在设置里关闭动效时覆盖系统值；关闭后再打开则回到系统设置。</summary>
+    /// <summary>Windows 的“动画效果”开关，仅用于诊断与提示，不再直接停用应用内反馈。</summary>
+    public static bool SystemEnabled { get; private set; } = Detect();
+
+    /// <summary>重新读取系统开关；应用内动效只由用户自己的“减弱动效”设置控制。</summary>
     public static void Configure(bool reduceMotion)
     {
-        Enabled = !reduceMotion && Detect();
+        SystemEnabled = Detect();
+        Enabled = !reduceMotion;
     }
 
     private static bool Detect()
@@ -29,10 +34,18 @@ public static class Motion
         catch { return true; }
     }
 
+    /// <summary>设置页展示用的状态说明。</summary>
+    public static string Describe(bool reduceMotion)
+        => reduceMotion
+            ? "已关闭：数值与列表直接呈现最终状态。"
+            : SystemEnabled
+                ? "已启用：控件悬浮放大与按下回弹。"
+                : "已启用：Windows 的“动画效果”处于关闭状态，本应用的控件反馈仍然生效。";
+
     /// <summary>
-    /// 图标悬浮反馈：轻微放大并上浮 1px。只作用在图标本身，不改变按钮布局。
+    /// 图标悬浮反馈：放大并上浮 2px。只作用在图标本身，不改变按钮布局。
     /// </summary>
-    public static void IconHover(FrameworkElement? element, bool hover, float scale = 1.12f, float lift = -1f)
+    public static void IconHover(FrameworkElement? element, bool hover, float scale = 1.2f, float lift = -2f)
     {
         if (!Enabled || element is null) return;
         try
@@ -43,7 +56,7 @@ public static class Motion
             var height = (float)element.ActualHeight;
             visual.CenterPoint = new Vector3(width / 2f, height / 2f, 0);
             var ease = compositor.CreateCubicBezierEasingFunction(new Vector2(0.2f, 0f), new Vector2(0f, 1f));
-            var duration = TimeSpan.FromMilliseconds(hover ? 160 : 120);
+            var duration = TimeSpan.FromMilliseconds(hover ? 180 : 130);
 
             var target = hover ? scale : 1f;
             var scaleAnim = compositor.CreateVector3KeyFrameAnimation();
@@ -59,8 +72,8 @@ public static class Motion
         catch { }
     }
 
-    /// <summary>按下反馈：缩到 92%，松开回到悬浮尺寸。</summary>
-    public static void IconPress(FrameworkElement? element, bool pressed, float hoverScale = 1.12f)
+    /// <summary>按下反馈：缩到 90%，松开回到悬浮尺寸。</summary>
+    public static void IconPress(FrameworkElement? element, bool pressed, float hoverScale = 1.2f)
     {
         if (!Enabled || element is null) return;
         try
@@ -71,7 +84,7 @@ public static class Motion
             var height = (float)element.ActualHeight;
             visual.CenterPoint = new Vector3(width / 2f, height / 2f, 0);
             var ease = compositor.CreateCubicBezierEasingFunction(new Vector2(0.2f, 0f), new Vector2(0f, 1f));
-            var target = pressed ? 0.92f : hoverScale;
+            var target = pressed ? 0.9f : hoverScale;
             var anim = compositor.CreateVector3KeyFrameAnimation();
             anim.InsertKeyFrame(1f, new Vector3(target, target, 1f), ease);
             anim.Duration = TimeSpan.FromMilliseconds(pressed ? 80 : 140);

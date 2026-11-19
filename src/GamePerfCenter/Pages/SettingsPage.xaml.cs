@@ -94,6 +94,7 @@ public sealed partial class SettingsPage : Page, IThemeAware
             TraySwitch.IsOn = settings.MinimizeToTray;
             DriverNotifySwitch.IsOn = settings.NotifyDriver;
             ReduceMotionSwitch.IsOn = settings.ReduceMotion;
+            MotionStateText.Text = Motion.Describe(settings.ReduceMotion);
             HighContrastText.Text = highContrast
                 ? "已开启：界面改用 Windows 系统色，窗口材质停用。"
                 : "跟随 Windows 高对比度设置；开启时使用系统色并停用窗口材质。";
@@ -175,9 +176,10 @@ public sealed partial class SettingsPage : Page, IThemeAware
         var reduce = ReduceMotionSwitch.IsOn;
         App.Services.Settings.ReduceMotion = reduce;
         Motion.Configure(reduce);
+        MotionStateText.Text = Motion.Describe(reduce);
         Save();
         ShowInfo("动效已更新",
-            reduce ? "已关闭界面动效，数值与列表直接跳到最终状态。" : "已恢复系统动效设置。",
+            reduce ? "已关闭界面动效，数值与列表直接跳到最终状态。" : "已启用界面动效：控件悬浮放大、按下回弹与数值滚动。",
             InfoBarSeverity.Success);
     }
 
