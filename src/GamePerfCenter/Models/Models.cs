@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using GamePerfCenter.Services;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -101,18 +102,22 @@ public sealed class ItemInfo : INotifyPropertyChanged
         => _expanded ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
 
     [JsonIgnore]
-    public string ExpandLabel => _expanded ? "收起" : "详情";
+    public string ExpandLabel => Localization.T(_expanded ? "收起" : "详情");
 
     [JsonIgnore]
     public string ExpandGlyph => _expanded ? "\uE70E" : "\uE70D";
 
+    /// <summary>行内说明里的“目标”前缀，按当前语言显示。</summary>
     [JsonIgnore]
-    public string RebootText => NeedsReboot ? "需要重启后生效" : "无需重启";
+    public string TargetLabel => Localization.T("  目标：");
+
+    [JsonIgnore]
+    public string RebootText => Localization.T(NeedsReboot ? "需要重启后生效" : "无需重启");
 
     [JsonIgnore]
     public string DependencyText => !string.IsNullOrWhiteSpace(DepHint)
         ? DepHint!
-        : !string.IsNullOrWhiteSpace(Dep) ? Dep! : "无依赖";
+        : !string.IsNullOrWhiteSpace(Dep) ? Dep! : Localization.T("无依赖");
 
     /// <summary>由页面根据快照里的 LastApply 写入，不来自引擎。</summary>
     [JsonIgnore]

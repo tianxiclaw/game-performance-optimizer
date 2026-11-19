@@ -30,6 +30,12 @@ public sealed partial class ItemsPage : Page, IThemeAware
         App.Services.State.Changed += OnStateChanged;
         Loaded += OnLoaded;
         Loaded += (_, _) => ApplyDensity(ActualWidth, ActualHeight);
+        // 行模板按需实例化，且会被回收复用；每次换内容时按当前语言刷新其中的静态文案。
+        ItemsList.ContainerContentChanging += (_, e) =>
+        {
+            if (!e.InRecycleQueue && e.ItemContainer is DependencyObject container)
+                Localization.Apply(container);
+        };
         SizeChanged += (_, e) => ApplyDensity(e.NewSize.Width, e.NewSize.Height);
         Responsive.Watch(this, 640, narrow =>
             ViewCountText.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible);
@@ -157,18 +163,24 @@ public sealed partial class ItemsPage : Page, IThemeAware
 
         _loadingProfiles = true;
         CategoryBox.Items.Clear();
-        CategoryBox.Items.Add(new ComboBoxItem { Content = "全部分类", Tag = null });
+        CategoryBox.Items.Add(new ComboBoxItem { Content = Localization.T("全部分类"), Tag = null });
         foreach (var c in cats) CategoryBox.Items.Add(new ComboBoxItem { Content = c, Tag = c });
         CategoryBox.SelectedIndex = currentCat is null ? 0 : Math.Max(0, cats.IndexOf(currentCat) + 1);
 
-        if (RiskBox.Items.Count == 0)
+        // 风险项按当前语言重建，切换语言后标题立即同步。
+        var currentRisk = SelectedTag(RiskBox);
+        RiskBox.Items.Clear();
+        RiskBox.Items.Add(new ComboBoxItem { Content = Localization.T("全部风险"), Tag = null });
+        RiskBox.Items.Add(new ComboBoxItem { Content = Localization.T("低风险"), Tag = "low" });
+        RiskBox.Items.Add(new ComboBoxItem { Content = Localization.T("中风险"), Tag = "mid" });
+        RiskBox.Items.Add(new ComboBoxItem { Content = Localization.T("高风险"), Tag = "high" });
+        RiskBox.SelectedIndex = currentRisk switch
         {
-            RiskBox.Items.Add(new ComboBoxItem { Content = "全部风险", Tag = null });
-            RiskBox.Items.Add(new ComboBoxItem { Content = "低风险", Tag = "low" });
-            RiskBox.Items.Add(new ComboBoxItem { Content = "中风险", Tag = "mid" });
-            RiskBox.Items.Add(new ComboBoxItem { Content = "高风险", Tag = "high" });
-            RiskBox.SelectedIndex = 0;
-        }
+            "low" => 1,
+            "mid" => 2,
+            "high" => 3,
+            _ => 0
+        };
         _loadingProfiles = false;
     }
 
@@ -206,8 +218,8 @@ public sealed partial class ItemsPage : Page, IThemeAware
         {
             var hit = lastApply?.Items?.FirstOrDefault(x => x.Id == item.Id);
             item.LastAppliedText = hit is null
-                ? "尚未通过本工具应用"
-                : "上次应用 " + ShortTime(lastApply!.Time);
+                ? Localization.T("尚未通过本工具应用")
+                : Localization.F("上次应用 {0}", ShortTime(lastApply!.Time));
         }
 
         var filtered = App.Services.State.Items.Where(i =>
@@ -228,31 +240,32 @@ public sealed partial class ItemsPage : Page, IThemeAware
 
         var all = App.Services.State.Items;
         var initializing = _loading && all.Count == 0;
-        EmptyTitle.Text = initializing ? "正在读取优化项" : "没有符合条件的优化项";
-        EmptyDetail.Text = initializing
+        EmptyTitle.Text = Localization.T(initializing ? "正在读取优化项" : "没有符合条件的优化项");
+        EmptyDetail.Text = Localization.T(initializing
             ? "正在读取当前系统状态，通常需要几秒。"
-            : "试试清空搜索词，或把分类、风险筛选恢复为全部。";
+            : "试试清空搜索词，或把分类、风险筛选恢复为全部。");
 
         var applied = all.Count(i => i.Status == "ok");
         var pending = all.Count(i => i.Status == "no");
         var na = all.Count(i => i.Status == "na");
         var selected = all.Where(i => i.Selected).ToList();
-        AppliedChip.Text = initializing ? "已生效 —" : $"已生效 {applied}";
-        PendingChip.Text = initializing ? "待优化 —" : $"待优化 {pending}";
-        NaChip.Text = initializing ? "不适用 —" : $"不适用 {na}";
-        SelectedChip.Text = $"已选 {selected.Count}";
-        ViewCountText.Text = initializing ? "正在读取..." : $"显示 {View.Count} / {all.Count} 项";
+        AppliedChip.Text = initializing ? Localization.T("已生效 —") : Localization.F("已生效 {0}", applied);
+        PendingChip.Text = initializing ? Localization.T("待优化 —") : Localization.F("待优化 {0}", pending);
+        NaChip.Text = initializing ? Localization.T("不适用 —") : Localization.F("不适用 {0}", na);
+        SelectedChip.Text = Localization.F("已选 {0}", selected.Count);
+        ViewCountText.Text = initializing ? Localization.T("正在读取...") : Localization.F("显示 {0} / {1} 项", View.Count, all.Count);
 
         var low = selected.Count(i => i.Risk == "low");
         var mid = selected.Count(i => i.Risk == "mid");
         var high = selected.Count(i => i.Risk == "high");
         if (selected.Count == 0)
         {
-            ActionSummary.Text = "未选择项目";
+            ActionSummary.Text = Localization.T("未选择项目");
         }
         else
         {
-            ActionSummary.Text = $"已选 {selected.Count} 项 · 低风险 {low} · 中风险 {mid} · 高风险 {high}";
+            ActionSummary.Text = Localization.F("已选 {0} 项 · 低风险 {1} · 中风险 {2} · 高风险 {3}",
+                selected.Count, low, mid, high);
         }
         PreviewButton.IsEnabled = selected.Count > 0;
         ApplyButton.IsEnabled = selected.Count > 0;
@@ -293,7 +306,8 @@ public sealed partial class ItemsPage : Page, IThemeAware
         foreach (var item in App.Services.State.Items)
             item.Selected = item.Id is not null && ids.Contains(item.Id);
         RefreshView();
-        ShowInfo("方案已载入", $"已载入「{profile.Name}」，共勾选 {App.Services.State.Items.Count(i => i.Selected)} 项。",
+        ShowInfo("方案已载入", Localization.F("已载入「{0}」，共勾选 {1} 项。",
+                profile.Name, App.Services.State.Items.Count(i => i.Selected)),
             InfoBarSeverity.Success);
         await Task.CompletedTask;
     }
@@ -306,14 +320,14 @@ public sealed partial class ItemsPage : Page, IThemeAware
             ShowInfo("没有选中项", "请先勾选要保存的优化项。", InfoBarSeverity.Warning);
             return;
         }
-        var box = new TextBox { PlaceholderText = "例如：我的竞技配置", MinWidth = 320 };
+        var box = new TextBox { PlaceholderText = Localization.T("例如：我的竞技配置"), MinWidth = 320 };
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
-            Title = "保存自定义方案",
+            Title = Localization.T("保存自定义方案"),
             Content = box,
-            PrimaryButtonText = "保存",
-            CloseButtonText = "取消",
+            PrimaryButtonText = Localization.T("保存"),
+            CloseButtonText = Localization.T("取消"),
             DefaultButton = ContentDialogButton.Primary
         };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
@@ -327,7 +341,8 @@ public sealed partial class ItemsPage : Page, IThemeAware
         {
             await App.Services.State.SaveProfileAsync(name, selected.Select(i => i.Id!));
             await LoadProfilesAsync();
-            ShowInfo("方案已保存", $"「{name}」包含 {selected.Count} 项，已保存到本机 profiles.json。",
+            ShowInfo("方案已保存", Localization.F("「{0}」包含 {1} 项，已保存到本机 profiles.json。",
+                    name, selected.Count),
                 InfoBarSeverity.Success);
         }
         catch (Exception ex)
@@ -395,21 +410,26 @@ public sealed partial class ItemsPage : Page, IThemeAware
         if (row is null || item is null) return;
         _contextItem = item;
         _rowMenu ??= BuildRowMenu();
+        // 菜单是复用的，每次打开按当前语言刷新文案，切换语言后不会留旧文本。
         if (_rowMenu.Items[0] is MenuFlyoutItem expand)
-            expand.Text = item.IsExpanded ? "收起详情" : "查看详情";
+            expand.Text = Localization.T(item.IsExpanded ? "收起详情" : "查看详情");
+        if (_rowMenu.Items[1] is MenuFlyoutItem apply)
+            apply.Text = Localization.T("应用此项");
+        if (_rowMenu.Items[3] is MenuFlyoutItem copy)
+            copy.Text = Localization.T("复制 ID");
         _rowMenu.ShowAt(row, new FlyoutShowOptions { Position = e.GetPosition(row) });
         e.Handled = true;
     }
 
     private MenuFlyout BuildRowMenu()
     {
-        var expand = new MenuFlyoutItem { Text = "查看详情", Icon = new FontIcon { Glyph = "\uE70D" } };
+        var expand = new MenuFlyoutItem { Text = Localization.T("查看详情"), Icon = new FontIcon { Glyph = "\uE70D" } };
         expand.Click += (_, _) => { if (_contextItem is { } item) ToggleExpanded(item); };
 
-        var apply = new MenuFlyoutItem { Text = "应用此项", Icon = new FontIcon { Glyph = "\uE768" } };
+        var apply = new MenuFlyoutItem { Text = Localization.T("应用此项"), Icon = new FontIcon { Glyph = "\uE768" } };
         apply.Click += (_, _) => { if (_contextItem is { } item) _ = ApplyItemAsync(item); };
 
-        var copy = new MenuFlyoutItem { Text = "复制 ID" };
+        var copy = new MenuFlyoutItem { Text = Localization.T("复制 ID") };
         copy.Click += (_, _) => { if (_contextItem is { } item) CopyItemId(item); };
 
         var menu = new MenuFlyout();
@@ -469,16 +489,16 @@ public sealed partial class ItemsPage : Page, IThemeAware
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
-            Title = $"应用「{item.Name}」",
+            Title = Localization.F("应用「{0}」", item.Name),
             Content = new TextBlock
             {
-                Text = $"目标：{item.Target}\n风险：{RiskLabel(item.Risk)}\n\n" +
-                       "应用前会自动生成原值备份与 .reg 快照，可在「备份还原」中撤销。",
+                Text = Localization.F("目标：{0}\n风险：{1}\n\n应用前会自动生成原值备份与 .reg 快照，可在「备份还原」中撤销。",
+                    item.Target, RiskLabel(item.Risk)),
                 TextWrapping = TextWrapping.Wrap,
                 LineHeight = 22
             },
-            PrimaryButtonText = "应用",
-            CloseButtonText = "取消",
+            PrimaryButtonText = Localization.T("应用"),
+            CloseButtonText = Localization.T("取消"),
             DefaultButton = ContentDialogButton.Primary
         };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
@@ -499,7 +519,7 @@ public sealed partial class ItemsPage : Page, IThemeAware
             package.SetText(item.Id);
             Clipboard.SetContent(package);
             Clipboard.Flush();
-            ShowInfo("已复制 ID", item.Id + " 已写入剪贴板。", InfoBarSeverity.Success);
+            ShowInfo("已复制 ID", Localization.F("{0} 已写入剪贴板。", item.Id), InfoBarSeverity.Success);
         }
         catch (Exception ex)
         {
@@ -551,13 +571,13 @@ public sealed partial class ItemsPage : Page, IThemeAware
         });
     }
 
-    private static string RiskLabel(string? risk) => risk switch
+    private static string RiskLabel(string? risk) => Localization.T(risk switch
     {
         "low" => "低风险",
         "mid" => "中风险",
         "high" => "高风险",
         _ => "未知风险"
-    };
+    });
 
     private List<string> SelectedIds()
         => App.Services.State.Items.Where(i => i.Selected && !string.IsNullOrEmpty(i.Id))
@@ -586,16 +606,17 @@ public sealed partial class ItemsPage : Page, IThemeAware
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
-            Title = "应用所选优化",
+            Title = Localization.T("应用所选优化"),
             Content = new TextBlock
             {
-                Text = $"将应用 {ids.Count} 项优化" + (high > 0 ? $"，其中 {high} 项为高风险。" : "。") +
-                       "\n\n应用前会自动生成原值备份与 .reg 快照，可在「备份还原」中撤销。",
+                Text = high > 0
+                    ? Localization.F("将应用 {0} 项优化，其中 {1} 项为高风险。\n\n应用前会自动生成原值备份与 .reg 快照，可在「备份还原」中撤销。", ids.Count, high)
+                    : Localization.F("将应用 {0} 项优化。\n\n应用前会自动生成原值备份与 .reg 快照，可在「备份还原」中撤销。", ids.Count),
                 TextWrapping = TextWrapping.Wrap,
                 LineHeight = 22
             },
-            PrimaryButtonText = "确认应用",
-            CloseButtonText = "取消",
+            PrimaryButtonText = Localization.T("确认应用"),
+            CloseButtonText = Localization.T("取消"),
             DefaultButton = ContentDialogButton.Primary
         };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
@@ -612,7 +633,7 @@ public sealed partial class ItemsPage : Page, IThemeAware
                 await ShowPreviewAsync(result);
                 return;
             }
-            var msg = $"成功 {result.Ok} 项 · 失败 {result.Fail} 项";
+            var msg = Localization.F("成功 {0} 项 · 失败 {1} 项", result.Ok, result.Fail);
             if (!string.IsNullOrWhiteSpace(result.Backup)) msg += $"\n备份：{result.Backup}";
             ShowInfo(result.Fail == 0 ? "优化已应用" : "部分项目失败", msg,
                 result.Fail == 0 ? InfoBarSeverity.Success : InfoBarSeverity.Warning);
@@ -631,13 +652,13 @@ public sealed partial class ItemsPage : Page, IThemeAware
         var panel = new StackPanel { Spacing = 10 };
         if (result.Preview.Count == 0)
         {
-            panel.Children.Add(new TextBlock { Text = "所选项目均已处于推荐值，无需变更。" });
+            panel.Children.Add(new TextBlock { Text = Localization.T("所选项目均已处于推荐值，无需变更。") });
         }
         else
         {
             panel.Children.Add(new TextBlock
             {
-                Text = $"共 {result.Preview.Count} 项将发生变更（预览不会写入系统）：",
+                Text = Localization.F("共 {0} 项将发生变更（预览不会写入系统）：", result.Preview.Count),
                 FontWeight = FontWeights.SemiBold
             });
             foreach (var item in result.Preview)
@@ -646,7 +667,9 @@ public sealed partial class ItemsPage : Page, IThemeAware
                 row.Children.Add(new TextBlock { Text = item.Name, FontWeight = FontWeights.SemiBold });
                 row.Children.Add(new TextBlock
                 {
-                    Text = $"当前：{item.Current}  →  目标：{item.Target}" + (item.NeedsReboot ? "  · 需重启" : ""),
+                    Text = Localization.F(item.NeedsReboot
+                            ? "当前：{0}  →  目标：{1}  · 需重启"
+                            : "当前：{0}  →  目标：{1}", item.Current, item.Target),
                     Opacity = 0.78,
                     FontSize = 12.5,
                     TextWrapping = TextWrapping.Wrap
@@ -657,9 +680,9 @@ public sealed partial class ItemsPage : Page, IThemeAware
         await new ContentDialog
         {
             XamlRoot = XamlRoot,
-            Title = "变更预览",
+            Title = Localization.T("变更预览"),
             Content = new ScrollViewer { Content = panel, MaxHeight = 460 },
-            CloseButtonText = "关闭"
+            CloseButtonText = Localization.T("关闭")
         }.ShowAsync();
     }
 
@@ -668,15 +691,15 @@ public sealed partial class ItemsPage : Page, IThemeAware
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
-            Title = "恢复最近备份",
+            Title = Localization.T("恢复最近备份"),
             Content = new TextBlock
             {
-                Text = "将把最近一次应用的原值写回系统。此操作会修改注册表/服务/电源设置。\n\n确定继续吗？",
+                Text = Localization.T("将把最近一次应用的原值写回系统。此操作会修改注册表/服务/电源设置。\n\n确定继续吗？"),
                 TextWrapping = TextWrapping.Wrap,
                 LineHeight = 22
             },
-            PrimaryButtonText = "恢复",
-            CloseButtonText = "取消",
+            PrimaryButtonText = Localization.T("恢复"),
+            CloseButtonText = Localization.T("取消"),
             DefaultButton = ContentDialogButton.Close
         };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
@@ -685,7 +708,7 @@ public sealed partial class ItemsPage : Page, IThemeAware
             var result = await App.Services.State.RestoreAsync(null);
             var ok = ReadInt(result, "Ok");
             var fail = ReadInt(result, "Fail");
-            ShowInfo("恢复完成", $"成功 {ok} 项 · 失败 {fail} 项",
+            ShowInfo("恢复完成", Localization.F("成功 {0} 项 · 失败 {1} 项", ok, fail),
                 fail == 0 ? InfoBarSeverity.Success : InfoBarSeverity.Warning);
             await App.Services.State.EnsureSnapshotAsync(force: true);
             RefreshView();
@@ -705,11 +728,17 @@ public sealed partial class ItemsPage : Page, IThemeAware
 
     private void ShowInfo(string title, string message, InfoBarSeverity severity)
     {
-        PageInfo.Title = title;
-        PageInfo.Message = message;
+        PageInfo.Title = Localization.T(title);
+        PageInfo.Message = Localization.T(message);
         PageInfo.Severity = severity;
         PageInfo.IsOpen = true;
     }
 
     public void OnThemeChanged() => RefreshView();
+
+    public void OnLanguageChanged()
+    {
+        InitFilters();
+        RefreshView();
+    }
 }

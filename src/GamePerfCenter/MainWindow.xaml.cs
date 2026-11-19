@@ -33,6 +33,10 @@ public sealed partial class MainWindow : Window
     private bool _initialized;
     private bool _metricsBusy;
     private bool _metricsPaused;
+    private string _lastStatusZh = "";
+    private string _lastEngineStateZh = "引擎未连接";
+    private string _lastInfoTitle = "";
+    private string _lastInfoMessage = "";
     private int _metricsTick;
     private bool _sizedOnActivate;
     private EngineFailure? _shownFailure;
@@ -59,8 +63,8 @@ public sealed partial class MainWindow : Window
 
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(TitleBarDrag);
-        Title = "游戏性能优化中心";
-        try { AppWindow.Title = "游戏性能优化中心"; } catch { }
+        Title = Localization.T("游戏性能优化中心");
+        try { AppWindow.Title = Localization.T("游戏性能优化中心"); } catch { }
         try { AppWindow.SetIcon(Path.Combine(AppPaths.BaseDir, "Assets", "AppIcon.ico")); } catch { }
 
         ApplyTheme();
@@ -128,6 +132,10 @@ public sealed partial class MainWindow : Window
         _ = SampleMetricsAsync();
 
         try { VersionText.Text = $"v{AppPaths.Version}"; } catch { }
+
+        // 静态文案先按当前语言替换一次；页面在导航完成后再处理。
+        Localization.Apply(RootGrid);
+        UpdateLanguageButton();
 
         try
         {
@@ -665,7 +673,7 @@ public sealed partial class MainWindow : Window
     private void DockButton_PointerEntered(object sender, PointerRoutedEventArgs e)
     {
         if (sender is not Button button) return;
-        var label = DockLabel(button);
+        var label = Localization.T(DockLabel(button));
         if (string.IsNullOrEmpty(label)) return;
 
         DockHintText.Text = label;
@@ -790,9 +798,9 @@ public sealed partial class MainWindow : Window
     private void SelectNav(string tag, bool navigate)
     {
         _currentTag = tag;
-        TopBreadcrumb.Text = PageName(tag);
-        DrawerPageTitle.Text = PageName(tag);
-        DrawerPageDesc.Text = PageDescription(tag);
+        TopBreadcrumb.Text = Localization.T(PageName(tag));
+        DrawerPageTitle.Text = Localization.T(PageName(tag));
+        DrawerPageDesc.Text = Localization.T(PageDescription(tag));
         RefreshDockVisuals();
         if (navigate) Navigate(tag);
     }
@@ -830,9 +838,9 @@ public sealed partial class MainWindow : Window
         try
         {
             SetStatus("正在连接优化引擎...", true);
-            PaneEngineText.Text = "正在连接优化引擎";
+            PaneEngineText.Text = Localization.T("正在连接优化引擎");
             await App.Services.Engine.StartAsync();
-            EngineStateText.Text = "引擎已连接";
+            SetEngineState("引擎已连接");
             UpdateEngineBadge(true);
             SetStatus("正在读取硬件信息...", true);
             await App.Services.State.EnsureSnapshotAsync(force: true);
@@ -841,7 +849,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            EngineStateText.Text = "引擎连接失败";
+            SetEngineState("引擎连接失败");
             UpdateEngineBadge(false);
             SetStatus("引擎连接失败", false);
             AppLog.Write("初始化失败: " + ex);
@@ -854,7 +862,7 @@ public sealed partial class MainWindow : Window
     {
         _dispatcher.TryEnqueue(() =>
         {
-            EngineStateText.Text = "引擎已断开";
+            SetEngineState("引擎已断开");
             UpdateEngineBadge(false);
             SetStatus("引擎连接中断，正在整理故障报告...", true);
             _ = ShowEngineFailureAsync(failure, null);
@@ -889,7 +897,7 @@ public sealed partial class MainWindow : Window
                 result = await ShowReportAsync(failure, error);
             }
 
-            EngineStateText.Text = App.Services.Engine.IsRunning ? "引擎已连接" : "引擎未连接";
+            SetEngineState(App.Services.Engine.IsRunning ? "引擎已连接" : "引擎未连接");
             UpdateEngineBadge(App.Services.Engine.IsRunning);
             SetStatus(App.Services.Engine.IsRunning ? "就绪" : "引擎未连接", false);
         }
@@ -929,14 +937,14 @@ public sealed partial class MainWindow : Window
 
     private async Task<bool> ReconnectEngineAsync()
     {
-        EngineStateText.Text = "正在重连...";
+        SetEngineState("正在重连...");
         SetStatus("正在重新连接优化引擎...", true);
         try
         {
             await App.Services.Engine.RestartAsync();
             SetStatus("正在读取硬件信息...", true);
             await App.Services.State.EnsureSnapshotAsync(force: true);
-            EngineStateText.Text = "引擎已连接";
+            SetEngineState("引擎已连接");
             UpdateEngineBadge(true);
             UpdateShellInfo();
             SetStatus("就绪", false);
@@ -946,7 +954,7 @@ public sealed partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            EngineStateText.Text = "引擎连接失败";
+            SetEngineState("引擎连接失败");
             AppLog.Write("重新连接失败: " + ex);
             return false;
         }
@@ -1011,16 +1019,18 @@ public sealed partial class MainWindow : Window
         }
 
         var pending = snap?.Summary.Pending ?? 0;
-        TopPendingText.Text = $"待优化 {pending} 项";
+        TopPendingText.Text = Localization.IsEnglish ? $"{pending} pending" : $"待优化 {pending} 项";
         PendingButton.Visibility = pending > 0 && !_narrowTitleBar
             ? Visibility.Visible
             : Visibility.Collapsed;
         PendingButton.IsEnabled = pending > 0;
-        DrawerPendingText.Text = pending > 0 ? $"{pending} 项待应用" : "暂无待应用项";
+        DrawerPendingText.Text = pending > 0
+            ? (Localization.IsEnglish ? $"{pending} to apply" : $"{pending} 项待应用")
+            : Localization.T("暂无待应用项");
         DrawerPendingButton.Visibility = pending > 0 ? Visibility.Visible : Visibility.Collapsed;
 
-        var kind = snap is null ? "" : snap.IsLaptop ? "笔记本" : "台式机";
-        var engine = App.Services.Engine.IsRunning ? "引擎已连接" : "引擎未连接";
+        var kind = snap is null ? "" : Localization.T(snap.IsLaptop ? "笔记本" : "台式机");
+        var engine = Localization.T(App.Services.Engine.IsRunning ? "引擎已连接" : "引擎未连接");
         PaneEngineText.Text = string.IsNullOrEmpty(kind) ? engine : $"{kind} · {engine}";
     }
 
@@ -1039,22 +1049,34 @@ public sealed partial class MainWindow : Window
 
     private void SetStatus(string text, bool busy)
     {
-        StatusText.Text = text;
+        _lastStatusZh = text;
+        StatusText.Text = Localization.T(text);
         StatusRing.IsActive = busy;
+    }
+
+    /// <summary>引擎状态文字统一入口：切语言时按最后一次状态重新翻译。</summary>
+    private void SetEngineState(string zh)
+    {
+        _lastEngineStateZh = zh;
+        EngineStateText.Text = Localization.T(zh);
     }
 
     public void ShowError(string title, string message)
     {
-        EngineInfoBar.Title = title;
-        EngineInfoBar.Message = message;
+        _lastInfoTitle = title;
+        _lastInfoMessage = message;
+        EngineInfoBar.Title = Localization.T(title);
+        EngineInfoBar.Message = Localization.T(message);
         EngineInfoBar.Severity = InfoBarSeverity.Error;
         EngineInfoBar.IsOpen = true;
     }
 
     public void ShowInfo(string title, string message, InfoBarSeverity severity = InfoBarSeverity.Success)
     {
-        EngineInfoBar.Title = title;
-        EngineInfoBar.Message = message;
+        _lastInfoTitle = title;
+        _lastInfoMessage = message;
+        EngineInfoBar.Title = Localization.T(title);
+        EngineInfoBar.Message = Localization.T(message);
         EngineInfoBar.Severity = severity;
         EngineInfoBar.IsOpen = true;
     }
@@ -1088,7 +1110,7 @@ public sealed partial class MainWindow : Window
             "about" => typeof(AboutPage),
             _ => typeof(OverviewPage)
         };
-        TopBreadcrumb.Text = PageName(tag);
+        TopBreadcrumb.Text = Localization.T(PageName(tag));
         if (ContentFrame.CurrentSourcePageType == pageType) return;
         ContentFrame.Navigate(pageType, null, new SuppressNavigationTransitionInfo());
     }
@@ -1105,8 +1127,21 @@ public sealed partial class MainWindow : Window
         _pageIconButtons.Clear();
 
         AnimateFrameIn();
-        if (e.Content is Page page && _pageFeedbackHooked.Add(page))
-            page.Loaded += (_, _) => AttachPageIconFeedback(page);
+        if (e.Content is Page page)
+        {
+            // 缓存页再次导航时也要按当前语言刷一遍静态文案。
+            Localization.Apply(page);
+            if (page is ILanguageAware languageAware) languageAware.OnLanguageChanged();
+            if (_pageFeedbackHooked.Add(page))
+            {
+                page.Loaded += (_, _) =>
+                {
+                    AttachPageIconFeedback(page);
+                    Localization.Apply(page);
+                    if (page is ILanguageAware loadedAware) loadedAware.OnLanguageChanged();
+                };
+            }
+        }
         if (_pendingItemFocus is { } id && ContentFrame.Content is ItemsPage itemsPage)
         {
             _pendingItemFocus = null;
@@ -1228,10 +1263,10 @@ public sealed partial class MainWindow : Window
             commands.Add(new CommandItem
             {
                 Id = "page:" + tag,
-                Title = title,
-                Detail = detail,
+                Title = Localization.T(title),
+                Detail = Localization.T(detail),
                 Glyph = glyph,
-                Group = "页面",
+                Group = Localization.T("页面"),
                 Keywords = tag + " " + keywords,
                 Invoke = () => NavigateTo(tag)
             });
@@ -1251,92 +1286,92 @@ public sealed partial class MainWindow : Window
         commands.Add(new CommandItem
         {
             Id = "action:refresh",
-            Title = "刷新硬件与优化项",
-            Detail = "重新采样 CPU、GPU、内存与本机状态",
+            Title = Localization.T("刷新硬件与优化项"),
+            Detail = Localization.T("重新采样 CPU、GPU、内存与本机状态"),
             Glyph = "\uE72C",
-            Group = "操作",
+            Group = Localization.T("操作"),
             Keywords = "refresh snapshot 刷新 状态 采样",
             Invoke = () => _ = RefreshSnapshotAsync()
         });
         commands.Add(new CommandItem
         {
             Id = "action:open-base",
-            Title = "打开程序目录",
+            Title = Localization.T("打开程序目录"),
             Detail = AppPaths.BaseDir,
             Glyph = "\uE838",
-            Group = "操作",
+            Group = Localization.T("操作"),
             Keywords = "open folder 打开 目录 程序",
             Invoke = () => OpenDirectory(AppPaths.BaseDir)
         });
         commands.Add(new CommandItem
         {
             Id = "action:open-backups",
-            Title = "打开备份目录",
+            Title = Localization.T("打开备份目录"),
             Detail = AppPaths.BackupDir,
             Glyph = "\uE777",
-            Group = "操作",
+            Group = Localization.T("操作"),
             Keywords = "open backup folder 打开 备份 目录",
             Invoke = () => OpenDirectory(AppPaths.BackupDir)
         });
         commands.Add(new CommandItem
         {
             Id = "action:open-data",
-            Title = "打开数据目录",
+            Title = Localization.T("打开数据目录"),
             Detail = AppPaths.DataDir,
             Glyph = "\uE8A5",
-            Group = "操作",
+            Group = Localization.T("操作"),
             Keywords = "open data log folder 打开 数据 日志 目录",
             Invoke = () => OpenDirectory(AppPaths.DataDir)
         });
         commands.Add(new CommandItem
         {
             Id = "action:open-settings",
-            Title = "打开配置文件",
+            Title = Localization.T("打开配置文件"),
             Detail = AppPaths.SettingsPath,
             Glyph = "\uE713",
-            Group = "操作",
+            Group = Localization.T("操作"),
             Keywords = "open settings json 打开 配置 文件",
             Invoke = () => OpenFile(AppPaths.SettingsPath)
         });
 
         var material = MaterialService.Normalize(App.Services.Settings.Material);
-        void Material(string key, string title, string detail, string glyph)
+        void Material(string key, string title, string label, string detail, string glyph)
         {
             var supported = MaterialService.IsSupported(key);
             commands.Add(new CommandItem
             {
                 Id = "material:" + key,
-                Title = title,
-                Detail = (material == key ? "当前材质 · " : "") + detail +
-                         (supported ? "" : " · 当前系统不支持，会回退深空"),
+                Title = Localization.T(title),
+                Detail = (material == key ? Localization.T("当前材质 · ") : "") + Localization.T(detail) +
+                         (supported ? "" : Localization.T(" · 当前系统不支持，会回退深空")),
                 Glyph = glyph,
-                Group = "材质",
+                Group = Localization.T("材质"),
                 Keywords = "material theme 材质 外观 " + key,
-                Invoke = () => SetMaterial(key, title.Replace("材质：", ""))
+                Invoke = () => SetMaterial(key, Localization.T(label))
             });
         }
-        Material("deep", "材质：深空", "自带渐变背景，不依赖系统合成层", "\uE790");
-        Material("mica", "材质：云母", "Windows 11 Mica，桌面颜色直接透出", "\uE790");
-        Material("mica-alt", "材质：云母 Alt", "Mica Alt 底色更深，适合深色桌面与高对比内容", "\uE790");
-        Material("glass", "材质：液态玻璃", "Acrylic 半透明，适合浅色桌面", "\uE790");
+        Material("deep", "材质：深空", "深空", "自带渐变背景，不依赖系统合成层", "\uE790");
+        Material("mica", "材质：云母", "云母", "Windows 11 Mica，桌面颜色直接透出", "\uE790");
+        Material("mica-alt", "材质：云母 Alt", "云母 Alt", "Mica Alt 底色更深，适合深色桌面与高对比内容", "\uE790");
+        Material("glass", "材质：液态玻璃", "液态玻璃", "Acrylic 半透明，适合浅色桌面", "\uE790");
 
         var theme = App.Services.Settings.Theme;
-        void Theme(string key, string title)
+        void Theme(string key, string title, string label)
         {
             commands.Add(new CommandItem
             {
                 Id = "theme:" + key,
-                Title = title,
-                Detail = theme == key ? "当前主题" : "切换后立即生效",
+                Title = Localization.T(title),
+                Detail = Localization.T(theme == key ? "当前主题" : "切换后立即生效"),
                 Glyph = "\uE793",
-                Group = "操作",
+                Group = Localization.T("操作"),
                 Keywords = "theme 主题 外观 " + key,
-                Invoke = () => SetTheme(key, title.Replace("主题：", ""))
+                Invoke = () => SetTheme(key, Localization.T(label))
             });
         }
-        Theme("dark", "主题：深色");
-        Theme("light", "主题：浅色");
-        Theme("system", "主题：跟随系统");
+        Theme("dark", "主题：深色", "深色");
+        Theme("light", "主题：浅色", "浅色");
+        Theme("system", "主题：跟随系统", "跟随系统");
 
         foreach (var item in App.Services.State.Items)
         {
@@ -1347,7 +1382,7 @@ public sealed partial class MainWindow : Window
                 Title = item.Name ?? item.Id,
                 Detail = $"{item.Cat} · {item.StatusText}",
                 Glyph = "\uE9D9",
-                Group = "优化项",
+                Group = Localization.T("优化项"),
                 Keywords = $"{item.Id} {item.Cat} {item.Desc} {item.StatusText}",
                 Invoke = () => FocusItem(item.Id)
             });
@@ -1364,7 +1399,7 @@ public sealed partial class MainWindow : Window
                     Title = string.IsNullOrWhiteSpace(game.Name) ? Path.GetFileNameWithoutExtension(game.Exe) : game.Name!,
                     Detail = $"{game.SourceText} · {game.ProfileText}",
                     Glyph = "\uE7FC",
-                    Group = "游戏",
+                    Group = Localization.T("游戏"),
                     Keywords = $"{game.Exe} {game.SourceText} 游戏 启动 launch play",
                     Invoke = () => _ = LaunchGameFromPaletteAsync(game)
                 });
@@ -1516,6 +1551,50 @@ public sealed partial class MainWindow : Window
             aware.OnThemeChanged();
     }
 
+    /// <summary>顶栏语言图标：中英切换，保存后立即重刷外壳与当前页面。</summary>
+    private void LanguageButton_Click(object sender, RoutedEventArgs e)
+    {
+        var next = Localization.IsEnglish ? "zh" : "en";
+        Localization.Configure(next);
+        App.Services.Settings.Language = next;
+        App.Services.Settings.Save();
+
+        Localization.Apply(RootGrid);
+        if (ContentFrame.Content is Page current && current is ILanguageAware languageAware)
+            languageAware.OnLanguageChanged();
+        SelectNav(_currentTag, navigate: false);
+        UpdateShellInfo();
+        UpdateLanguageButton();
+
+        // 运行期改写的状态文本不走遍历缓存，按最后一次中文原文重新翻译。
+        StatusText.Text = Localization.T(_lastStatusZh);
+        EngineStateText.Text = Localization.T(_lastEngineStateZh);
+        if (!string.IsNullOrEmpty(_lastInfoTitle))
+        {
+            EngineInfoBar.Title = Localization.T(_lastInfoTitle);
+            EngineInfoBar.Message = Localization.T(_lastInfoMessage);
+        }
+
+        var title = Localization.T("游戏性能优化中心");
+        Title = title;
+        try { AppWindow.Title = title; } catch { }
+    }
+
+    private void UpdateLanguageButton()
+    {
+        var tip = Localization.IsEnglish
+            ? "Interface language: English (click for 中文)"
+            : "界面语言：中文（点击切换到 English）";
+        ToolTipService.SetToolTip(LanguageButton, tip);
+        AutomationProperties.SetName(LanguageButton, tip);
+        try
+        {
+            LanguageButton.Foreground = ThemeResources.Get(
+                Localization.IsEnglish ? "AccentBrush" : "SubTextBrush");
+        }
+        catch { }
+    }
+
     private async void RepoButton_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -1616,4 +1695,10 @@ public sealed partial class MainWindow : Window
 public interface IThemeAware
 {
     void OnThemeChanged();
+}
+
+/// <summary>页面在语言切换后重刷自己用代码拼出来的文案与计数。</summary>
+public interface ILanguageAware
+{
+    void OnLanguageChanged();
 }

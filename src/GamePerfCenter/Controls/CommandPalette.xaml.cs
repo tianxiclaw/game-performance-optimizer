@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Windows.System;
 using GamePerfCenter.Helpers;
+using GamePerfCenter.Services;
 
 namespace GamePerfCenter.Controls;
 
@@ -213,9 +214,9 @@ public sealed partial class CommandPalette : UserControl
         Results.ItemsSource = _filtered;
 
         EmptyText.Visibility = _filtered.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        CountText.Text = query.Length == 0
-            ? $"{_filtered.Count} 项"
-            : $"{_filtered.Count} 个结果";
+        CountText.Text = Localization.IsEnglish
+            ? (query.Length == 0 ? $"{_filtered.Count} items" : $"{_filtered.Count} results")
+            : (query.Length == 0 ? $"{_filtered.Count} 项" : $"{_filtered.Count} 个结果");
 
         var targetIndex = keepId is null ? -1 : _filtered.FindIndex(c => c.Id == keepId);
         Results.SelectedIndex = _filtered.Count == 0 ? -1 : Math.Max(0, targetIndex);
@@ -230,11 +231,11 @@ public sealed partial class CommandPalette : UserControl
 
     private static int GroupRank(CommandItem item) => item.Group switch
     {
-        "页面" => 0,
-        "操作" => 1,
-        "材质" => 2,
-        "优化项" => 3,
-        "游戏" => 4,
+        "页面" or "Pages" => 0,
+        "操作" or "Actions" => 1,
+        "材质" or "Materials" => 2,
+        "优化项" or "Optimizations" => 3,
+        "游戏" or "Games" => 4,
         _ => 5
     };
 

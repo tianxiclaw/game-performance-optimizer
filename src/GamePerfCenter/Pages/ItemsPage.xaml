@@ -105,7 +105,7 @@
 
                 <Grid ColumnSpacing="12" Padding="4,0,4,8" Margin="0,0,0,4">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="24" />
+                        <ColumnDefinition Width="38" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="150" />
                         <ColumnDefinition Width="Auto" />
@@ -133,7 +133,7 @@
                                 <!-- 主行：点击任意空白处展开，按钮与勾选框保持独立 -->
                                 <Grid ColumnSpacing="12" Padding="4,8">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="24" />
+                                        <ColumnDefinition Width="38" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="150" />
                                         <ColumnDefinition Width="Auto" />
@@ -174,7 +174,7 @@
                                                    MaxLines="1" TextTrimming="CharacterEllipsis"
                                                    ToolTipService.ToolTip="{x:Bind Desc}">
                                             <Run Text="{x:Bind Desc}" />
-                                            <Run Text="  目标：" Foreground="{ThemeResource FaintTextBrush}" />
+                                            <Run Text="{x:Bind TargetLabel}" Foreground="{ThemeResource FaintTextBrush}" />
                                             <Run Text="{x:Bind Target}" Foreground="{ThemeResource SubTextBrush}" />
                                         </TextBlock>
                                     </StackPanel>

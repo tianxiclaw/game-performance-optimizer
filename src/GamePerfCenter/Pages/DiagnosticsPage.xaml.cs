@@ -253,8 +253,8 @@ private async void Run_Click(object sender, RoutedEventArgs e) => await RunDiagn
 
     private void ShowInfo(string title, string message, InfoBarSeverity severity)
     {
-        PageInfo.Title = title;
-        PageInfo.Message = message;
+        PageInfo.Title = Localization.T(title);
+        PageInfo.Message = Localization.T(message);
         PageInfo.Severity = severity;
         PageInfo.IsOpen = true;
     }

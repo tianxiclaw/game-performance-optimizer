@@ -74,13 +74,13 @@ public sealed class AppState
             foreach (var item in snap.Items) Items.Add(item);
             LastRefresh = DateTime.Now;
             LastError = null;
-            SetStatus($"已加载 {snap.Items.Count} 个优化项 · {snap.Machine}");
+            SetStatus(Localization.F("已加载 {0} 个优化项 · {1}", snap.Items.Count, snap.Machine));
             AppLog.Write($"快照完成: {snap.Items.Count} 项, {snap.Machine}");
         }
         catch (Exception ex)
         {
             LastError = ex.Message;
-            SetStatus("状态读取失败: " + ex.Message);
+            SetStatus(Localization.F("状态读取失败: {0}", ex.Message));
             AppLog.Write("快照失败: " + ex);
             throw;
         }

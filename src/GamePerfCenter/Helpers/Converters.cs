@@ -40,13 +40,13 @@ public sealed class StatusToTextConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, string language)
     {
-        return (value as string) switch
+        return Localization.T((value as string) switch
         {
             "ok" => "已生效",
             "no" => "待优化",
             "checking" => "检测中",
             _ => "不适用"
-        };
+        });
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, string language)
@@ -74,13 +74,13 @@ public sealed class RiskToTextConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, string language)
     {
-        return (value as string) switch
+        return Localization.T((value as string) switch
         {
             "low" => "低风险",
             "mid" => "中风险",
             "high" => "高风险",
             _ => "未知"
-        };
+        });
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, string language)

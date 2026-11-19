@@ -378,8 +378,8 @@ public sealed partial class SettingsPage : Page, IThemeAware
 
     private void ShowInfo(string title, string message, InfoBarSeverity severity)
     {
-        PageInfo.Title = title;
-        PageInfo.Message = message;
+        PageInfo.Title = Localization.T(title);
+        PageInfo.Message = Localization.T(message);
         PageInfo.Severity = severity;
         PageInfo.IsOpen = true;
     }

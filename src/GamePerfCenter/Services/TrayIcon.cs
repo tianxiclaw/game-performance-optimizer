@@ -88,7 +88,7 @@ internal sealed class TrayIcon : IDisposable
             uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP,
             uCallbackMessage = WM_TRAY,
             hIcon = _hIcon,
-            szTip = "游戏性能优化中心"
+            szTip = Localization.T("游戏性能优化中心")
         };
         if (Shell_NotifyIcon(NIM_ADD, ref data)) _visible = true;
     }
@@ -126,12 +126,12 @@ internal sealed class TrayIcon : IDisposable
         if (menu == IntPtr.Zero) return;
         try
         {
-            AppendMenu(menu, MF_STRING, 1, "打开主界面");
-            AppendMenu(menu, MF_STRING, 2, "优化项");
-            AppendMenu(menu, MF_STRING, 3, "游戏库");
-            AppendMenu(menu, MF_STRING, 4, "刷新状态");
+            AppendMenu(menu, MF_STRING, 1, Localization.T("打开主界面"));
+            AppendMenu(menu, MF_STRING, 2, Localization.T("优化项"));
+            AppendMenu(menu, MF_STRING, 3, Localization.T("游戏库"));
+            AppendMenu(menu, MF_STRING, 4, Localization.T("刷新状态"));
             AppendMenu(menu, MF_SEPARATOR, 0, null);
-            AppendMenu(menu, MF_STRING, 5, "退出");
+            AppendMenu(menu, MF_STRING, 5, Localization.T("退出"));
             if (!GetCursorPos(out var pt)) return;
             SetForegroundWindow(_hwnd);
             var cmd = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.X, pt.Y, 0, _hwnd, IntPtr.Zero);

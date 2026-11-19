@@ -44,6 +44,7 @@ public partial class App : Application
         AppPaths.EnsureDirectories();
         ThemeService.RefreshHighContrast();
         Services = new AppServices();
+        Localization.Configure(Services.Settings.Language);
         Motion.Configure(Services.Settings.ReduceMotion);
         // 系统“动画效果”在不少游戏机上默认关闭；它不再直接停用应用内反馈，
         // 但写进日志，方便判断“为什么没看到动效”。

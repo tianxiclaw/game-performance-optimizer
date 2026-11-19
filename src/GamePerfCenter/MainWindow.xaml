@@ -108,6 +108,13 @@
                     </StackPanel>
                 </Border>
 
+                <Button x:Name="LanguageButton" Style="{StaticResource IconButtonStyle}"
+                        Click="LanguageButton_Click" VerticalAlignment="Center"
+                        AutomationProperties.Name="切换到英文界面"
+                        ToolTipService.ToolTip="界面语言：中文（点击切换到 English）">
+                    <FontIcon Glyph="&#xE8C1;" FontSize="14" />
+                </Button>
+
                 <Button x:Name="InspectorToggleButton" Style="{StaticResource IconButtonStyle}"
                         Click="InspectorToggle_Click" VerticalAlignment="Center"
                         AutomationProperties.Name="展开控制台"

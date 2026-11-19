@@ -11,7 +11,7 @@ using GamePerfCenter.Helpers;
 
 namespace GamePerfCenter.Pages;
 
-public sealed partial class OverviewPage : Page, IThemeAware
+public sealed partial class OverviewPage : Page, IThemeAware, ILanguageAware
 {
     private const double SampleSeconds = 0.25;
     private const int HistoryLimit = (int)(90 / SampleSeconds);
@@ -171,19 +171,19 @@ public sealed partial class OverviewPage : Page, IThemeAware
         var snap = App.Services.State.Snapshot;
         if (snap is null)
         {
-            StatusHeadline.Text = "正在读取本机状态...";
+            StatusHeadline.Text = Localization.T("正在读取本机状态...");
             StatusDetail.Text = string.IsNullOrWhiteSpace(App.Services.State.StatusText)
-                ? "正在采集硬件与优化项状态。"
+                ? Localization.T("正在采集硬件与优化项状态。")
                 : App.Services.State.StatusText;
             PendingCount.Text = "--";
             CompletionBar.Value = 0;
-            AppliedText.Text = "已生效 -- 项";
-            RecoText.Text = "低风险推荐 -- 项";
-            RebootText.Text = "重启状态：读取中";
-            SecurityText.Text = "安全与存储：读取中";
-            ApplyRecommendedButton.Content = "应用推荐项";
+            AppliedText.Text = Localization.T("已生效 -- 项");
+            RecoText.Text = Localization.T("低风险推荐 -- 项");
+            RebootText.Text = Localization.T("重启状态：读取中");
+            SecurityText.Text = Localization.T("安全与存储：读取中");
+            ApplyRecommendedButton.Content = Localization.T("应用推荐项");
             ApplyRecommendedButton.IsEnabled = false;
-            HardwareSubtitle.Text = "正在读取设备信息...";
+            HardwareSubtitle.Text = Localization.T("正在读取设备信息...");
             SignalPower.Text = "—";
             SignalGpu.Text = "—";
             SignalApply.Text = "—";
@@ -194,40 +194,46 @@ public sealed partial class OverviewPage : Page, IThemeAware
         var s = snap.Summary;
         PendingCount.Text = s.Pending.ToString();
         UpdateCompletion(s.Applied, s.Total, s.NotApplicable, s.Checking);
-        StatusHeadline.Text = s.Pending == 0 ? "当前没有待优化项" : "还有可应用的优化项";
+        StatusHeadline.Text = Localization.T(s.Pending == 0 ? "当前没有待优化项" : "还有可应用的优化项");
         StatusDetail.Text = s.Pending == 0
-            ? "推荐项均已生效。可以打开优化项手动复查，或预览当前配置。"
-            : $"{recommended.Count} 项低风险推荐项可直接应用；应用前自动备份原值，可在「备份还原」中撤销。";
+            ? Localization.T("推荐项均已生效。可以打开优化项手动复查，或预览当前配置。")
+            : Localization.F("{0} 项低风险推荐项可直接应用；应用前自动备份原值，可在「备份还原」中撤销。", recommended.Count);
         RecoText.Text = recommended.Count > 0
-            ? $"低风险推荐 {recommended.Count} 项可应用"
-            : "低风险推荐：暂无待应用项";
-        ApplyRecommendedButton.Content = recommended.Count > 0 ? $"应用 {recommended.Count} 项" : "暂无推荐项";
+            ? Localization.F("低风险推荐 {0} 项可应用", recommended.Count)
+            : Localization.T("低风险推荐：暂无待应用项");
+        ApplyRecommendedButton.Content = recommended.Count > 0
+            ? Localization.F("应用 {0} 项", recommended.Count)
+            : Localization.T("暂无推荐项");
         ApplyRecommendedButton.IsEnabled = recommended.Count > 0;
 
-        RebootText.Text = snap.PendingReboot?.Pending == true
+        RebootText.Text = Localization.T(snap.PendingReboot?.Pending == true
             ? "重启状态：等待重启后生效"
-            : "重启状态：无需重启";
+            : "重启状态：无需重启");
         var issues = snap.Diagnostics.Count(d =>
             d.Group is "安全" or "存储" && d.Level is "Red" or "Yellow");
-        SecurityText.Text = issues == 0 ? "安全与存储：未见异常" : $"安全与存储：{issues} 项提示";
+        SecurityText.Text = issues == 0
+            ? Localization.T("安全与存储：未见异常")
+            : Localization.F("安全与存储：{0} 项提示", issues);
 
         var machine = string.IsNullOrWhiteSpace(snap.Machine) ? "本机" : snap.Machine;
         var gpus = snap.Gpus.Where(g => !g.Basic && !g.Virtual)
             .Select(g => g.Name)
             .Where(n => !string.IsNullOrWhiteSpace(n))
             .ToList();
-        LiveDeviceLine.Text = gpus.Count > 0 ? "显示设备 · " + string.Join(" + ", gpus) : "未识别到显示设备";
-        HardwareSubtitle.Text = $"{machine} · {(snap.IsLaptop ? "笔记本" : "台式机")}";
-        SignalPower.Text = snap.OnAC switch { true => "交流供电", false => "电池供电", _ => "未知" };
-        SignalGpu.Text = App.Services.Metrics.GpuAvailable ? "可用 · 1 秒刷新" : "不可用";
+        LiveDeviceLine.Text = gpus.Count > 0
+            ? Localization.T("显示设备 · ") + string.Join(" + ", gpus)
+            : Localization.T("未识别到显示设备");
+        HardwareSubtitle.Text = $"{machine} · {Localization.T(snap.IsLaptop ? "笔记本" : "台式机")}";
+        SignalPower.Text = Localization.T(snap.OnAC switch { true => "交流供电", false => "电池供电", _ => "未知" });
+        SignalGpu.Text = Localization.T(App.Services.Metrics.GpuAvailable ? "可用 · 1 秒刷新" : "不可用");
         SignalApply.Text = snap.LastApply is null
-            ? "暂无记录"
-            : $"{snap.LastApply.Items.Count} 项 · {ShortTime(snap.LastApply.Time)}";
+            ? Localization.T("暂无记录")
+            : Localization.F("{0} 项 · {1}", snap.LastApply.Items.Count, ShortTime(snap.LastApply.Time));
 
         PendingBar.IsOpen = snap.PendingReboot?.Pending == true;
         if (snap.PendingReboot?.Pending == true)
-            PendingBar.Message = "检测到系统等待重启：" + string.Join("、", snap.PendingReboot.Reasons) +
-                                 "。部分优化需要重启后才会生效。";
+            PendingBar.Message = Localization.F("检测到系统等待重启：{0}。部分优化需要重启后才会生效。",
+                string.Join(Localization.IsEnglish ? ", " : "、", snap.PendingReboot.Reasons));
 
         HardwareList.ItemsSource = HardwareSummary(snap.Diagnostics);
         var extra = new List<DiagEntry>();
@@ -235,10 +241,10 @@ public sealed partial class OverviewPage : Page, IThemeAware
         {
             extra.Add(new DiagEntry
             {
-                Group = "记录",
-                Name = "上次应用",
+                Group = Localization.T("记录"),
+                Name = Localization.T("上次应用"),
                 Value = string.IsNullOrWhiteSpace(snap.LastApply.Result)
-                    ? $"{snap.LastApply.Items.Count} 项 · {snap.LastApply.Time}"
+                    ? Localization.F("{0} 项 · {1}", snap.LastApply.Items.Count, snap.LastApply.Time)
                     : snap.LastApply.Result,
                 Level = snap.LastApply.Errors.Count > 0 ? "Yellow" : "Green"
             });
@@ -248,7 +254,7 @@ public sealed partial class OverviewPage : Page, IThemeAware
             .Concat(extra)
             .Take(8)
             .ToList();
-        HardwareUpdated.Text = $"更新于 {snap.Time?.Replace('T', ' ')}";
+        HardwareUpdated.Text = Localization.F("更新于 {0}", snap.Time?.Replace('T', ' '));
     }
 
     /// <summary>完成度只画一条细进度条，仪表位置留给实时负载。</summary>
@@ -258,12 +264,15 @@ public sealed partial class OverviewPage : Page, IThemeAware
         var fraction = effective > 0 ? Math.Clamp((double)applied / effective, 0d, 1d) : 0d;
         CompletionBar.Value = fraction * 100;
 
-        var line = effective > 0 ? $"已生效 {applied} / {effective} 项可优化" : "已生效 -- 项";
-        if (notApplicable > 0) line += $" · {notApplicable} 项不适用";
-        if (checking > 0) line += $" · {checking} 项检测中";
+        var line = effective > 0
+            ? Localization.F("已生效 {0} / {1} 项可优化", applied, effective)
+            : Localization.T("已生效 -- 项");
+        if (notApplicable > 0) line += " · " + Localization.F("{0} 项不适用", notApplicable);
+        if (checking > 0) line += " · " + Localization.F("{0} 项检测中", checking);
         AppliedText.Text = line;
-        ToolTipService.SetToolTip(CompletionBar,
-            effective > 0 ? $"优化完成度 {fraction:P0}" : "优化完成度：正在读取本机状态");
+        ToolTipService.SetToolTip(CompletionBar, effective > 0
+            ? Localization.F("优化完成度 {0}", fraction.ToString("P0"))
+            : Localization.T("优化完成度：正在读取本机状态"));
     }
 
     private void OnMetrics(LiveMetrics m)
@@ -280,18 +289,18 @@ public sealed partial class OverviewPage : Page, IThemeAware
         if (_gpuWasAvailable != gpuAvailable)
         {
             _gpuWasAvailable = gpuAvailable;
-            GpuRingLabel.Text = gpuAvailable ? "专用显卡 3D 引擎" : "GPU 数据不可用";
-            SignalGpu.Text = gpuAvailable ? "可用 · 1 秒刷新" : "不可用";
+            GpuRingLabel.Text = Localization.T(gpuAvailable ? "专用显卡 3D 引擎" : "GPU 数据不可用");
+            SignalGpu.Text = Localization.T(gpuAvailable ? "可用 · 1 秒刷新" : "不可用");
         }
         GpuBar.Value = gpuAvailable ? m.Gpu : 0;
 
         _ramRoll.To(m.RamPercent, "0", "%");
         RamBar.Value = m.RamPercent;
-        RamHint.Text = $"{m.RamUsedGb:0.0} / {m.RamTotalGb:0.0} GB 已用";
+        RamHint.Text = Localization.F("{0} / {1} GB 已用", m.RamUsedGb.ToString("0.0"), m.RamTotalGb.ToString("0.0"));
 
         NetValue.Text = "↓ " + FormatRate(m.NetDownKbps);
         NetHint.Text = "↑ " + FormatRate(m.NetUpKbps);
-        var stamp = $"更新于 {DateTime.Now:HH:mm:ss} · 0.25 秒采样";
+        var stamp = Localization.F("更新于 {0} · 0.25 秒采样", DateTime.Now.ToString("HH:mm:ss"));
         if (stamp != _lastStamp)
         {
             _lastStamp = stamp;
@@ -415,15 +424,15 @@ public sealed partial class OverviewPage : Page, IThemeAware
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
-            Title = "应用推荐优化",
+            Title = Localization.T("应用推荐优化"),
             Content = new TextBlock
             {
-                Text = $"将应用 {ids.Count} 项低风险优化。\n\n应用前会自动生成 JSON 原值备份与 .reg 快照，可在「备份还原」中撤销。",
+                Text = Localization.F("将应用 {0} 项低风险优化。\n\n应用前会自动生成 JSON 原值备份与 .reg 快照，可在「备份还原」中撤销。", ids.Count),
                 TextWrapping = TextWrapping.Wrap,
                 LineHeight = 22
             },
-            PrimaryButtonText = $"应用 {ids.Count} 项",
-            CloseButtonText = "取消",
+            PrimaryButtonText = Localization.F("应用 {0} 项", ids.Count),
+            CloseButtonText = Localization.T("取消"),
             DefaultButton = ContentDialogButton.Primary
         };
         if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
@@ -453,8 +462,8 @@ public sealed partial class OverviewPage : Page, IThemeAware
             }
             else
             {
-                var msg = $"成功 {result.Ok} 项 · 失败 {result.Fail} 项";
-                if (!string.IsNullOrWhiteSpace(result.Backup)) msg += $"\n备份：{result.Backup}";
+                var msg = Localization.F("成功 {0} 项 · 失败 {1} 项", result.Ok, result.Fail);
+                if (!string.IsNullOrWhiteSpace(result.Backup)) msg += "\n" + Localization.F("备份：{0}", result.Backup);
                 ShowAction(result.Fail == 0 ? "优化已应用" : "部分项目失败", msg,
                     result.Fail == 0 ? InfoBarSeverity.Success : InfoBarSeverity.Warning);
                 await App.Services.State.EnsureSnapshotAsync(force: true);
@@ -473,7 +482,7 @@ public sealed partial class OverviewPage : Page, IThemeAware
         {
             panel.Children.Add(new TextBlock
             {
-                Text = "所选项目均已处于推荐值，无需变更。",
+                Text = Localization.T("所选项目均已处于推荐值，无需变更。"),
                 TextWrapping = TextWrapping.Wrap
             });
         }
@@ -481,7 +490,7 @@ public sealed partial class OverviewPage : Page, IThemeAware
         {
             panel.Children.Add(new TextBlock
             {
-                Text = $"共 {result.Preview.Count} 项将发生变更（预览不会写入系统）：",
+                Text = Localization.F("共 {0} 项将发生变更（预览不会写入系统）：", result.Preview.Count),
                 TextWrapping = TextWrapping.Wrap,
                 FontWeight = Microsoft.UI.Text.FontWeights.SemiBold
             });
@@ -491,7 +500,9 @@ public sealed partial class OverviewPage : Page, IThemeAware
                 row.Children.Add(new TextBlock { Text = item.Name, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold });
                 row.Children.Add(new TextBlock
                 {
-                    Text = $"当前：{item.Current}  →  目标：{item.Target}" + (item.NeedsReboot ? "  · 需重启" : ""),
+                    Text = Localization.F(item.NeedsReboot
+                            ? "当前：{0}  →  目标：{1}  · 需重启"
+                            : "当前：{0}  →  目标：{1}", item.Current, item.Target),
                     Opacity = 0.78,
                     FontSize = 12.5,
                     TextWrapping = TextWrapping.Wrap
@@ -502,22 +513,22 @@ public sealed partial class OverviewPage : Page, IThemeAware
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
-            Title = "变更预览",
+            Title = Localization.T("变更预览"),
             Content = new ScrollViewer
             {
                 Content = panel,
                 MaxHeight = 460,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto
             },
-            CloseButtonText = "关闭"
+            CloseButtonText = Localization.T("关闭")
         };
         await dialog.ShowAsync();
     }
 
     private void ShowAction(string title, string message, InfoBarSeverity severity)
     {
-        ActionInfo.Title = title;
-        ActionInfo.Message = message;
+        ActionInfo.Title = Localization.T(title);
+        ActionInfo.Message = Localization.T(message);
         ActionInfo.Severity = severity;
         ActionInfo.IsOpen = true;
     }
@@ -562,4 +573,6 @@ public sealed partial class OverviewPage : Page, IThemeAware
             DiagList.ItemsSource = snap.Diagnostics.Where(d => d.Group is "安全" or "存储").Take(8).ToList();
         }
     }
+
+    public void OnLanguageChanged() => RefreshUi();
 }

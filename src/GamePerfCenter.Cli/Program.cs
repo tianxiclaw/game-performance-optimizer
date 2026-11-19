@@ -9,7 +9,7 @@ namespace GamePerfCenter.Cli;
 
 internal static class Program
 {
-    private const string Version = "26.1";
+    private const string Version = "26.2";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
