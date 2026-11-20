@@ -191,7 +191,8 @@ public sealed partial class LogPage : Page, IThemeAware
 
             _cleared = true;
             _lines.Clear();
-            _lastText = "";
+            // 不要提前清空 _lastText：Render 依赖它与旧文本的差异来刷新文本框，
+            // 提前置空会让 text == _lastText 成立，界面继续显示清理前的日志。
             Render();
             LogMetaText.Text = "日志已清理 · 新的记录会自动写入";
         }
