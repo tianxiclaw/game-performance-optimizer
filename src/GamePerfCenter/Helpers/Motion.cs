@@ -136,7 +136,12 @@ public static class Motion
 
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<FrameworkElement, HoverState> States = new();
 
-    /// <summary>透明度 + 垂直位移的入场，200ms 以内，只用于容器出现。</summary>
+    /// <summary>
+    /// 透明度 + 垂直位移的入场，200ms 以内，只用于容器出现。
+    /// 位移围绕元素当前的布局槽位做相对偏移：Offset 是 XAML 布局写入的坐标，
+    /// 不能假设它是 0。动画结束后只 StopAnimation 交还布局值，
+    /// 否则行内展开的详情会跳回父容器左上角，压住上一行。
+    /// </summary>
     public static void FadeSlideIn(UIElement element, double fromY = 8, int milliseconds = 190)
     {
         if (!Enabled || element is null) return;
@@ -144,8 +149,10 @@ public static class Motion
         {
             var visual = ElementCompositionPreview.GetElementVisual(element);
             var compositor = visual.Compositor;
+            // XAML 已经给出的布局坐标，动画只在这个坐标上叠加一个小的入场位移。
+            var baseOffset = visual.Offset;
+            var startOffset = new Vector3(baseOffset.X, baseOffset.Y + (float)fromY, baseOffset.Z);
             visual.Opacity = 0f;
-            visual.Offset = new Vector3(0, (float)fromY, 0);
 
             var ease = compositor.CreateCubicBezierEasingFunction(new Vector2(0.2f, 0f), new Vector2(0f, 1f));
             var duration = TimeSpan.FromMilliseconds(milliseconds);
@@ -156,8 +163,8 @@ public static class Motion
             fade.Duration = duration;
 
             var slide = compositor.CreateVector3KeyFrameAnimation();
-            slide.InsertKeyFrame(0f, new Vector3(0, (float)fromY, 0));
-            slide.InsertKeyFrame(1f, Vector3.Zero, ease);
+            slide.InsertKeyFrame(0f, startOffset);
+            slide.InsertKeyFrame(1f, baseOffset, ease);
             slide.Duration = duration;
 
             var batch = compositor.CreateScopedBatch(CompositionBatchTypes.Animation);
@@ -167,7 +174,9 @@ public static class Motion
             {
                 try
                 {
-                    visual.Offset = Vector3.Zero;
+                    // 不清零 Offset：停掉动画后由 XAML 的布局坐标接管，元素回到自己的槽位。
+                    visual.StopAnimation("Opacity");
+                    visual.StopAnimation("Offset");
                     visual.Opacity = 1f;
                 }
                 catch { }

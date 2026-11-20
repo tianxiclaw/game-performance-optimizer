@@ -126,7 +126,8 @@ public sealed class PageHeader : ContentControl
         _title.FontSize = 26;
         _title.CharacterSpacing = -10;
         _subtitle.Visibility = Visibility.Visible;
-        _subtitle.MaxLines = stacked ? 2 : 1;
+        // 说明最多两行：宁可让页头长 20px，也不要把后半句截成省略号。
+        _subtitle.MaxLines = 2;
 
         if (stacked)
         {

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -13,7 +14,7 @@ using GamePerfCenter.Services;
 
 namespace GamePerfCenter.Pages;
 
-public sealed partial class ItemsPage : Page, IThemeAware
+public sealed partial class ItemsPage : Page, IThemeAware, ILanguageAware
 {
     private List<ProfileInfo> _profiles = new();
     private bool _loadingProfiles;
@@ -234,9 +235,36 @@ public sealed partial class ItemsPage : Page, IThemeAware
             return true;
         }).ToList();
 
-        View.Clear();
-        foreach (var item in filtered) View.Add(item);
+        // 主题 / 语言 / 状态刷新会重建一次行容器，但用户并没有换筛选条件。
+        // 这时保留展开行与滚动位置，避免看起来像整页被刷新回顶部。
+        var sameSequence = View.Count == filtered.Count &&
+            !View.Where((item, index) => !ReferenceEquals(item, filtered[index])).Any();
+        var expandedId = View.FirstOrDefault(i => i.IsExpanded)?.Id;
+        var scrollOffset = sameSequence
+            ? FindDescendant<ScrollViewer>(ItemsList)?.VerticalOffset ?? 0
+            : 0;
+
+        // 序列未变时保留现有容器，只让字段通知去更新行内容，避免整表重建。
+        if (!sameSequence)
+        {
+            View.Clear();
+            foreach (var item in filtered) View.Add(item);
+        }
         EmptyHint.Visibility = View.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        if (!sameSequence && !string.IsNullOrEmpty(expandedId))
+        {
+            var expanded = View.FirstOrDefault(i => string.Equals(i.Id, expandedId, StringComparison.Ordinal));
+            if (expanded is not null) expanded.IsExpanded = true;
+        }
+        if (!sameSequence && scrollOffset > 0)
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                try { FindDescendant<ScrollViewer>(ItemsList)?.ChangeView(null, scrollOffset, null, true); }
+                catch { }
+            });
+        }
 
         var all = App.Services.State.Items;
         var initializing = _loading && all.Count == 0;
@@ -248,22 +276,31 @@ public sealed partial class ItemsPage : Page, IThemeAware
         var applied = all.Count(i => i.Status == "ok");
         var pending = all.Count(i => i.Status == "no");
         var na = all.Count(i => i.Status == "na");
-        var selected = all.Where(i => i.Selected).ToList();
         AppliedChip.Text = initializing ? Localization.T("已生效 —") : Localization.F("已生效 {0}", applied);
         PendingChip.Text = initializing ? Localization.T("待优化 —") : Localization.F("待优化 {0}", pending);
         NaChip.Text = initializing ? Localization.T("不适用 —") : Localization.F("不适用 {0}", na);
-        SelectedChip.Text = Localization.F("已选 {0}", selected.Count);
         ViewCountText.Text = initializing ? Localization.T("正在读取...") : Localization.F("显示 {0} / {1} 项", View.Count, all.Count);
+        UpdateSelectionSummary();
+    }
 
-        var low = selected.Count(i => i.Risk == "low");
-        var mid = selected.Count(i => i.Risk == "mid");
-        var high = selected.Count(i => i.Risk == "high");
+    /// <summary>
+    /// 勾选只影响底部计数与按钮可用性。此前这里走 RefreshView，
+    /// 每次点复选框都会清空并重建整个列表，表现为页面刷新、滚动位置丢失。
+    /// </summary>
+    private void UpdateSelectionSummary()
+    {
+        var selected = App.Services.State.Items.Where(i => i.Selected).ToList();
+        SelectedChip.Text = Localization.F("已选 {0}", selected.Count);
+
         if (selected.Count == 0)
         {
             ActionSummary.Text = Localization.T("未选择项目");
         }
         else
         {
+            var low = selected.Count(i => i.Risk == "low");
+            var mid = selected.Count(i => i.Risk == "mid");
+            var high = selected.Count(i => i.Risk == "high");
             ActionSummary.Text = Localization.F("已选 {0} 项 · 低风险 {1} · 中风险 {2} · 高风险 {3}",
                 selected.Count, low, mid, high);
         }
@@ -279,20 +316,20 @@ public sealed partial class ItemsPage : Page, IThemeAware
         RefreshView();
     }
 
-    private void ItemCheck_Click(object sender, RoutedEventArgs e) => RefreshView();
+    private void ItemCheck_Click(object sender, RoutedEventArgs e) => UpdateSelectionSummary();
 
     private void SelectRecommended_Click(object sender, RoutedEventArgs e)
     {
         foreach (var item in App.Services.State.Items)
             item.Selected = item.Risk == "low" && item.Status is "no" or "checking";
-        RefreshView();
+        UpdateSelectionSummary();
         ShowInfo("已选择推荐项", "已勾选全部待优化的低风险项目。", InfoBarSeverity.Informational);
     }
 
     private void ClearSelection_Click(object sender, RoutedEventArgs e)
     {
         foreach (var item in App.Services.State.Items) item.Selected = false;
-        RefreshView();
+        UpdateSelectionSummary();
     }
 
     private async void LoadProfile_Click(object sender, RoutedEventArgs e)
@@ -305,7 +342,7 @@ public sealed partial class ItemsPage : Page, IThemeAware
         var ids = profile.Ids ?? new List<string>();
         foreach (var item in App.Services.State.Items)
             item.Selected = item.Id is not null && ids.Contains(item.Id);
-        RefreshView();
+        UpdateSelectionSummary();
         ShowInfo("方案已载入", Localization.F("已载入「{0}」，共勾选 {1} 项。",
                 profile.Name, App.Services.State.Items.Count(i => i.Selected)),
             InfoBarSeverity.Success);
@@ -375,9 +412,10 @@ public sealed partial class ItemsPage : Page, IThemeAware
         item.IsExpanded = expand;
         if (!expand) return;
 
-        ItemsList.ScrollIntoView(item);
-        DispatcherQueue.TryEnqueue(() =>
+        // 等详情区域撑开完成后再滚动，避免按旧行高定位导致目标行被顶出视口。
+        DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
         {
+            ItemsList.ScrollIntoView(item);
             if (ItemsList.ContainerFromItem(item) is not DependencyObject container) return;
             var detail = FindDescendant<Border>(container, b => (b.Tag as string) == "ItemDetail");
             if (detail is not null) Motion.FadeSlideIn(detail, 5, 150);
@@ -388,6 +426,23 @@ public sealed partial class ItemsPage : Page, IThemeAware
     {
         if ((sender as FrameworkElement)?.DataContext is ItemInfo item) ToggleExpanded(item);
     }
+
+#if DEBUG
+    /// <summary>离屏截图专用：按索引展开一行，走与鼠标左键相同的路径。</summary>
+    internal void QaExpand(int index)
+    {
+        if (index < 0 || index >= View.Count) return;
+        ToggleExpanded(View[index]);
+    }
+
+    /// <summary>离屏截图专用：按索引勾选一行，验证不会触发列表重建。</summary>
+    internal void QaCheck(int index)
+    {
+        if (index < 0 || index >= View.Count) return;
+        View[index].Selected = !View[index].Selected;
+        UpdateSelectionSummary();
+    }
+#endif
 
     private void Row_Tapped(object sender, TappedRoutedEventArgs e)
     {
@@ -560,7 +615,7 @@ public sealed partial class ItemsPage : Page, IThemeAware
         item.IsExpanded = true;
         ItemsList.ScrollIntoView(item);
         ItemsList.Focus(FocusState.Programmatic);
-        DispatcherQueue.TryEnqueue(() =>
+        DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
         {
             ItemsList.ScrollIntoView(item);
             if (ItemsList.ContainerFromItem(item) is DependencyObject container)
@@ -734,7 +789,12 @@ public sealed partial class ItemsPage : Page, IThemeAware
         PageInfo.IsOpen = true;
     }
 
-    public void OnThemeChanged() => RefreshView();
+    public void OnThemeChanged()
+    {
+        // 主题只影响状态 / 风险的画刷；让单向绑定重新取色即可，
+        // 不再重建列表，避免切主题时页面闪一下并跳回顶部。
+        foreach (var item in View) item.NotifyThemeChanged();
+    }
 
     public void OnLanguageChanged()
     {

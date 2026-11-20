@@ -14,7 +14,20 @@ public static class AppPaths
     public static string DiagnosticsDir => Path.Combine(BaseDir, "diagnostics");
     public static string SettingsPath => Path.Combine(BaseDir, "gui-settings.json");
     public static string AppLogPath => Path.Combine(DataDir, "winui.log");
-    public static string Version => "26.2";
+
+    /// <summary>版本号来自程序集，避免界面与安装包各写一份。</summary>
+    public static string Version { get; } = ReadVersion();
+
+    private static string ReadVersion()
+    {
+        try
+        {
+            var v = typeof(AppPaths).Assembly.GetName().Version;
+            if (v is not null) return $"{v.Major}.{v.Minor}";
+        }
+        catch { }
+        return "0.0";
+    }
 
     public static string UserSid
     {
@@ -29,7 +42,8 @@ public static class AppPaths
     {
         foreach (var dir in new[] { DataDir, BackupDir, DiagnosticsDir })
         {
-            try { Directory.CreateDirectory(dir); } catch { }
+            try { Directory.CreateDirectory(dir); }
+            catch (Exception ex) { AppLog.Write($"创建目录失败 {dir}: {ex.Message}"); }
         }
     }
 }

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Window
     x:Class="GamePerfCenter.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -64,69 +64,74 @@
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right"
-                        VerticalAlignment="Center" Spacing="6">
-                <StackPanel x:Name="LocalModeGroup" Orientation="Horizontal" Spacing="6"
-                            VerticalAlignment="Center" Margin="0,0,4,0">
-                    <Ellipse Width="5" Height="5" Fill="{ThemeResource OkBrush}" VerticalAlignment="Center" />
-                    <TextBlock Text="仅本机运行" Style="{StaticResource CaptionTextStyle}" />
-                </StackPanel>
-
+                        VerticalAlignment="Center" Spacing="8">
+                <!-- 待优化：折叠成一枚感叹号，悬浮放大并列出具体项目 -->
                 <Button x:Name="PendingButton" Click="PendingButton_Click" Visibility="Collapsed"
-                        Background="{ThemeResource WarnSoftBrush}"
-                        BorderBrush="{ThemeResource WarnBrush}" BorderThickness="1"
-                        CornerRadius="999" Padding="11,4" VerticalAlignment="Center"
-                        ToolTipService.ToolTip="查看待应用的低风险优化项">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <Ellipse Width="5" Height="5" Fill="{ThemeResource WarnBrush}" VerticalAlignment="Center" />
-                        <TextBlock x:Name="TopPendingText" Text="待优化" FontSize="11.5"
-                                   Foreground="{ThemeResource WarnBrush}" />
-                    </StackPanel>
+                        Width="32" Height="32" Padding="0" CornerRadius="16"
+                        Background="Transparent" BorderThickness="0"
+                        VerticalAlignment="Center"
+                        AutomationProperties.Name="待优化项">
+                    <Grid Width="24" Height="24">
+                        <Ellipse Fill="{ThemeResource WarnSoftBrush}" />
+                        <StackPanel Spacing="2.2" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Rectangle Width="2.6" Height="8" RadiusX="1.3" RadiusY="1.3"
+                                       Fill="{ThemeResource WarnBrush}" />
+                            <Ellipse Width="2.6" Height="2.6" Fill="{ThemeResource WarnBrush}" />
+                        </StackPanel>
+                    </Grid>
                 </Button>
 
-                <!-- 主题：日 / 月 / 系统，三个小图标；当前项用强调底标出 -->
+                <!-- 工具组：主题 / 语言 / 控制台 / 项目主页收进同一胶囊，
+                     顶栏只留“通知 + 工具”两组，不再散落成一排图标。 -->
                 <Border Background="{ThemeResource InsetBrush}" BorderBrush="{ThemeResource BorderBrush}"
-                        BorderThickness="1" CornerRadius="8" Padding="2">
+                        BorderThickness="1" CornerRadius="9" Padding="2" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" Spacing="1">
                         <Button x:Name="ThemeLightButton" Tag="light" Click="ThemeSegment_Click"
-                                Style="{StaticResource ThemeIconButtonStyle}"
+                                Style="{StaticResource ThemeIconButtonStyle}" VerticalAlignment="Center"
                                 AutomationProperties.Name="浅色主题"
                                 ToolTipService.ToolTip="浅色主题">
                             <FontIcon Glyph="&#xE706;" FontSize="13" />
                         </Button>
                         <Button x:Name="ThemeDarkButton" Tag="dark" Click="ThemeSegment_Click"
-                                Style="{StaticResource ThemeIconButtonStyle}"
+                                Style="{StaticResource ThemeIconButtonStyle}" VerticalAlignment="Center"
                                 AutomationProperties.Name="深色主题"
                                 ToolTipService.ToolTip="深色主题">
                             <FontIcon Glyph="&#xE708;" FontSize="13" />
                         </Button>
                         <Button x:Name="ThemeSystemButton" Tag="system" Click="ThemeSegment_Click"
-                                Style="{StaticResource ThemeIconButtonStyle}"
+                                Style="{StaticResource ThemeIconButtonStyle}" VerticalAlignment="Center"
                                 AutomationProperties.Name="跟随系统"
                                 ToolTipService.ToolTip="跟随系统">
                             <FontIcon Glyph="&#xE7F4;" FontSize="13" />
                         </Button>
+
+                        <Border Width="1" Height="16" Margin="4,0" Background="{ThemeResource BorderBrush}"
+                                Opacity="0.8" VerticalAlignment="Center" />
+
+                        <Button x:Name="LanguageButton" Style="{StaticResource IconButtonStyle}"
+                                Click="LanguageButton_Click" VerticalAlignment="Center"
+                                AutomationProperties.Name="切换到英文界面"
+                                ToolTipService.ToolTip="界面语言：中文（点击切换到 English）">
+                            <FontIcon Glyph="&#xE8C1;" FontSize="14" />
+                        </Button>
+
+                        <Button x:Name="InspectorToggleButton" Style="{StaticResource IconButtonStyle}"
+                                Click="InspectorToggle_Click" VerticalAlignment="Center"
+                                AutomationProperties.Name="展开控制台"
+                                ToolTipService.ToolTip="展开右侧控制台：实时负载、待办与快捷操作">
+                            <FontIcon Glyph="&#xE8A1;" FontSize="14" />
+                        </Button>
+
+                        <Border Width="1" Height="16" Margin="4,0" Background="{ThemeResource BorderBrush}"
+                                Opacity="0.8" VerticalAlignment="Center" />
+
+                        <Button x:Name="RepoButton" Style="{StaticResource IconButtonStyle}"
+                                ToolTipService.ToolTip="打开项目主页"
+                                Click="RepoButton_Click" VerticalAlignment="Center">
+                            <FontIcon Glyph="&#xE774;" FontSize="14" />
+                        </Button>
                     </StackPanel>
                 </Border>
-
-                <Button x:Name="LanguageButton" Style="{StaticResource IconButtonStyle}"
-                        Click="LanguageButton_Click" VerticalAlignment="Center"
-                        AutomationProperties.Name="切换到英文界面"
-                        ToolTipService.ToolTip="界面语言：中文（点击切换到 English）">
-                    <FontIcon Glyph="&#xE8C1;" FontSize="14" />
-                </Button>
-
-                <Button x:Name="InspectorToggleButton" Style="{StaticResource IconButtonStyle}"
-                        Click="InspectorToggle_Click" VerticalAlignment="Center"
-                        AutomationProperties.Name="展开控制台"
-                        ToolTipService.ToolTip="展开右侧控制台：实时负载、待办与快捷操作">
-                    <FontIcon Glyph="&#xE8A1;" FontSize="14" />
-                </Button>
-
-                <Button x:Name="RepoButton" Style="{StaticResource IconButtonStyle}"
-                        ToolTipService.ToolTip="打开项目主页"
-                        Click="RepoButton_Click" VerticalAlignment="Center">
-                    <FontIcon Glyph="&#xE774;" FontSize="14" />
-                </Button>
             </StackPanel>
         </Grid>
 
@@ -417,8 +422,24 @@
             </Grid>
         </Grid>
 
+        <!-- 待优化悬浮清单：跟随感叹号出现在顶栏下方，留在窗口内以便跟随主题 -->
+        <Border x:Name="PendingTipCard" Grid.RowSpan="3" Visibility="Collapsed"
+                HorizontalAlignment="Left" VerticalAlignment="Top"
+                Background="{ThemeResource DrawerSurfaceBrush}" BorderBrush="{ThemeResource BorderBrush}"
+                BorderThickness="1" CornerRadius="10" Padding="12,10"
+                MinWidth="200" MaxWidth="320">
+            <StackPanel Spacing="7">
+                <TextBlock x:Name="PendingTipTitle" FontSize="12" FontWeight="SemiBold"
+                           Foreground="{ThemeResource WarnBrush}" TextWrapping="NoWrap" />
+                <StackPanel x:Name="PendingTipList" Spacing="4" />
+                <TextBlock x:Name="PendingTipHint" FontSize="11"
+                           Foreground="{ThemeResource SubTextBrush}" TextWrapping="NoWrap" />
+            </StackPanel>
+        </Border>
+
         <!-- 命令面板：覆盖整个窗口，Ctrl+K 或 Dock 的搜索按钮打开 -->
         <controls:CommandPalette x:Name="Palette" Grid.RowSpan="3"
                                  VerticalAlignment="Stretch" HorizontalAlignment="Stretch" />
     </Grid>
 </Window>
+

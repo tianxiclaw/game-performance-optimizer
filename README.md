@@ -29,7 +29,7 @@
 | 游戏库 | 自动识别 Steam / Epic / WeGame，也可手动添加任意 exe；每个游戏单独保存优先级、亲和性、全屏优化、高性能 GPU、管理员启动与启动参数 |
 | 只读诊断 | VBS / HVCI、内存 XMP / EXPO、PCIe 链路、NVMe 健康、系统盘空间、电源方案；可导出诊断包 |
 | 驱动中心 | 设备与驱动仓库逐项比对；可重新绑定当前驱动、切换仓库驱动包、清理旧包，操作前后自动恢复音频静音状态 |
-| GUI 与 CLI 共用引擎 | 图形界面、PowerShell 控制台与 `gpc` 单文件 CLI 共用核心逻辑，排查问题时可复现同一套行为 |
+| GUI 与 CLI 共用内核 | 桌面界面与 `gpc` 单文件 CLI 共用 Core 执行/备份/还原逻辑；PowerShell 引擎保留为项目录检测、旧版 WinForms 与桌面端兜底，双方 Kind 由测试保持同步 |
 | 中英文界面 | 顶栏右侧“A 文”图标一键切换，运行期立即生效、无需重启，选择持久化到 `gui-settings.json` |
 
 ## 界面
@@ -110,7 +110,7 @@ WinUI 3 界面会按系统缩放自动适配，无需额外设置；如果异常
 
 ## 命令行
 
-图形界面、PowerShell 引擎与新版 `gpc` CLI 共用同一套核心逻辑，适合批量处理或排查问题。`gpc` 是自包含单文件，发布脚本会单独生成 `gpc.exe` 压缩包（内含引擎脚本），不需要另装运行时。
+桌面界面与新版 `gpc` CLI 共用 Core 执行内核，批量处理或排查问题时可复现同一套行为。PowerShell 引擎仍负责项目录检测，并为旧版 WinForms 与桌面端提供兜底执行；两边的 Kind 处理器由仓库测试做一致性校验。`gpc` 是自包含单文件，发布脚本会单独生成 `gpc.exe` 压缩包（内含引擎脚本），不需要另装运行时。
 
 ```powershell
 # 交互式控制台
@@ -181,7 +181,7 @@ gpc audio restore
 | `src/GamePerfCenter.Core/` | 共享核心：驱动清单 / 操作、优化项执行、备份还原、音频静音保护 |
 | `src/GamePerfCenter.Cli/` | `gpc` 单文件 CLI，复用 Core 能力 |
 | `游戏性能优化.ps1` | 引擎：优化项定义、硬件检测、状态检查、诊断与快照 |
-| `游戏性能优化-GUI.ps1` | WinForms 旧版界面（便携包内作为备用） |
+| `游戏性能优化-GUI.ps1` | WinForms 旧版界面（便携包内作为备用，仅兼容维护，新功能以 WinUI 3 为准） |
 | `启动优化脚本.bat` | WinForms 备用启动器（自动提权） |
 | `启动控制台版.bat` | 控制台入口 |
 | `赞赏码.png` | 支持作者（可选） |
@@ -190,6 +190,25 @@ gpc audio restore
 | `scripts/publish.ps1` | 构建 WinUI 便携包与单文件 CLI，生成 SHA256，可选代码签名 |
 | `scripts/install-local.ps1` | 把最新构建同步到桌面快捷方式指向的安装目录 |
 | `LICENSE` | MIT 许可证 |
+
+## 开发与验证
+
+```powershell
+# 构建全部项目（Core / CLI / WinUI / 测试）
+dotnet build GamePerfCenter.sln -c Release -p:Platform=x64
+
+# 功能测试：备份/还原、备份失败中止、Kind 一致性、中英文词条覆盖、版本一致性
+dotnet run --project src/GamePerfCenter.Tests -c Release
+```
+
+需要桌面会话的界面回归（CI 的静态词条检查之外，发版前本地跑一次）：
+
+```powershell
+# 逐页执行 中文 → English → 中文，扫描残留英文与未翻译中文；退出码 0 表示通过
+src\GamePerfCenter\bin\x64\Release\net10.0-windows10.0.19041.0\win-x64\GamePerfCenter.exe --lang-audit --no-elevate
+```
+
+审计结果写入同目录 `data\lang-audit.log`。该模式不激活窗口，也不写设置文件。
 
 ## 发布产物
 

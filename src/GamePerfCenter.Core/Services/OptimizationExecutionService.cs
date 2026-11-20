@@ -86,12 +86,14 @@ public sealed class OptimizationExecutionService
         }
 
         var planRecords = new List<OptimizationBackupRecord>();
+        var plannedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var item in items)
         {
             try
             {
                 var record = Execute(item, context, write: false);
                 planRecords.Add(record);
+                plannedIds.Add(item.Id);
                 if (!IsSatisfied(item, record))
                     result.Preview.Add(BuildPreview(item, record));
             }
@@ -104,18 +106,59 @@ public sealed class OptimizationExecutionService
             }
         }
 
+        var planErrors = result.Errors.Count;
+
         if (options.DryRun)
         {
-            result.Ok = items.Count - result.Errors.Count;
-            result.Fail = result.Errors.Count;
+            result.Ok = planRecords.Count;
+            result.Fail = planErrors;
             result.Records = planRecords;
             return result;
         }
 
+        result.Fail += planErrors;
+
         if (!options.NoRegSnapshot && planRecords.Count > 0)
         {
-            try { result.RegDir = ExportRegSnapshot(planRecords); }
-            catch { }
+            try
+            {
+                var (dir, failures) = ExportRegSnapshot(planRecords);
+                result.RegDir = dir;
+                if (failures > 0)
+                {
+                    result.Errors.Add(new OptimizationError
+                    {
+                        Message = $"注册表快照有 {failures} 个键导出失败，JSON 备份仍可用",
+                        Stage = "snapshot"
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                result.Errors.Add(new OptimizationError
+                {
+                    Message = "注册表快照导出失败: " + ex.Message, Stage = "snapshot"
+                });
+            }
+        }
+
+        // 关键顺序：先把原值备份落盘，再改系统。
+        // 计划阶段失败的项不会进入写入循环，因此 planRecords 覆盖了所有会被写入的项。
+        if (!options.NoBackup && planRecords.Count > 0)
+        {
+            try
+            {
+                result.Backup = WriteBackup(planRecords);
+            }
+            catch (Exception ex)
+            {
+                result.Errors.Add(new OptimizationError
+                {
+                    Message = "备份写入失败，已中止应用: " + ex.Message, Stage = "backup"
+                });
+                result.Fail = items.Count;
+                return result;
+            }
         }
 
         if (options.RestorePoint)
@@ -127,9 +170,11 @@ public sealed class OptimizationExecutionService
 
         var records = new List<OptimizationBackupRecord>();
         var appliedItems = new List<OptimizationItem>();
-        var applyErrors = new List<OptimizationError>();
         foreach (var item in items)
         {
+            // 计划阶段读不到状态的项不写入，避免出现“改了但没有原值记录”的残留。
+            if (!plannedIds.Contains(item.Id)) continue;
+
             try
             {
                 var record = Execute(item, context, write: true);
@@ -139,7 +184,7 @@ public sealed class OptimizationExecutionService
             }
             catch (Exception ex)
             {
-                applyErrors.Add(new OptimizationError
+                result.Errors.Add(new OptimizationError
                 {
                     Id = item.Id, Name = item.Name, Message = ex.Message, Stage = "apply"
                 });
@@ -147,23 +192,18 @@ public sealed class OptimizationExecutionService
             }
         }
 
-        result.Errors = applyErrors;
         result.Records = records;
 
-        if (!options.NoBackup && records.Count > 0)
+        if (appliedItems.Count > 0 &&
+            !WritePendingState(appliedItems, result.Errors.Where(e => e.Stage == "apply").ToList(),
+                result.Backup))
         {
-            try { result.Backup = WriteBackup(records); }
-            catch (Exception ex)
+            result.Errors.Add(new OptimizationError
             {
-                result.Errors.Add(new OptimizationError
-                {
-                    Message = "备份写入失败: " + ex.Message, Stage = "backup"
-                });
-            }
+                Message = "待重启状态写入失败，本次应用的完成情况可能无法在下次启动时复核",
+                Stage = "state"
+            });
         }
-
-        if (appliedItems.Count > 0)
-            WritePendingState(appliedItems, applyErrors, result.Backup);
 
         return result;
     }
@@ -393,7 +433,17 @@ public sealed class OptimizationExecutionService
                 if (write)
                 {
                     WriteValue(path, name, item.TargetValue, type);
-                    WriteValue(path, name2, item.TargetValue2, type);
+                    try
+                    {
+                        WriteValue(path, name2, item.TargetValue2, type);
+                    }
+                    catch
+                    {
+                        // 第二个值写入失败时回滚第一个，避免留下没有备份记录的部分修改。
+                        try { RestoreRegistryValue(path, name, type, ToElement(original.Value), original.Exists); }
+                        catch { }
+                        throw;
+                    }
                 }
                 return Record(item, kind, r =>
                 {
@@ -459,8 +509,34 @@ public sealed class OptimizationExecutionService
                 if (write)
                 {
                     var target = StartValue(item.TargetText);
-                    foreach (var service in services)
-                        WriteUInt32($@"HKLM:\SYSTEM\CurrentControlSet\Services\{service}", "Start", target);
+                    try
+                    {
+                        foreach (var service in services)
+                            WriteUInt32($@"HKLM:\SYSTEM\CurrentControlSet\Services\{service}", "Start", target);
+                    }
+                    catch
+                    {
+                        // 写入失败时恢复启动类型，并重新启动之前处于自动/系统启动的服务。
+                        foreach (var (service, previous) in map)
+                        {
+                            try
+                            {
+                                WriteUInt32($@"HKLM:\SYSTEM\CurrentControlSet\Services\{service}",
+                                    "Start", StartValue(previous));
+                            }
+                            catch { }
+                            if (StartValue(previous) <= 2)
+                            {
+                                try
+                                {
+                                    PowerShellRunner.Execute("sc.exe", new[] { "start", service },
+                                        TimeSpan.FromSeconds(20));
+                                }
+                                catch { }
+                            }
+                        }
+                        throw;
+                    }
                 }
 
                 return Record(item, kind, r => r.SV = ToElement(map));
@@ -987,7 +1063,7 @@ public sealed class OptimizationExecutionService
     // ───────────────────────────────────────────────────────
     // 备份 / 快照 / 待重启状态
     // ───────────────────────────────────────────────────────
-    private string WriteBackup(IReadOnlyList<OptimizationBackupRecord> records)
+    internal string WriteBackup(IReadOnlyList<OptimizationBackupRecord> records)
     {
         Directory.CreateDirectory(_backupDirectory);
         var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
@@ -1005,7 +1081,7 @@ public sealed class OptimizationExecutionService
         return path;
     }
 
-    private void WritePendingState(IReadOnlyList<OptimizationItem> items,
+    private bool WritePendingState(IReadOnlyList<OptimizationItem> items,
         IReadOnlyList<OptimizationError> errors, string? backup)
     {
         try
@@ -1021,11 +1097,12 @@ public sealed class OptimizationExecutionService
             };
             File.WriteAllText(Path.Combine(_backupDirectory, "state_last_apply.json"),
                 JsonSerializer.Serialize(state, BackupJson), new UTF8Encoding(false));
+            return true;
         }
-        catch { }
+        catch { return false; }
     }
 
-    private string? ExportRegSnapshot(IReadOnlyList<OptimizationBackupRecord> records)
+    private (string? Dir, int Failures) ExportRegSnapshot(IReadOnlyList<OptimizationBackupRecord> records)
     {
         var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var record in records)
@@ -1037,11 +1114,12 @@ public sealed class OptimizationExecutionService
                 if (RegistryPath.TryParse(raw, out var location)) keys.Add(location.ToRegExePath());
             }
         }
-        if (keys.Count == 0) return null;
+        if (keys.Count == 0) return (null, 0);
 
         var dir = Path.Combine(_backupDirectory, $"reg_{DateTime.Now:yyyyMMdd_HHmmss}");
         Directory.CreateDirectory(dir);
         var index = 0;
+        var failures = 0;
         foreach (var key in keys)
         {
             index++;
@@ -1053,9 +1131,9 @@ public sealed class OptimizationExecutionService
                 PowerShellRunner.Execute("reg.exe", new[] { "export", key, file, "/y" },
                     TimeSpan.FromSeconds(30));
             }
-            catch { }
+            catch { failures++; }
         }
-        return dir;
+        return (dir, failures);
     }
 
     private IEnumerable<FileInfo> EnumerateBackupFiles()

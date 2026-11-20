@@ -21,6 +21,7 @@ using GamePerfCenter.Models;
 using GamePerfCenter.Pages;
 using GamePerfCenter.Services;
 using Rectangle = Microsoft.UI.Xaml.Shapes.Rectangle;
+using Ellipse = Microsoft.UI.Xaml.Shapes.Ellipse;
 
 namespace GamePerfCenter;
 
@@ -33,7 +34,7 @@ public sealed partial class MainWindow : Window
     private bool _initialized;
     private bool _metricsBusy;
     private bool _metricsPaused;
-    private string _lastStatusZh = "";
+    private Func<string> _statusRender = () => "";
     private string _lastEngineStateZh = "引擎未连接";
     private string _lastInfoTitle = "";
     private string _lastInfoMessage = "";
@@ -103,6 +104,7 @@ public sealed partial class MainWindow : Window
 
         // 图标型按钮统一加悬浮放大 / 按下收缩；按钮布局尺寸不变，只动图标本身。
         RegisterIconButtons(EnumerateIconButtons());
+        InitPendingTip();
 
         // 兜底复位：指针只要还在窗口内移动，就用实时命中结果校正悬浮状态。
         // 只依赖按钮的 PointerExited 时，快速划出或提示层抢占会漏事件，
@@ -454,19 +456,20 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 窄窗口顶栏只保留当前页名：面包屑前缀与 LOCAL MODE 徽标会和右侧的
-    /// 待优化按钮、主题切换争位置，导致文字被压住半截。
+    /// 窄窗口顶栏只保留当前页名：面包屑前缀、待优化按钮与外部链接
+    /// 会和右侧工具组争位置，导致文字被压住半截。
+    /// “本地运行”状态已在底部状态栏常驻，顶栏不再重复。
     /// </summary>
     private void ApplyTitleBar(bool narrow)
     {
         _narrowTitleBar = narrow;
         CrumbRoot.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
         CrumbSlash.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
-        LocalModeGroup.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
         RepoButton.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
         if (narrow)
         {
             PendingButton.Visibility = Visibility.Collapsed;
+            HidePendingTip();
         }
         else
         {
@@ -492,8 +495,80 @@ public sealed partial class MainWindow : Window
         DockOverview, DockItems, DockDiagnostics, DockStartup,
         DockGames, DockDriver, DockBackup, DockLog, DockSettings, DockAbout, DockCommand,
         ThemeLightButton, ThemeDarkButton, ThemeSystemButton,
-        InspectorToggleButton, RepoButton
+        InspectorToggleButton, RepoButton, PendingButton
     };
+
+    /// <summary>
+    /// 待优化按钮折叠成感叹号后，悬浮就要能看到具体项目。
+    /// 清单直接放在窗口内（而非 ToolTip 弹出层），这样能跟随应用主题，
+    /// 也能在离屏截图里被渲染到。
+    /// </summary>
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _pendingHideTimer;
+
+    private void InitPendingTip()
+    {
+        // 离开按钮后留 160ms 缓冲：鼠标向下移进清单时不会被立刻收起。
+        _pendingHideTimer = _dispatcher.CreateTimer();
+        _pendingHideTimer.Interval = TimeSpan.FromMilliseconds(160);
+        _pendingHideTimer.IsRepeating = false;
+        _pendingHideTimer.Tick += (_, _) => HidePendingTip();
+
+        PendingButton.AddHandler(UIElement.PointerEnteredEvent,
+            new PointerEventHandler((_, _) =>
+            {
+                _pendingHideTimer?.Stop();
+                ShowPendingTip();
+            }), handledEventsToo: true);
+        PendingButton.AddHandler(UIElement.PointerExitedEvent,
+            new PointerEventHandler((_, _) => SchedulePendingHide()), handledEventsToo: true);
+        PendingTipCard.PointerEntered += (_, _) => _pendingHideTimer?.Stop();
+        PendingTipCard.PointerExited += (_, _) => SchedulePendingHide();
+    }
+
+    private void SchedulePendingHide()
+    {
+        _pendingHideTimer?.Stop();
+        _pendingHideTimer?.Start();
+    }
+
+    private void ShowPendingTip()
+    {
+        if (PendingButton.Visibility != Visibility.Visible) return;
+        if (RootGrid.ActualWidth <= 0) return;
+
+        _pendingHideTimer?.Stop();
+
+        PendingTipCard.Visibility = Visibility.Visible;
+        PendingTipCard.UpdateLayout();
+        try
+        {
+            var origin = PendingButton.TransformToVisual(RootGrid)
+                .TransformPoint(new Windows.Foundation.Point(0, 0));
+            var cardWidth = PendingTipCard.ActualWidth > 0 ? PendingTipCard.ActualWidth : 200;
+            // 右边缘对齐感叹号，再夹在窗口左右各 12px 的安全区内。
+            var left = origin.X + PendingButton.ActualWidth - cardWidth;
+            left = Math.Max(12, Math.Min(left, RootGrid.ActualWidth - cardWidth - 12));
+            // 悬浮卡落在顶栏下沿之外，不压住顶栏自身的分隔线。
+            var top = Math.Max(origin.Y + PendingButton.ActualHeight + 6,
+                TitleBarDrag.ActualHeight + 6);
+            PendingTipCard.Margin = new Thickness(left, top, 0, 0);
+        }
+        catch
+        {
+            // 布局尚未完成时按默认位置显示，不影响功能。
+        }
+    }
+
+    private void HidePendingTip()
+    {
+        _pendingHideTimer?.Stop();
+        PendingTipCard.Visibility = Visibility.Collapsed;
+    }
+
+#if DEBUG
+    /// <summary>离屏截图专用：不用真实鼠标悬浮也能看到清单展开态。</summary>
+    internal void QaShowPendingTip() => ShowPendingTip();
+#endif
 
     private static FrameworkElement? IconTarget(Button button)
     {
@@ -505,6 +580,7 @@ public sealed partial class MainWindow : Window
 
     private float IconScaleFor(Button button)
         => ReferenceEquals(button, DockCommand) ? 1.15f
+            : ReferenceEquals(button, PendingButton) ? 1.12f
             : _pageIconButtons.Contains(button) ? 1.14f
             : 1.22f;
 
@@ -960,9 +1036,15 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void OnStatusChanged(string text)
+    private void OnStatusChanged()
     {
-        _dispatcher.TryEnqueue(() => SetStatus(text, App.Services.State.IsBusy));
+        _dispatcher.TryEnqueue(() =>
+        {
+            // 状态文案可能带参数，交给 AppState 按当前语言重新渲染，避免缓存住英文结果。
+            _statusRender = () => App.Services.State.StatusText;
+            StatusText.Text = _statusRender();
+            StatusRing.IsActive = App.Services.State.IsBusy;
+        });
     }
 
     private void OnStateChanged()
@@ -1019,11 +1101,12 @@ public sealed partial class MainWindow : Window
         }
 
         var pending = snap?.Summary.Pending ?? 0;
-        TopPendingText.Text = Localization.IsEnglish ? $"{pending} pending" : $"待优化 {pending} 项";
+        UpdatePendingTip(snap);
         PendingButton.Visibility = pending > 0 && !_narrowTitleBar
             ? Visibility.Visible
             : Visibility.Collapsed;
         PendingButton.IsEnabled = pending > 0;
+        AutomationProperties.SetName(PendingButton, Localization.F("待优化项：{0}", pending));
         DrawerPendingText.Text = pending > 0
             ? (Localization.IsEnglish ? $"{pending} to apply" : $"{pending} 项待应用")
             : Localization.T("暂无待应用项");
@@ -1032,6 +1115,63 @@ public sealed partial class MainWindow : Window
         var kind = snap is null ? "" : Localization.T(snap.IsLaptop ? "笔记本" : "台式机");
         var engine = Localization.T(App.Services.Engine.IsRunning ? "引擎已连接" : "引擎未连接");
         PaneEngineText.Text = string.IsNullOrEmpty(kind) ? engine : $"{kind} · {engine}";
+    }
+
+    /// <summary>
+    /// 待优化按钮折叠成感叹号后，悬浮清单负责回答“还剩哪些”。
+    /// 只取引擎快照里状态为待优化的项，最多列 6 条，其余用一行汇总。
+    /// </summary>
+    private void UpdatePendingTip(SnapshotInfo? snap)
+    {
+        var total = snap?.Summary.Pending ?? 0;
+        var names = snap?.Items
+            .Where(i => i.Status == "no")
+            .Select(i => string.IsNullOrWhiteSpace(i.Name) ? i.Id : i.Name)
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Take(6)
+            .ToList() ?? new List<string?>();
+
+        PendingTipTitle.Foreground = ThemeResources.Get("WarnBrush");
+        PendingTipHint.Foreground = ThemeResources.Get("SubTextBrush");
+        PendingTipTitle.Text = Localization.F("还有 {0} 项待优化", total);
+        PendingTipHint.Text = Localization.F("单击查看全部 {0} 项", total);
+        if (total <= 0) HidePendingTip();
+
+        PendingTipList.Children.Clear();
+        var dot = ThemeResources.Get("WarnBrush");
+        var text = ThemeResources.Get("TextBrush");
+        foreach (var name in names)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+            row.Children.Add(new Ellipse
+            {
+                Width = 4,
+                Height = 4,
+                Fill = dot,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+            row.Children.Add(new TextBlock
+            {
+                Text = name,
+                FontSize = 12,
+                Foreground = text,
+                MaxWidth = 260,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                TextWrapping = TextWrapping.NoWrap
+            });
+            PendingTipList.Children.Add(row);
+        }
+
+        if (names.Count > 0 && total > names.Count)
+        {
+            PendingTipList.Children.Add(new TextBlock
+            {
+                Text = Localization.F("以及另外 {0} 项", total - names.Count),
+                FontSize = 11.5,
+                Foreground = ThemeResources.Get("SubTextBrush"),
+                Margin = new Thickness(10, 2, 0, 0)
+            });
+        }
     }
 
     private void UpdateEngineBadge(bool connected)
@@ -1045,12 +1185,16 @@ public sealed partial class MainWindow : Window
         catch { }
     }
 
-    private void PendingButton_Click(object sender, RoutedEventArgs e) => NavigateTo("items");
+    private void PendingButton_Click(object sender, RoutedEventArgs e)
+    {
+        HidePendingTip();
+        NavigateTo("items");
+    }
 
     private void SetStatus(string text, bool busy)
     {
-        _lastStatusZh = text;
-        StatusText.Text = Localization.T(text);
+        _statusRender = () => Localization.T(text);
+        StatusText.Text = _statusRender();
         StatusRing.IsActive = busy;
     }
 
@@ -1085,6 +1229,8 @@ public sealed partial class MainWindow : Window
     public void RefreshTheme()
     {
         ApplyTheme();
+        // 悬浮清单的标题与项目文字是代码里赋 brushes 的，换主题后需要重新取色。
+        UpdatePendingTip(App.Services.State.Snapshot);
         if (ContentFrame.Content is Page page && page is IThemeAware aware)
             aware.OnThemeChanged();
     }
@@ -1094,6 +1240,9 @@ public sealed partial class MainWindow : Window
     {
         SelectNav(tag, navigate: true);
     }
+
+    /// <summary>离屏截图等自检流程读取当前页面实例，避免暴露 ContentFrame。</summary>
+    internal object? CurrentPage => ContentFrame.Content;
 
     private void Navigate(string tag)
     {
@@ -1555,9 +1704,19 @@ public sealed partial class MainWindow : Window
     private void LanguageButton_Click(object sender, RoutedEventArgs e)
     {
         var next = Localization.IsEnglish ? "zh" : "en";
-        Localization.Configure(next);
         App.Services.Settings.Language = next;
         App.Services.Settings.Save();
+        ApplyLanguage(next);
+    }
+
+    // 仅供内置语言回归检查使用：不写设置，只切换界面。
+    internal void SwitchLanguageForAudit(string next) => ApplyLanguage(next);
+    internal DependencyObject AuditRoot => RootGrid;
+
+    /// <summary>切换语言并重刷所有运行期改写的文案。</summary>
+    private void ApplyLanguage(string next)
+    {
+        Localization.Configure(next);
 
         Localization.Apply(RootGrid);
         if (ContentFrame.Content is Page current && current is ILanguageAware languageAware)
@@ -1566,14 +1725,18 @@ public sealed partial class MainWindow : Window
         UpdateShellInfo();
         UpdateLanguageButton();
 
-        // 运行期改写的状态文本不走遍历缓存，按最后一次中文原文重新翻译。
-        StatusText.Text = Localization.T(_lastStatusZh);
+        // 状态文案可能是带参数的动态字符串，用最后一次的渲染器重新生成。
+        StatusText.Text = _statusRender();
         EngineStateText.Text = Localization.T(_lastEngineStateZh);
-        if (!string.IsNullOrEmpty(_lastInfoTitle))
-        {
-            EngineInfoBar.Title = Localization.T(_lastInfoTitle);
+        // 通知栏默认标题也要跟随语言，否则未弹过提示时英文界面会残留 XAML 里的中文标题。
+        EngineInfoBar.Title = Localization.T(
+            string.IsNullOrEmpty(_lastInfoTitle) ? "引擎错误" : _lastInfoTitle);
+        if (!string.IsNullOrEmpty(_lastInfoMessage))
             EngineInfoBar.Message = Localization.T(_lastInfoMessage);
-        }
+
+        // Dock 悬浮提示由指针事件即时写入，切换语言时直接收起，下一次悬浮会按新语言重建。
+        if (DockHintHost.Visibility == Visibility.Visible)
+            DockHintHost.Visibility = Visibility.Collapsed;
 
         var title = Localization.T("游戏性能优化中心");
         Title = title;
@@ -1605,7 +1768,10 @@ public sealed partial class MainWindow : Window
                 UseShellExecute = true
             });
         }
-        catch { }
+        catch (Exception ex)
+        {
+            AppLog.Write("打开项目主页失败: " + ex.Message);
+        }
         await Task.CompletedTask;
     }
 

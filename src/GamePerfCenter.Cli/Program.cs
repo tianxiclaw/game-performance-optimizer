@@ -9,7 +9,18 @@ namespace GamePerfCenter.Cli;
 
 internal static class Program
 {
-    private const string Version = "26.2";
+    private static readonly string Version = ReadVersion();
+
+    private static string ReadVersion()
+    {
+        try
+        {
+            var v = typeof(Program).Assembly.GetName().Version;
+            if (v is not null) return $"{v.Major}.{v.Minor}";
+        }
+        catch { }
+        return "0.0";
+    }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

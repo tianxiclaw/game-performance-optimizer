@@ -8,7 +8,7 @@ using Microsoft.UI.Xaml.Controls;
 
 namespace GamePerfCenter.Pages;
 
-public sealed partial class DiagnosticsPage : Page, IThemeAware
+public sealed partial class DiagnosticsPage : Page, IThemeAware, ILanguageAware
 {
     private readonly ObservableCollection<DiagGroup> _groups = new();
     private readonly List<DiagEntry> _entries = new();
@@ -64,10 +64,10 @@ public sealed partial class DiagnosticsPage : Page, IThemeAware
     var warn = _entries.Count(e => IsWarn(e.Level));
     var ok = _entries.Count(e => IsOk(e.Level));
 
-    FilterAll.Content = $"全部 {_entries.Count}";
-    FilterAttention.Content = $"需关注 {bad + warn}";
-    FilterOk.Content = $"正常 {ok}";
-    DiagSummary.Text = $"{bad} 项警告 · {warn} 项注意 · {ok} 项正常";
+    FilterAll.Content = Localization.F("全部 {0}", _entries.Count);
+    FilterAttention.Content = Localization.F("需关注 {0}", bad + warn);
+    FilterOk.Content = Localization.F("正常 {0}", ok);
+    DiagSummary.Text = Localization.F("{0} 项警告 · {1} 项注意 · {2} 项正常", bad, warn, ok);
     PaintChips();
 }
 
@@ -87,8 +87,12 @@ private void ApplyFilter()
         var bad = items.Count(e => IsBad(e.Level));
         _groups.Add(new DiagGroup
         {
-            Name = group.Key,
-            Hint = bad > 0 ? $"{bad} 项需关注" : warn > 0 ? $"{warn} 项提示" : $"{items.Count} 项正常",
+            Name = GroupLabel(group.Key),
+            Hint = bad > 0
+                ? Localization.F("{0} 项需关注", bad)
+                : warn > 0
+                    ? Localization.F("{0} 项提示", warn)
+                    : Localization.F("{0} 项正常", items.Count),
             Items = items
         });
     }
@@ -97,16 +101,28 @@ private void ApplyFilter()
     var hasResult = filtered.Count > 0;
     ResultsCard.Visibility = hasResult ? Visibility.Visible : Visibility.Collapsed;
     EmptyHint.Visibility = hasResult ? Visibility.Collapsed : Visibility.Visible;
-    EmptyTitle.Text = hasAny
+    EmptyTitle.Text = Localization.T(hasAny
         ? "没有匹配的诊断项"
-        : _running ? "正在执行诊断" : "还没有诊断结果";
-    EmptyDetail.Text = hasAny
+        : _running ? "正在执行诊断" : "还没有诊断结果");
+    EmptyDetail.Text = Localization.T(hasAny
         ? "换个关键词，或切换到“全部”查看完整结果。"
         : _running
             ? "正在读取硬件、电源与服务状态，通常需要几秒。"
-            : "运行一次诊断，确认当前系统的风险与可优化项。";
+            : "运行一次诊断，确认当前系统的风险与可优化项。");
     EmptyAction.Visibility = hasAny || _running ? Visibility.Collapsed : Visibility.Visible;
 }
+
+/// <summary>引擎分组名是中文数据，英文界面单独映射，避免污染通用词表的反向还原。</summary>
+private static string GroupLabel(string name) => !Localization.IsEnglish ? name : name switch
+{
+    "系统" => "System",
+    "内存" => "Memory",
+    "显卡" => "GPU",
+    "网络" => "Network",
+    "供电" => "Power",
+    "其他" => "Other",
+    _ => name
+};
 
 private bool MatchLevel(DiagEntry entry) => _level switch
 {
@@ -260,4 +276,11 @@ private async void Run_Click(object sender, RoutedEventArgs e) => await RunDiagn
     }
 
     public void OnThemeChanged() { }
+
+    /// <summary>重建分组视图，让 x:Bind 的等级文案按新语言重新求值。</summary>
+    public void OnLanguageChanged()
+    {
+        UpdateSummary();
+        ApplyFilter();
+    }
 }

@@ -189,7 +189,10 @@ public sealed partial class BackupPage : Page, IThemeAware
             Directory.CreateDirectory(path);
             Process.Start(new ProcessStartInfo { FileName = "explorer.exe", Arguments = $"\"{path}\"", UseShellExecute = true });
         }
-        catch { }
+        catch (Exception ex)
+        {
+            AppLog.Write($"打开备份目录失败 {path}: {ex.Message}");
+        }
     }
 
     private async Task<bool> ConfirmAsync(string title, string message, string primary, string close,

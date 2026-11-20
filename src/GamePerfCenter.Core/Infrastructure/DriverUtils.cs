@@ -5,7 +5,7 @@ namespace GamePerfCenter.Core.Infrastructure;
 
 public static class DriverUtils
 {
-    private static readonly Regex RevPattern = new(@"&REV_[0-9A-Fa-f]+", RegexOptions.Compiled);
+    private static readonly Regex RevPattern = new(@"&REV_[0-9A-Fa-f]+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex VersionPattern = new(@"\d+(?:\.\d+){0,3}", RegexOptions.Compiled);
 
     /// <summary>去掉 REV 后缀并统一大写，用于比较硬件 ID 前缀。</summary>

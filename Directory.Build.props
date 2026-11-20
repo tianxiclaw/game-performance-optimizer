@@ -1,0 +1,9 @@
+<Project>
+  <!-- 全仓库唯一版本源：GUI、CLI、Core 与发布脚本都从这里取值。 -->
+  <PropertyGroup>
+    <AppVersion>26.5</AppVersion>
+    <Version>$(AppVersion)</Version>
+    <FileVersion>$(AppVersion).0</FileVersion>
+    <AssemblyVersion>$(AppVersion).0</AssemblyVersion>
+  </PropertyGroup>
+</Project>

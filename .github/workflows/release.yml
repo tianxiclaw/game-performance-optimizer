@@ -42,6 +42,12 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Run functional tests
+        shell: pwsh
+        run: |
+          dotnet run --project src/GamePerfCenter.Tests/GamePerfCenter.Tests.csproj -c Release -v:minimal
+          if ($LASTEXITCODE -ne 0) { throw '功能测试失败' }
+
       - name: Build portable package
         shell: pwsh
         run: |
@@ -53,9 +59,13 @@ jobs:
           $publish = Join-Path $env:RUNNER_TEMP 'publish'
 
           dotnet publish src/GamePerfCenter/GamePerfCenter.csproj `
-            -c Release -p:Platform=x64 -r win-x64 --self-contained true `
+            -c Release -p:Platform=x64 -p:AppVersion=$version -r win-x64 --self-contained true `
             -p:PublishReadyToRun=false -o $publish -v:minimal
           if ($LASTEXITCODE -ne 0) { throw "dotnet publish 失败" }
+
+          $exe = Join-Path $publish 'GamePerfCenter.exe'
+          $actual = [Diagnostics.FileVersionInfo]::GetVersionInfo($exe).FileVersion
+          if ($actual -ne "$version.0") { throw "程序集版本 $actual 与标签版本 $version 不一致" }
 
           New-Item -ItemType Directory -Path $stage -Force | Out-Null
           Copy-Item -Path (Join-Path $publish '*') -Destination $stage -Recurse -Force
@@ -74,6 +84,15 @@ jobs:
           foreach ($f in $files) {
             if (-not (Test-Path -LiteralPath $f)) { throw "缺少文件: $f" }
             Copy-Item -LiteralPath $f -Destination $fallback -Force
+          }
+
+          # 引擎脚本内的展示版本号同步为标签版本，避免与程序集漂移。
+          Get-ChildItem -LiteralPath $stage -Filter *.ps1 -File -Recurse | ForEach-Object {
+            $text = [IO.File]::ReadAllText($_.FullName, [Text.Encoding]::UTF8)
+            $updated = [regex]::Replace($text, "(?m)^(\`$script:AppVersion\s*=\s*)'[^']*'", "`${1}'$version'")
+            if ($updated -ne $text) {
+              [IO.File]::WriteAllText($_.FullName, $updated, (New-Object Text.UTF8Encoding($true)))
+            }
           }
 
           $root = (Get-Item -LiteralPath $stage).FullName

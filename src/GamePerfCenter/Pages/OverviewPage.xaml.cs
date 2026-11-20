@@ -1,10 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
-using Windows.Foundation;
-using Windows.UI.ViewManagement;
 using GamePerfCenter.Models;
 using GamePerfCenter.Services;
 using GamePerfCenter.Helpers;
@@ -13,11 +9,6 @@ namespace GamePerfCenter.Pages;
 
 public sealed partial class OverviewPage : Page, IThemeAware, ILanguageAware
 {
-    private const double SampleSeconds = 0.25;
-    private const int HistoryLimit = (int)(90 / SampleSeconds);
-    private const double SparkHeight = 44;
-    private readonly List<double> _cpuHistory = new();
-    private int _sparkTick;
     private bool? _gpuWasAvailable;
     private string _lastStamp = "";
     private readonly NumberRoll _cpuRoll;
@@ -25,6 +16,8 @@ public sealed partial class OverviewPage : Page, IThemeAware, ILanguageAware
     private readonly NumberRoll _ramRoll;
     private Storyboard? _pulse;
     private MainWindow? _shell;
+    /// <summary>主按钮当前是“一键应用”还是“查看待优化项”，由推荐项数量决定。</summary>
+    private bool _applyMode;
 
     public OverviewPage()
     {
@@ -36,52 +29,98 @@ public sealed partial class OverviewPage : Page, IThemeAware, ILanguageAware
         App.Services.State.Changed += OnStateChanged;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
-        Responsive.Watch(this, 1020, ApplyWidth);
-        Responsive.Watch(this, 760, ApplyMetricLayout);
+        Responsive.Watch(this, 1180, ApplyWidth);
         Responsive.Watch(this, 900, ApplyBottom);
     }
 
-    /// <summary>窄窗口时把优化进度移到实时负载下方，避免横向挤压。</summary>
+    /// <summary>宽屏三列；窄窗口下硬件与状态并排，实时资源独占一行，避免三块互相挤压。</summary>
     private void ApplyWidth(bool narrow)
     {
-        HeroGrid.ColumnDefinitions[1].Width = narrow ? new GridLength(0) : new GridLength(340);
-
         if (narrow)
         {
-            Grid.SetRow(PendingPanel, 1);
-            Grid.SetColumn(PendingPanel, 0);
-            Grid.SetColumnSpan(PendingPanel, 2);
-            PendingPanel.BorderThickness = new Thickness(0, 1, 0, 0);
-            PendingPanel.Padding = new Thickness(0, 20, 0, 0);
-            PendingPanel.Margin = new Thickness(0, 20, 0, 0);
+            HeroGrid.ColumnDefinitions[0].Width = new GridLength(320);
+            HeroGrid.ColumnDefinitions[1].Width = new GridLength(1, GridUnitType.Star);
+            HeroGrid.ColumnDefinitions[2].Width = new GridLength(0);
+            HeroGrid.RowSpacing = 16;
+
+            Grid.SetRow(HardwareCard, 0);
+            Grid.SetColumn(HardwareCard, 0);
+            Grid.SetColumnSpan(HardwareCard, 1);
+
+            Grid.SetRow(StatusCard, 0);
+            Grid.SetColumn(StatusCard, 1);
+            Grid.SetColumnSpan(StatusCard, 1);
+
+            Grid.SetRow(ResourceCard, 1);
+            Grid.SetColumn(ResourceCard, 0);
+            Grid.SetColumnSpan(ResourceCard, 2);
+
+            // 资源卡整行铺开，四项改为并排四列，保持与宽屏一致的读数距离。
+            for (var i = 0; i < 4; i++)
+                GaugeGrid.ColumnDefinitions[i].Width = new GridLength(1, GridUnitType.Star);
+            GaugeGrid.ColumnSpacing = 24;
+            GaugeGrid.RowDefinitions[1].Height = new GridLength(0);
+            GaugeGrid.RowDefinitions[2].Height = new GridLength(0);
+            GaugeGrid.RowDefinitions[3].Height = new GridLength(0);
+            PlaceGauge(CpuGauge, 0, 0);
+            PlaceGauge(GpuGauge, 0, 1);
+            PlaceGauge(RamGauge, 0, 2);
+            PlaceGauge(NetGauge, 0, 3);
+            SetGaugeGaps(0);
         }
         else
         {
-            Grid.SetRow(PendingPanel, 0);
-            Grid.SetColumn(PendingPanel, 1);
-            Grid.SetColumnSpan(PendingPanel, 1);
-            PendingPanel.BorderThickness = new Thickness(1, 0, 0, 0);
-            PendingPanel.Padding = new Thickness(20, 0, 0, 0);
-            PendingPanel.Margin = new Thickness(0);
+            HeroGrid.ColumnDefinitions[0].Width = new GridLength(300);
+            HeroGrid.ColumnDefinitions[1].Width = new GridLength(1, GridUnitType.Star);
+            HeroGrid.ColumnDefinitions[2].Width = new GridLength(290);
+            // 宽屏只用第 0 行；空行间距会白白撑高整块，所以关掉。
+            HeroGrid.RowSpacing = 0;
+
+            Grid.SetRow(HardwareCard, 0);
+            Grid.SetColumn(HardwareCard, 0);
+            Grid.SetColumnSpan(HardwareCard, 1);
+
+            Grid.SetRow(StatusCard, 0);
+            Grid.SetColumn(StatusCard, 1);
+            Grid.SetColumnSpan(StatusCard, 1);
+
+            Grid.SetRow(ResourceCard, 0);
+            Grid.SetColumn(ResourceCard, 2);
+            Grid.SetColumnSpan(ResourceCard, 1);
+
+            GaugeGrid.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
+            GaugeGrid.ColumnDefinitions[1].Width = new GridLength(0);
+            GaugeGrid.ColumnDefinitions[2].Width = new GridLength(0);
+            GaugeGrid.ColumnDefinitions[3].Width = new GridLength(0);
+            // 零宽列之间仍会算列间距，宽屏必须清零，否则卡片右侧被白白吃掉宽度。
+            GaugeGrid.ColumnSpacing = 0;
+            GaugeGrid.RowDefinitions[1].Height = GridLength.Auto;
+            GaugeGrid.RowDefinitions[2].Height = GridLength.Auto;
+            GaugeGrid.RowDefinitions[3].Height = GridLength.Auto;
+            PlaceGauge(CpuGauge, 0, 0);
+            PlaceGauge(GpuGauge, 1, 0);
+            PlaceGauge(RamGauge, 2, 0);
+            PlaceGauge(NetGauge, 3, 0);
+            SetGaugeGaps(16);
         }
     }
 
-    /// <summary>很窄时三个指标块改为单列，避免数字被挤成两行。</summary>
-    private void ApplyMetricLayout(bool compact)
+    /// <summary>宽屏四项上下排列，需要行间留白；窄屏并排时不再加底部外边距。</summary>
+    private void SetGaugeGaps(double gap)
     {
-        Grid.SetRow(MetricGpu, 0);
-        Grid.SetRow(MetricMem, compact ? 1 : 0);
-        Grid.SetRow(MetricNet, compact ? 2 : 0);
-
-        Grid.SetColumn(MetricGpu, 0);
-        Grid.SetColumn(MetricMem, compact ? 0 : 1);
-        Grid.SetColumn(MetricNet, compact ? 0 : 2);
-
-        MetricGrid.ColumnDefinitions[1].Width = compact ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
-        MetricGrid.ColumnDefinitions[2].Width = compact ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        CpuGauge.Margin = new Thickness(0, 0, 0, gap);
+        GpuGauge.Margin = new Thickness(0, 0, 0, gap);
+        RamGauge.Margin = new Thickness(0, 0, 0, gap);
     }
 
-    /// <summary>窄窗口时硬件与安全改为上下排列。</summary>
+    private static void PlaceGauge(FrameworkElement gauge, int row, int column)
+    {
+        Grid.SetRow(gauge, row);
+        Grid.SetColumn(gauge, column);
+        Grid.SetColumnSpan(gauge, 1);
+    }
+
+    /// <summary>窄窗口时底部两张卡改为上下排列。</summary>
     private void ApplyBottom(bool narrow)
     {
         if (narrow)
@@ -89,14 +128,14 @@ public sealed partial class OverviewPage : Page, IThemeAware, ILanguageAware
             Grid.SetRow(SecurityCard, 1);
             Grid.SetColumn(SecurityCard, 0);
             Grid.SetColumnSpan(SecurityCard, 2);
-            SecurityCard.Margin = new Thickness(0, 12, 0, 0);
+            BottomGrid.RowSpacing = 14;
         }
         else
         {
             Grid.SetRow(SecurityCard, 0);
             Grid.SetColumn(SecurityCard, 1);
             Grid.SetColumnSpan(SecurityCard, 1);
-            SecurityCard.Margin = new Thickness(0);
+            BottomGrid.RowSpacing = 0;
         }
     }
 
@@ -173,20 +212,27 @@ public sealed partial class OverviewPage : Page, IThemeAware, ILanguageAware
         {
             StatusHeadline.Text = Localization.T("正在读取本机状态...");
             StatusDetail.Text = string.IsNullOrWhiteSpace(App.Services.State.StatusText)
-                ? Localization.T("正在采集硬件与优化项状态。")
+                ? Localization.T("正在采集硬件与优化项状态，通常需要几秒。")
                 : App.Services.State.StatusText;
             PendingCount.Text = "--";
-            CompletionBar.Value = 0;
+            StatusRing.Value = 0;
             AppliedText.Text = Localization.T("已生效 -- 项");
-            RecoText.Text = Localization.T("低风险推荐 -- 项");
             RebootText.Text = Localization.T("重启状态：读取中");
-            SecurityText.Text = Localization.T("安全与存储：读取中");
-            ApplyRecommendedButton.Content = Localization.T("应用推荐项");
+            SecurityText.Text = Localization.T("正在检查...");
+            LastApplyText.Text = Localization.T("正在读取优化记录...");
+            ApplyRecommendedButton.Content = Localization.T("一键优化推荐项");
             ApplyRecommendedButton.IsEnabled = false;
-            HardwareSubtitle.Text = Localization.T("正在读取设备信息...");
-            SignalPower.Text = "—";
-            SignalGpu.Text = "—";
-            SignalApply.Text = "—";
+            PreviewButton.IsEnabled = false;
+            _applyMode = false;
+            MachineLine.Text = Localization.T("正在读取设备...");
+            CpuFactValue.Text = Localization.T("读取中...");
+            CpuFactSub.Text = "CPU";
+            GpuFactValue.Text = Localization.T("读取中...");
+            GpuFactSub.Text = "GPU";
+            RamFactValue.Text = Localization.T("读取中...");
+            RamFactSub.Text = "RAM";
+            DisplayFactValue.Text = Localization.T("读取中...");
+            DisplayFactSub.Text = Localization.T("显示输出");
             return;
         }
 
@@ -194,17 +240,37 @@ public sealed partial class OverviewPage : Page, IThemeAware, ILanguageAware
         var s = snap.Summary;
         PendingCount.Text = s.Pending.ToString();
         UpdateCompletion(s.Applied, s.Total, s.NotApplicable, s.Checking);
-        StatusHeadline.Text = Localization.T(s.Pending == 0 ? "当前没有待优化项" : "还有可应用的优化项");
+
+        StatusHeadline.Text = Localization.T(s.Pending == 0
+            ? "整体状态良好"
+            : "还有可优化空间");
         StatusDetail.Text = s.Pending == 0
-            ? Localization.T("推荐项均已生效。可以打开优化项手动复查，或预览当前配置。")
-            : Localization.F("{0} 项低风险推荐项可直接应用；应用前自动备份原值，可在「备份还原」中撤销。", recommended.Count);
-        RecoText.Text = recommended.Count > 0
-            ? Localization.F("低风险推荐 {0} 项可应用", recommended.Count)
-            : Localization.T("低风险推荐：暂无待应用项");
-        ApplyRecommendedButton.Content = recommended.Count > 0
-            ? Localization.F("应用 {0} 项", recommended.Count)
-            : Localization.T("暂无推荐项");
-        ApplyRecommendedButton.IsEnabled = recommended.Count > 0;
+            ? Localization.T("推荐项都已生效，可以放心开游戏。")
+            : recommended.Count > 0
+                ? Localization.F("其中 {0} 项低风险推荐，点一下就能应用，应用前自动备份。", recommended.Count)
+                : Localization.F("共 {0} 项待处理，部分项目需要确认后再决定。", s.Pending);
+
+        // 有低风险推荐才给“一键优化”；否则主按钮转为“查看待优化项”，不留死路。
+        _applyMode = recommended.Count > 0;
+        PreviewButton.Visibility = _applyMode ? Visibility.Visible : Visibility.Collapsed;
+        if (_applyMode)
+        {
+            ApplyRecommendedButton.Content = Localization.F("一键优化 {0} 项", recommended.Count);
+            ApplyRecommendedButton.IsEnabled = true;
+            ToolTipService.SetToolTip(ApplyRecommendedButton, Localization.T("应用全部低风险推荐项，应用前自动备份原值"));
+        }
+        else if (s.Pending > 0)
+        {
+            ApplyRecommendedButton.Content = Localization.F("查看这 {0} 项", s.Pending);
+            ApplyRecommendedButton.IsEnabled = true;
+            ToolTipService.SetToolTip(ApplyRecommendedButton, Localization.T("打开优化项列表，逐项确认后再应用"));
+        }
+        else
+        {
+            ApplyRecommendedButton.Content = Localization.T("全部已优化");
+            ApplyRecommendedButton.IsEnabled = false;
+            ToolTipService.SetToolTip(ApplyRecommendedButton, Localization.T("当前没有待优化项"));
+        }
 
         RebootText.Text = Localization.T(snap.PendingReboot?.Pending == true
             ? "重启状态：等待重启后生效"
@@ -212,65 +278,118 @@ public sealed partial class OverviewPage : Page, IThemeAware, ILanguageAware
         var issues = snap.Diagnostics.Count(d =>
             d.Group is "安全" or "存储" && d.Level is "Red" or "Yellow");
         SecurityText.Text = issues == 0
-            ? Localization.T("安全与存储：未见异常")
-            : Localization.F("安全与存储：{0} 项提示", issues);
+            ? Localization.T("未发现需要处理的异常。")
+            : Localization.F("有 {0} 项提示，建议查看诊断报告。", issues);
 
         var machine = string.IsNullOrWhiteSpace(snap.Machine) ? "本机" : snap.Machine;
+        MachineLine.Text = Localization.F("{0} · {1}", machine, Localization.T(snap.IsLaptop ? "笔记本" : "台式机"));
+
+        // 左侧只保留四件用户真正关心的事：处理器、显卡、内存、显示器。
+        var cpu = snap.Diagnostics.FirstOrDefault(d => d.Group == "系统" && d.Name == "CPU");
+        var cpuFact = SplitFact(cpu?.Value, "处理器");
+        CpuFactValue.Text = FriendlyName(cpuFact.Main);
+        CpuFactSub.Text = cpuFact.Sub;
+        ToolTipService.SetToolTip(CpuFactValue, cpuFact.Main);
+
+        var gpu = snap.Gpus
+            .Where(g => !g.Basic && !g.Virtual)
+            .OrderByDescending(g => g.Dedicated)
+            .FirstOrDefault();
+        if (gpu is not null && !string.IsNullOrWhiteSpace(gpu.Name))
+        {
+            GpuFactValue.Text = FriendlyName(gpu.Name);
+            ToolTipService.SetToolTip(GpuFactValue, gpu.Name);
+            var kind = Localization.T(gpu.Dedicated ? "独立显卡" : "集成显卡");
+            var vram = gpu.VRAM is > 0
+                ? Localization.F("{0} GB 显存", (gpu.VRAM.Value / 1073741824.0).ToString("0.#"))
+                : Localization.T("共享内存");
+            GpuFactSub.Text = $"{kind} · {vram}";
+        }
+        else
+        {
+            GpuFactValue.Text = Localization.T("未识别到显卡");
+            GpuFactSub.Text = "GPU";
+        }
+
+        var ram = snap.Diagnostics.FirstOrDefault(d => d.Group == "系统" && d.Name == "内存");
+        var ramFact = SplitFact(ram?.Value, "内存");
+        RamFactValue.Text = ramFact.Main;
+        var freq = snap.Diagnostics.FirstOrDefault(d => d.Group == "系统" && d.Name == "内存频率");
+        RamFactSub.Text = freq is null ? ramFact.Sub : MemorySpeed(freq.Value, ramFact.Sub);
+
+        var display = snap.Displays.FirstOrDefault();
+        if (display is not null && display.Width > 0 && display.Height > 0)
+        {
+            DisplayFactValue.Text = $"{display.Width} × {display.Height}";
+            var hz = display.Refresh > 0 ? $"{display.Refresh} Hz" : Localization.T("刷新率未知");
+            if (display.MaxRefresh > display.Refresh && display.Refresh > 0)
+                hz += Localization.F(" · 最高 {0} Hz", display.MaxRefresh);
+            DisplayFactSub.Text = hz;
+        }
+        else
+        {
+            DisplayFactValue.Text = Localization.T("未检测到显示器");
+            DisplayFactSub.Text = Localization.T("显示输出");
+        }
+
         var gpus = snap.Gpus.Where(g => !g.Basic && !g.Virtual)
             .Select(g => g.Name)
             .Where(n => !string.IsNullOrWhiteSpace(n))
             .ToList();
-        LiveDeviceLine.Text = gpus.Count > 0
+        ToolTipService.SetToolTip(LiveStamp, gpus.Count > 0
             ? Localization.T("显示设备 · ") + string.Join(" + ", gpus)
-            : Localization.T("未识别到显示设备");
-        HardwareSubtitle.Text = $"{machine} · {Localization.T(snap.IsLaptop ? "笔记本" : "台式机")}";
-        SignalPower.Text = Localization.T(snap.OnAC switch { true => "交流供电", false => "电池供电", _ => "未知" });
-        SignalGpu.Text = Localization.T(App.Services.Metrics.GpuAvailable ? "可用 · 1 秒刷新" : "不可用");
-        SignalApply.Text = snap.LastApply is null
-            ? Localization.T("暂无记录")
-            : Localization.F("{0} 项 · {1}", snap.LastApply.Items.Count, ShortTime(snap.LastApply.Time));
+            : Localization.T("未识别到显示设备"));
+
+        LastApplyText.Text = snap.LastApply is null
+            ? Localization.T("还没有优化记录。")
+            : Localization.F("{0} 项优化 · {1}", snap.LastApply.Items.Count, ShortTime(snap.LastApply.Time));
 
         PendingBar.IsOpen = snap.PendingReboot?.Pending == true;
         if (snap.PendingReboot?.Pending == true)
             PendingBar.Message = Localization.F("检测到系统等待重启：{0}。部分优化需要重启后才会生效。",
                 string.Join(Localization.IsEnglish ? ", " : "、", snap.PendingReboot.Reasons));
-
-        HardwareList.ItemsSource = HardwareSummary(snap.Diagnostics);
-        var extra = new List<DiagEntry>();
-        if (snap.LastApply is not null)
-        {
-            extra.Add(new DiagEntry
-            {
-                Group = Localization.T("记录"),
-                Name = Localization.T("上次应用"),
-                Value = string.IsNullOrWhiteSpace(snap.LastApply.Result)
-                    ? Localization.F("{0} 项 · {1}", snap.LastApply.Items.Count, snap.LastApply.Time)
-                    : snap.LastApply.Result,
-                Level = snap.LastApply.Errors.Count > 0 ? "Yellow" : "Green"
-            });
-        }
-        DiagList.ItemsSource = snap.Diagnostics
-            .Where(d => d.Group is "安全" or "存储")
-            .Concat(extra)
-            .Take(8)
-            .ToList();
-        HardwareUpdated.Text = Localization.F("更新于 {0}", snap.Time?.Replace('T', ' '));
     }
 
-    /// <summary>完成度只画一条细进度条，仪表位置留给实时负载。</summary>
+    /// <summary>诊断值形如“32.0 GB | 2 根”，拆成主值与说明两部分。</summary>
+    private static (string Main, string Sub) SplitFact(string? value, string fallbackSub)
+    {
+        var text = (value ?? "").Trim();
+        if (text.Length == 0) return (Localization.T("未检测到"), fallbackSub);
+        var parts = text.Split('|', 2, StringSplitOptions.TrimEntries);
+        return parts.Length == 2 ? (parts[0], parts[1]) : (text, fallbackSub);
+    }
+
+    /// <summary>去掉“(R)/(TM)”与显存括注，让硬件名在窄卡片里保持一行。</summary>
+    private static string FriendlyName(string? name)
+    {
+        var text = (name ?? "").Trim();
+        if (text.Length == 0) return "";
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"\((?:R|TM)\)", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"\s*\([^)]*\d+\s*GB[^)]*\)", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"\s{2,}", " ");
+        return text.Trim();
+    }
+
+    /// <summary>“配置 8533 MT/s / 标称 8533 MT/s”只保留运行频率。</summary>
+    private static string MemorySpeed(string? value, string fallback)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(value ?? "", @"配置\s*(\d+)\s*MT/s");
+        return match.Success ? $"{match.Groups[1].Value} MT/s" : fallback;
+    }
+
+    /// <summary>圆环只表达优化完成度，数字留给待优化项数量。</summary>
     private void UpdateCompletion(int applied, int total, int notApplicable, int checking)
     {
         var effective = Math.Max(0, total - notApplicable);
         var fraction = effective > 0 ? Math.Clamp((double)applied / effective, 0d, 1d) : 0d;
-        CompletionBar.Value = fraction * 100;
+        StatusRing.Value = fraction * 100;
 
         var line = effective > 0
-            ? Localization.F("已生效 {0} / {1} 项可优化", applied, effective)
+            ? Localization.F("已生效 {0} / {1} 项", applied, effective)
             : Localization.T("已生效 -- 项");
-        if (notApplicable > 0) line += " · " + Localization.F("{0} 项不适用", notApplicable);
         if (checking > 0) line += " · " + Localization.F("{0} 项检测中", checking);
         AppliedText.Text = line;
-        ToolTipService.SetToolTip(CompletionBar, effective > 0
+        ToolTipService.SetToolTip(StatusRing, effective > 0
             ? Localization.F("优化完成度 {0}", fraction.ToString("P0"))
             : Localization.T("优化完成度：正在读取本机状态"));
     }
@@ -278,10 +397,7 @@ public sealed partial class OverviewPage : Page, IThemeAware, ILanguageAware
     private void OnMetrics(LiveMetrics m)
     {
         _cpuRoll.To(m.Cpu);
-        PushHistory(_cpuHistory, m.Cpu);
-        // 趋势线保留 4Hz 采样，但重绘降到 2Hz，减少无意义的点位重建。
-        if (++_sparkTick % 2 == 0)
-            RenderSpark(CpuSparkLine, _cpuHistory, SparkCanvas.ActualWidth);
+        CpuBar.Value = m.Cpu;
 
         var gpuAvailable = App.Services.Metrics.GpuAvailable;
         if (gpuAvailable) _gpuRoll.To(m.Gpu);
@@ -289,85 +405,22 @@ public sealed partial class OverviewPage : Page, IThemeAware, ILanguageAware
         if (_gpuWasAvailable != gpuAvailable)
         {
             _gpuWasAvailable = gpuAvailable;
-            GpuRingLabel.Text = Localization.T(gpuAvailable ? "专用显卡 3D 引擎" : "GPU 数据不可用");
-            SignalGpu.Text = Localization.T(gpuAvailable ? "可用 · 1 秒刷新" : "不可用");
+            GpuRingLabel.Text = Localization.T(gpuAvailable ? "显卡 3D 负载" : "GPU 数据不可用");
         }
         GpuBar.Value = gpuAvailable ? m.Gpu : 0;
 
-        _ramRoll.To(m.RamPercent, "0", "%");
+        _ramRoll.To(m.RamPercent, "0");
         RamBar.Value = m.RamPercent;
         RamHint.Text = Localization.F("{0} / {1} GB 已用", m.RamUsedGb.ToString("0.0"), m.RamTotalGb.ToString("0.0"));
 
         NetValue.Text = "↓ " + FormatRate(m.NetDownKbps);
         NetHint.Text = "↑ " + FormatRate(m.NetUpKbps);
-        var stamp = Localization.F("更新于 {0} · 0.25 秒采样", DateTime.Now.ToString("HH:mm:ss"));
+        var stamp = Localization.F("更新于 {0}", DateTime.Now.ToString("HH:mm:ss"));
         if (stamp != _lastStamp)
         {
             _lastStamp = stamp;
             LiveStamp.Text = stamp;
         }
-    }
-
-    private static void PushHistory(List<double> history, double value)
-    {
-        history.Add(value);
-        if (history.Count > HistoryLimit) history.RemoveRange(0, history.Count - HistoryLimit);
-    }
-
-    /// <summary>趋势线悬停读数：按采样序号换算，不伪造插值。</summary>
-    private void Spark_PointerMoved(object sender, PointerRoutedEventArgs e)
-    {
-        var count = _cpuHistory.Count;
-        if (count < 2) return;
-        var width = Math.Max(80, SparkCanvas.ActualWidth);
-        var height = SparkHeight;
-
-        var pointerX = e.GetCurrentPoint(SparkCanvas).Position.X;
-        var index = (int)Math.Round(Math.Clamp(pointerX, 0, width) / width * (count - 1));
-        index = Math.Clamp(index, 0, count - 1);
-
-        var x = index * width / (count - 1);
-        var y = height - 2 - Math.Clamp(_cpuHistory[index], 0, 100) / 100 * (height - 4);
-        Canvas.SetLeft(SparkCursor, x);
-        Canvas.SetTop(SparkCursor, 2);
-        Canvas.SetLeft(SparkMarker, x - 3);
-        Canvas.SetTop(SparkMarker, y - 3);
-        SparkCursor.Visibility = Visibility.Visible;
-        SparkMarker.Visibility = Visibility.Visible;
-        SparkReadout.Text = $"{_cpuHistory[index]:0}% · {(count - 1 - index) * SampleSeconds:0.##}s 前";
-        SparkReadout.Visibility = Visibility.Visible;
-    }
-
-    private void Spark_PointerExited(object sender, PointerRoutedEventArgs e)
-    {
-        SparkCursor.Visibility = Visibility.Collapsed;
-        SparkMarker.Visibility = Visibility.Collapsed;
-        SparkReadout.Visibility = Visibility.Collapsed;
-    }
-
-    private void Spark_SizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        if (_cpuHistory.Count >= 2) RenderSpark(CpuSparkLine, _cpuHistory, e.NewSize.Width);
-    }
-
-    private static void RenderSpark(Microsoft.UI.Xaml.Shapes.Polyline line, IReadOnlyList<double> values, double width)
-    {
-        if (width < 80) return;
-        var height = SparkHeight;
-        if (values.Count < 2)
-        {
-            line.Points.Clear();
-            return;
-        }
-
-        var points = new PointCollection();
-        for (var i = 0; i < values.Count; i++)
-        {
-            var x = i * width / (values.Count - 1);
-            var y = height - 2 - Math.Clamp(values[i], 0, 100) / 100 * (height - 4);
-            points.Add(new Point(x, y));
-        }
-        line.Points = points;
     }
 
     private static string FormatRate(double kbps)
@@ -415,6 +468,12 @@ public sealed partial class OverviewPage : Page, IThemeAware, ILanguageAware
 
     private async void ApplyRecommended_Click(object sender, RoutedEventArgs e)
     {
+        // 没有低风险推荐时，主按钮是“查看待优化项”，直接跳到列表逐项确认。
+        if (!_applyMode)
+        {
+            if (App.MainWindow is MainWindow main) main.NavigateTo("items");
+            return;
+        }
         var ids = GetRecommendedIds();
         if (ids.Count == 0)
         {
@@ -530,32 +589,17 @@ public sealed partial class OverviewPage : Page, IThemeAware, ILanguageAware
         ActionInfo.Title = Localization.T(title);
         ActionInfo.Message = Localization.T(message);
         ActionInfo.Severity = severity;
+        ActionInfo.Visibility = Visibility.Visible;
         ActionInfo.IsOpen = true;
     }
 
-    /// <summary>
-    /// 概览只保留回答“这台机器是什么”的四行：系统、CPU、内存、显卡。
-    /// 完整清单在诊断报告页，避免首屏被九行硬件信息撑出折叠线。
-    /// </summary>
-    private static List<DiagEntry> HardwareSummary(IEnumerable<DiagEntry> diagnostics)
+    /// <summary>关闭后彻底折叠，避免空 InfoBar 在首屏占一条高度。</summary>
+    private void ActionInfo_Closed(InfoBar sender, InfoBarClosedEventArgs args)
+        => ActionInfo.Visibility = Visibility.Collapsed;
+
+    private void OpenBackup_Click(object sender, RoutedEventArgs e)
     {
-        var all = diagnostics.Where(d => d.Group is "系统" or "显卡").ToList();
-        var picked = new List<DiagEntry>();
-        foreach (var name in new[] { "操作系统", "CPU", "内存" })
-        {
-            var entry = all.FirstOrDefault(d => string.Equals(d.Name, name, StringComparison.Ordinal));
-            if (entry is not null) picked.Add(entry);
-        }
-
-        var gpu = all.FirstOrDefault(d => d.Group == "显卡");
-        if (gpu is not null) picked.Add(gpu);
-
-        foreach (var entry in all)
-        {
-            if (picked.Count >= 4) break;
-            if (!picked.Contains(entry)) picked.Add(entry);
-        }
-        return picked;
+        if (App.MainWindow is MainWindow main) main.NavigateTo("backup");
     }
 
     private void OpenDiagnostics_Click(object sender, RoutedEventArgs e)
@@ -565,13 +609,8 @@ public sealed partial class OverviewPage : Page, IThemeAware, ILanguageAware
 
     public void OnThemeChanged()
     {
-        if (App.Services.State.Snapshot is { } snap)
-        {
-            HardwareList.ItemsSource = null;
-            DiagList.ItemsSource = null;
-            HardwareList.ItemsSource = HardwareSummary(snap.Diagnostics);
-            DiagList.ItemsSource = snap.Diagnostics.Where(d => d.Group is "安全" or "存储").Take(8).ToList();
-        }
+        // 概览全部使用主题资源绑定；切主题时不需要重建任何列表。
+        RefreshUi();
     }
 
     public void OnLanguageChanged() => RefreshUi();

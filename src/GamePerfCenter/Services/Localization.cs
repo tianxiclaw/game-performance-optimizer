@@ -65,6 +65,10 @@ public static class Localization
             case InfoBar bar:
                 Set(element, "Title", bar.Title, v => bar.Title = v);
                 Set(element, "Message", bar.Message, v => bar.Message = v);
+                // 动态拼出来的英文提示无法反查回中文源；切回中文时直接收起，
+                // 避免一条英文通知一直留在界面上。下一次同义操作会重新给出中文提示。
+                if (!IsEnglish && (LooksEnglish(bar.Title) || LooksEnglish(bar.Message)))
+                    bar.IsOpen = false;
                 break;
             case ToggleSwitch toggle:
                 if (toggle.Header is string headerText)
@@ -94,9 +98,32 @@ public static class Localization
             Set(element, "AutomationName", name, v => AutomationProperties.SetName(element, v));
     }
 
+    private static bool LooksEnglish(string? text)
+        => !string.IsNullOrWhiteSpace(text)
+           && text.Any(char.IsAsciiLetter)
+           && !text.Any(c => c >= 0x4E00 && c <= 0x9FFF);
+
     private static string Lookup(string zh)
         => English.TryGetValue(zh, out var en) ? en
             : English.TryGetValue(zh.Trim(), out en) ? en : zh;
+
+    /// <summary>
+    /// 尝试把界面上的文案还原成中文源。中文源直接返回；英文译文通过反向表还原；
+    /// 引擎数据或带参数的动态文案返回 false，避免误改用户内容。
+    /// </summary>
+    public static bool TryToSource(string? text, out string source)
+    {
+        source = "";
+        if (string.IsNullOrEmpty(text)) return false;
+        if (English.ContainsKey(text)) { source = text; return true; }
+        if (Chinese.TryGetValue(text, out var zh)) { source = zh; return true; }
+
+        var trimmed = text.Trim();
+        if (trimmed.Length == 0) return false;
+        if (English.ContainsKey(trimmed)) { source = trimmed; return true; }
+        if (Chinese.TryGetValue(trimmed, out zh)) { source = zh; return true; }
+        return false;
+    }
 
     private static void Set(DependencyObject element, string key, string? current, Action<string> assign)
     {
@@ -113,13 +140,148 @@ public static class Localization
 
         if (!originals.TryGetValue(key, out var source))
         {
-            if (!English.ContainsKey(current) && !English.ContainsKey(current.Trim())) return;
-            source = current;
+            // 元素可能是在英文模式下首次创建（转换器、x:Bind、代码赋值），
+            // 此时当前值是英文译文，需要先反查回中文源，否则切回中文时无法还原。
+            if (!TryToSource(current, out source)) return;
             originals[key] = source;
         }
 
         var target = IsEnglish ? Lookup(source) : source;
         if (!string.Equals(current, target, StringComparison.Ordinal)) assign(target);
+    }
+
+    /// <summary>诊断用：遍历界面，列出仍然是英文译文的文案。</summary>
+    internal static List<string> AuditEnglish(DependencyObject? root, string scope)
+    {
+        var found = new List<string>();
+        if (root is null) return found;
+
+        void Check(DependencyObject element, string kind, string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return;
+            var value = text.Trim();
+            if (value.Length < 2) return;
+            if (value.Any(c => c >= 0x4E00 && c <= 0x9FFF)) return;
+            // 中英文都直接使用这些单位与缩写，不能算“残留英文”。
+            if (LanguageNeutral.Contains(value)) return;
+
+            var hit = Chinese.ContainsKey(text) || Chinese.ContainsKey(value) || MatchesTemplate(value);
+            if (!hit) return;
+            var name = (element as FrameworkElement)?.Name;
+            found.Add($"{scope} {kind} {(string.IsNullOrEmpty(name) ? element.GetType().Name : name)}: {value}");
+        }
+
+        switch (root)
+        {
+            case TextBlock text: Check(root, "Text", text.Text); break;
+            case InfoBar bar:
+                Check(root, "InfoTitle", bar.Title);
+                Check(root, "InfoMessage", bar.Message);
+                break;
+            case ContentControl content when content.Content is string s: Check(root, "Content", s); break;
+            case MenuFlyoutItem menu: Check(root, "Menu", menu.Text); break;
+        }
+        if (ToolTipService.GetToolTip(root) is string tip) Check(root, "Tip", tip);
+        var automation = AutomationProperties.GetName(root);
+        if (!string.IsNullOrEmpty(automation) && !IsFrameworkButton(root)) Check(root, "Name", automation);
+
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++) found.AddRange(AuditEnglish(VisualTreeHelper.GetChild(root, i), scope));
+        return found;
+    }
+
+    /// <summary>诊断用：英文模式下仍显示中文的界面文案。运行数据不会命中词表，避免误报。</summary>
+    internal static List<string> AuditUntranslated(DependencyObject? root, string scope)
+    {
+        var found = new List<string>();
+        if (root is null) return found;
+
+        void Check(DependencyObject element, string kind, string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return;
+            var value = text.Trim();
+            if (value.Length < 2) return;
+            if (!value.Any(c => c >= 0x4E00 && c <= 0x9FFF)) return;
+            if (!English.ContainsKey(text) && !English.ContainsKey(value) && !MatchesChineseTemplate(value))
+                return;
+            var name = (element as FrameworkElement)?.Name;
+            found.Add($"{scope} UNTRANSLATED {kind} " +
+                      $"{(string.IsNullOrEmpty(name) ? element.GetType().Name : name)}: {value}");
+        }
+
+        switch (root)
+        {
+            case TextBlock text: Check(root, "Text", text.Text); break;
+            case InfoBar bar:
+                Check(root, "InfoTitle", bar.Title);
+                Check(root, "InfoMessage", bar.Message);
+                break;
+            case ContentControl content when content.Content is string s: Check(root, "Content", s); break;
+            case MenuFlyoutItem menu: Check(root, "Menu", menu.Text); break;
+            case ToggleSwitch toggle:
+                if (toggle.Header is string header) Check(root, "Header", header);
+                if (toggle.OnContent is string on) Check(root, "OnContent", on);
+                if (toggle.OffContent is string off) Check(root, "OffContent", off);
+                break;
+        }
+        if (ToolTipService.GetToolTip(root) is string tip) Check(root, "Tip", tip);
+        var automation = AutomationProperties.GetName(root);
+        if (!string.IsNullOrEmpty(automation) && !IsFrameworkButton(root)) Check(root, "Name", automation);
+
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var i = 0; i < count; i++)
+            found.AddRange(AuditUntranslated(VisualTreeHelper.GetChild(root, i), scope));
+        return found;
+    }
+
+    private static List<System.Text.RegularExpressions.Regex> BuildChineseTemplates()
+    {
+        var list = new List<System.Text.RegularExpressions.Regex>();
+        foreach (var zh in English.Keys)
+        {
+            if (!zh.Contains('{')) continue;
+            var pattern = "^" + System.Text.RegularExpressions.Regex.Escape(zh)
+                .Replace("\\{0\\}", ".+?")
+                .Replace("\\{1\\}", ".+?")
+                .Replace("\\{2\\}", ".+?")
+                .Replace("\\{3\\}", ".+?") + "$";
+            list.Add(new System.Text.RegularExpressions.Regex(pattern,
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant));
+        }
+        return list;
+    }
+
+    private static bool MatchesChineseTemplate(string text) => ChineseTemplates.Any(r => r.IsMatch(text));
+
+    private static List<System.Text.RegularExpressions.Regex> BuildTemplates()
+    {
+        var list = new List<System.Text.RegularExpressions.Regex>();
+        foreach (var en in English.Values)
+        {
+            if (!en.Contains('{')) continue;
+            var pattern = "^" + System.Text.RegularExpressions.Regex.Escape(en)
+                .Replace("\\{0\\}", ".+?")
+                .Replace("\\{1\\}", ".+?")
+                .Replace("\\{2\\}", ".+?")
+                .Replace("\\{3\\}", ".+?") + "$";
+            list.Add(new System.Text.RegularExpressions.Regex(pattern,
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant));
+        }
+        return list;
+    }
+
+    private static bool MatchesTemplate(string text) => Templates.Any(r => r.IsMatch(text));
+
+    private static Dictionary<string, string> BuildChinese()
+    {
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var pair in English)
+        {
+            if (string.IsNullOrEmpty(pair.Value)) continue;
+            // 同一个英文可能对应多个中文键；保留第一个即可保证“切回中文再切回英文”结果稳定。
+            if (!map.ContainsKey(pair.Value)) map[pair.Value] = pair.Key;
+        }
+        return map;
     }
 
     private sealed class Originals
@@ -133,9 +295,20 @@ public static class Localization
     private static readonly HashSet<string> DynamicSources = new(StringComparer.Ordinal)
     {
         "StatusText", "EngineStateText", "TopBreadcrumb", "DrawerPageTitle", "DrawerPageDesc",
-        "TopPendingText", "DrawerPendingText", "PaneEngineText", "PaneDeviceName",
+        "PendingTipTitle", "PendingTipHint", "DrawerPendingText", "PaneEngineText", "PaneDeviceName",
         "DockHintText", "CountText", "EngineInfoBar"
     };
+
+    /// <summary>中英文通用、不需要翻译的单位与缩写，审计时跳过。</summary>
+    private static readonly HashSet<string> LanguageNeutral = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "CPU", "GPU", "FPS", "Hz", "ms", "MB", "GB", "TB", "SSD", "HDD", "VRAM",
+        "IP", "DNS", "USB", "PCIe"
+    };
+
+    /// <summary>InfoBar 自带的关闭按钮，其可访问性名称跟随系统语言，不属于本项目的界面文案。</summary>
+    private static bool IsFrameworkButton(DependencyObject element)
+        => element is Button && (element as FrameworkElement)?.Name == "CloseButton";
 
     private static readonly Dictionary<string, string> English = new(StringComparer.Ordinal)
     {
@@ -146,6 +319,11 @@ public static class Localization
         ["概览"] = "Overview",
         ["仅本机运行"] = "Runs locally",
         ["待优化"] = "Pending",
+        ["待优化项"] = "Pending optimizations",
+        ["待优化项：{0}"] = "Pending optimizations: {0}",
+        ["还有 {0} 项待优化"] = "{0} pending items",
+        ["单击查看全部 {0} 项"] = "Click to view all {0}",
+        ["以及另外 {0} 项"] = "and {0} more",
         ["查看待应用的低风险优化项"] = "View pending low-risk optimizations",
         ["浅色主题"] = "Light theme",
         ["深色主题"] = "Dark theme",
@@ -178,6 +356,25 @@ public static class Localization
 
         // 底部状态 / 导航
         ["正在启动..."] = "Starting...",
+        ["正在启动引擎..."] = "Starting engine...",
+        ["正在生成变更预览..."] = "Generating change preview...",
+        ["正在应用 {0} 项优化..."] = "Applying {0} optimization(s)...",
+        ["预览完成: {0} 项将变更"] = "Preview complete: {0} item(s) to change",
+        ["应用完成: 成功 {0} 项, 失败 {1} 项"] = "Apply complete: {0} succeeded, {1} failed",
+        ["操作失败: {0}"] = "Operation failed: {0}",
+        ["引擎连接中断: {0}"] = "Engine disconnected: {0}",
+        ["引擎异常，请查看故障报告"] = "Engine error; check the failure report",
+        ["引擎连接中断，正在整理故障报告..."] = "Engine disconnected; preparing a failure report...",
+        ["正在保存游戏方案..."] = "Saving game profile...",
+        ["正在创建系统还原点..."] = "Creating a restore point...",
+        ["正在启动游戏..."] = "Launching game...",
+        ["正在恢复全部改动..."] = "Restoring all changes...",
+        ["正在恢复备份..."] = "Restoring backup...",
+        ["正在打包诊断信息..."] = "Packaging diagnostics...",
+        ["正在执行系统诊断..."] = "Running system diagnostics...",
+        ["正在生成诊断报告..."] = "Generating diagnostic report...",
+        ["正在读取启动项与进程..."] = "Reading startup items and processes...",
+        ["正在重新连接优化引擎..."] = "Reconnecting to the engine...",
         ["本地运行 · 不上传数据"] = "Local only · No uploads",
         ["引擎未连接"] = "Engine offline",
         ["引擎已连接"] = "Engine connected",
@@ -312,6 +509,22 @@ public static class Localization
         ["全部"] = "All",
         ["需关注"] = "Attention",
         ["正常"] = "Normal",
+        ["注意"] = "Caution",
+        ["警告"] = "Warning",
+        ["信息"] = "Info",
+        ["全部 {0}"] = "All {0}",
+        ["需关注 {0}"] = "Attention {0}",
+        ["正常 {0}"] = "Normal {0}",
+        ["{0} 项警告 · {1} 项注意 · {2} 项正常"] = "{0} warnings · {1} cautions · {2} normal",
+        ["{0} 项需关注"] = "{0} need attention",
+        ["{0} 项提示"] = "{0} advisories",
+        ["{0} 项正常"] = "{0} normal",
+        ["没有匹配的诊断项"] = "No matching diagnostics",
+        ["正在执行诊断"] = "Running diagnostics",
+        ["换个关键词，或切换到“全部”查看完整结果。"] =
+            "Try another keyword, or switch to All to see the full results.",
+        ["正在读取硬件、电源与服务状态，通常需要几秒。"] =
+            "Reading hardware, power and service status; this usually takes a few seconds.",
         ["打开文件"] = "Open file",
         ["开始诊断"] = "Run diagnostics",
         ["搜索项目、值或说明"] = "Search items, values or descriptions",
@@ -641,6 +854,65 @@ public static class Localization
         ["应用全部低风险推荐项，应用前自动备份原值"] =
             "Apply all low-risk recommendations with automatic backup",
 
+        // 概览补充（v26.5 补齐）
+        ["一键优化推荐项"] = "Apply recommended optimizations",
+        ["上次优化"] = "Last optimization",
+        ["先看看会改什么"] = "Preview changes first",
+        ["只读预演，不会写入系统"] = "Read-only preview; nothing is written to the system",
+        ["处理器"] = "CPU",
+        ["处理器占用"] = "CPU usage",
+        ["实时资源"] = "Live resources",
+        ["应用前自动备份原值，可随时在「备份还原」中恢复。"] =
+            "Original values are backed up before every change and can be restored from Backups.",
+        ["打开优化项列表，手动勾选要应用的项"] =
+            "Open the optimization list and select items manually",
+        ["打开备份还原"] = "Open backup & restore",
+        ["打开完整诊断报告"] = "Open the full diagnostics report",
+        ["显卡"] = "GPU",
+        ["显卡 3D 负载"] = "GPU 3D load",
+        ["显示器"] = "Display",
+        ["显示输出"] = "Display output",
+        ["查看全部优化项"] = "View all optimizations",
+        ["查看备份并恢复到优化前的状态"] =
+            "View backups and restore the pre-optimization state",
+        ["查看诊断"] = "View diagnostics",
+        ["正在检查..."] = "Checking...",
+        ["正在读取设备..."] = "Reading devices...",
+        ["正在采集硬件与优化项状态，通常需要几秒。"] =
+            "Collecting hardware and optimization status; this usually takes a few seconds.",
+        ["等待采样"] = "Waiting for sample",
+        ["还没有优化记录"] = "No optimization history yet",
+        ["还没有优化记录。"] = "No optimization history yet.",
+        ["这台电脑"] = "This PC",
+        ["这台电脑现在怎么样，需要做什么。"] =
+            "Current status and what needs attention.",
+        ["切换到英文界面"] = "Switch to English",
+        ["界面语言：中文（点击切换到 English）"] =
+            "Language: Chinese (click to switch to English)",
+        [" · 最高 {0} Hz"] = " · up to {0} Hz",
+        ["{0} GB 显存"] = "{0} GB VRAM",
+        ["{0} 项优化 · {1}"] = "{0} optimizations · {1}",
+        ["一键优化 {0} 项"] = "Optimize {0} items",
+        ["全部已优化"] = "All optimized",
+        ["共 {0} 项待处理，部分项目需要确认后再决定。"] =
+            "{0} item(s) pending; some need review before applying.",
+        ["共享内存"] = "Shared memory",
+        ["其中 {0} 项低风险推荐，点一下就能应用，应用前自动备份。"] =
+            "{0} low-risk recommendation(s) can be applied in one click; originals are backed up first.",
+        ["刷新率未知"] = "Refresh rate unknown",
+        ["已生效 {0} / {1} 项"] = "{0} / {1} optimizations active",
+        ["打开优化项列表，逐项确认后再应用"] =
+            "Open the optimization list and confirm items before applying",
+        ["推荐项都已生效，可以放心开游戏。"] =
+            "All recommendations are active; you're ready to play.",
+        ["有 {0} 项提示，建议查看诊断报告。"] = "{0} warning(s); check the diagnostics report.",
+        ["未发现需要处理的异常。"] = "No issues found.",
+        ["未检测到"] = "Not detected",
+        ["未检测到显示器"] = "No display detected",
+        ["未识别到显卡"] = "No GPU detected",
+        ["查看这 {0} 项"] = "View these {0} items",
+        ["正在读取优化记录..."] = "Reading optimization history...",
+
         // 设置
         ["外观"] = "Appearance",
         ["主题会同时应用到主窗口与弹窗"] = "The theme applies to the main window and dialogs",
@@ -723,4 +995,9 @@ public static class Localization
         ["刷新"] = "Refresh",
         ["全部风险"] = "All risk levels",
     };
+
+    // 必须在英文表之后初始化：静态字段按声明顺序执行。
+    private static readonly Dictionary<string, string> Chinese = BuildChinese();
+    private static readonly List<System.Text.RegularExpressions.Regex> Templates = BuildTemplates();
+    private static readonly List<System.Text.RegularExpressions.Regex> ChineseTemplates = BuildChineseTemplates();
 }

@@ -52,12 +52,24 @@ public sealed class ItemInfo : INotifyPropertyChanged
     private bool _selected;
     private bool _expanded;
     private string _lastAppliedText = "尚未通过本工具应用";
+    private string? _id;
+    private string? _cat;
+    private string? _name;
+    private string? _desc;
+    private string? _kind;
+    private string? _risk;
+    private string? _target;
+    private string? _status;
+    private string? _statusText;
+    private bool _needsReboot;
+    private string? _dep;
+    private string? _depHint;
 
-    public string? Id { get; set; }
-    public string? Cat { get; set; }
-    public string? Name { get; set; }
-    public string? Desc { get; set; }
-    public string? Kind { get; set; }
+    public string? Id { get => _id; set => Set(ref _id, value); }
+    public string? Cat { get => _cat; set => Set(ref _cat, value); }
+    public string? Name { get => _name; set => Set(ref _name, value); }
+    public string? Desc { get => _desc; set => Set(ref _desc, value); }
+    public string? Kind { get => _kind; set => Set(ref _kind, value); }
     /// <summary>
     /// 界面勾选状态。引擎快照里的 Selected 表示“该项当前是否已启用”，与勾选无关，
     /// 反序列化时必须忽略，否则所有已生效项会被自动勾上。
@@ -73,13 +85,23 @@ public sealed class ItemInfo : INotifyPropertyChanged
             OnPropertyChanged();
         }
     }
-    public string? Risk { get; set; }
-    public string? Target { get; set; }
-    public string? Status { get; set; }
-    public string? StatusText { get; set; }
-    public bool NeedsReboot { get; set; }
-    public string? Dep { get; set; }
-    public string? DepHint { get; set; }
+    public string? Risk { get => _risk; set => Set(ref _risk, value); }
+    public string? Target { get => _target; set => Set(ref _target, value); }
+    public string? Status { get => _status; set => Set(ref _status, value); }
+    public string? StatusText { get => _statusText; set => Set(ref _statusText, value); }
+    public bool NeedsReboot
+    {
+        get => _needsReboot;
+        set
+        {
+            if (_needsReboot == value) return;
+            _needsReboot = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(RebootText));
+        }
+    }
+    public string? Dep { get => _dep; set { if (Set(ref _dep, value)) OnPropertyChanged(nameof(DependencyText)); } }
+    public string? DepHint { get => _depHint; set { if (Set(ref _depHint, value)) OnPropertyChanged(nameof(DependencyText)); } }
 
     /// <summary>行内展开状态。列表重建时由页面重置，不参与序列化。</summary>
     [JsonIgnore]
@@ -132,6 +154,41 @@ public sealed class ItemInfo : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// 主题切换后让状态 / 风险颜色的单向绑定重新求值，
+    /// 这样优化项列表不需要清空重建，滚动位置与展开行都能保留。
+    /// </summary>
+    public void NotifyThemeChanged()
+    {
+        OnPropertyChanged(nameof(Status));
+        OnPropertyChanged(nameof(Risk));
+    }
+
+    /// <summary>快照刷新时就地更新已有实例，保留列表容器、勾选与展开状态。</summary>
+    public void UpdateFrom(ItemInfo source)
+    {
+        Id = source.Id;
+        Cat = source.Cat;
+        Name = source.Name;
+        Desc = source.Desc;
+        Kind = source.Kind;
+        Risk = source.Risk;
+        Target = source.Target;
+        Status = source.Status;
+        StatusText = source.StatusText;
+        NeedsReboot = source.NeedsReboot;
+        Dep = source.Dep;
+        DepHint = source.DepHint;
+    }
+
+    private bool Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value)) return false;
+        field = value;
+        OnPropertyChanged(name);
+        return true;
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? name = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
@@ -179,10 +236,10 @@ public sealed class DiagEntry
     [JsonIgnore]
     public string LevelText => Level?.ToLowerInvariant() switch
     {
-        "ok" or "green" => "正常",
-        "warn" or "yellow" => "注意",
-        "bad" or "red" or "error" => "警告",
-        "info" or "blue" => "信息",
+        "ok" or "green" => Localization.T("正常"),
+        "warn" or "yellow" => Localization.T("注意"),
+        "bad" or "red" or "error" => Localization.T("警告"),
+        "info" or "blue" => Localization.T("信息"),
         _ => ""
     };
 }

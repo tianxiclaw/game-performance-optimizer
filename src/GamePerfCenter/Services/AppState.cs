@@ -17,12 +17,14 @@ public sealed class AppState
 
     public ObservableCollection<ItemInfo> Items { get; } = new();
     public SnapshotInfo? Snapshot { get; private set; }
-    public string StatusText { get; private set; } = "正在启动引擎...";
+    /// <summary>按当前语言渲染最后一次状态；切换语言后重新读取即可得到新语言的文案。</summary>
+    public string StatusText => _statusRender();
     public bool IsBusy { get; private set; }
     public string? LastError { get; private set; }
     public DateTime LastRefresh { get; private set; }
     public event Action? Changed;
-    public event Action<string>? StatusChanged;
+    public event Action? StatusChanged;
+    private Func<string> _statusRender = () => Localization.T("正在启动引擎...");
 
     public AppState(EngineBridge engine, SettingsService settings, OptimizationCatalogService catalog,
         OptimizationExecutionService execution)
@@ -32,13 +34,20 @@ public sealed class AppState
         _catalog = catalog;
         _execution = execution;
         _engine.LogReceived += line => AppLog.Write(line);
-        _engine.Crashed += failure => SetStatus("引擎连接中断: " + failure.Summary);
+        _engine.Crashed += failure => SetStatusFormat("引擎连接中断: {0}", failure.Summary);
     }
 
     public void SetStatus(string text)
     {
-        StatusText = text;
-        StatusChanged?.Invoke(text);
+        _statusRender = () => Localization.T(text);
+        StatusChanged?.Invoke();
+    }
+
+    /// <summary>带参数的动态状态：缓存中文模板与参数，切换语言时重新格式化，避免缓存住英文结果。</summary>
+    public void SetStatusFormat(string zhFormat, params object?[] args)
+    {
+        _statusRender = () => Localization.F(zhFormat, args);
+        StatusChanged?.Invoke();
     }
 
     public async Task EnsureSnapshotAsync(bool force = false, CancellationToken ct = default)
@@ -70,17 +79,16 @@ public sealed class AppState
             var snap = data.Deserialize<SnapshotInfo>(JsonOptions);
             if (snap is null) throw new EngineException("状态数据为空");
             Snapshot = snap;
-            Items.Clear();
-            foreach (var item in snap.Items) Items.Add(item);
+            MergeItems(snap.Items);
             LastRefresh = DateTime.Now;
             LastError = null;
-            SetStatus(Localization.F("已加载 {0} 个优化项 · {1}", snap.Items.Count, snap.Machine));
+            SetStatusFormat("已加载 {0} 个优化项 · {1}", snap.Items.Count, snap.Machine);
             AppLog.Write($"快照完成: {snap.Items.Count} 项, {snap.Machine}");
         }
         catch (Exception ex)
         {
             LastError = ex.Message;
-            SetStatus(Localization.F("状态读取失败: {0}", ex.Message));
+            SetStatusFormat("状态读取失败: {0}", ex.Message);
             AppLog.Write("快照失败: " + ex);
             throw;
         }
@@ -91,11 +99,44 @@ public sealed class AppState
         }
     }
 
+    private void MergeItems(List<ItemInfo> incoming)
+    {
+        // 按 Id 复用已有实例：只有字段变化时才发通知，列表容器、勾选与展开状态都不丢。
+        var existing = new Dictionary<string, ItemInfo>(StringComparer.Ordinal);
+        foreach (var item in Items)
+        {
+            if (!string.IsNullOrEmpty(item.Id)) existing[item.Id!] = item;
+        }
+
+        var merged = new List<ItemInfo>(incoming.Count);
+        foreach (var next in incoming)
+        {
+            if (!string.IsNullOrEmpty(next.Id) && existing.TryGetValue(next.Id!, out var current))
+            {
+                current.UpdateFrom(next);
+                merged.Add(current);
+            }
+            else
+            {
+                merged.Add(next);
+            }
+        }
+
+        var unchanged = merged.Count == Items.Count;
+        for (var i = 0; unchanged && i < merged.Count; i++)
+            unchanged = ReferenceEquals(merged[i], Items[i]);
+        if (unchanged) return;
+
+        Items.Clear();
+        foreach (var item in merged) Items.Add(item);
+    }
+
     public async Task<ApplyResult> ApplyAsync(IEnumerable<string> ids, bool dryRun, bool restorePoint = false,
         CancellationToken ct = default)
     {
         var list = ids.Distinct().ToArray();
-        SetBusy(true, dryRun ? "正在生成变更预览..." : $"正在应用 {list.Length} 项优化...");
+        SetBusy(true, dryRun ? "正在生成变更预览..." : null);
+        if (!dryRun) SetStatusFormat("正在应用 {0} 项优化...", list.Length);
         try
         {
             ApplyResult result;
@@ -130,9 +171,8 @@ public sealed class AppState
             }
 
             LastError = null;
-            SetStatus(dryRun
-                ? $"预览完成: {result.Preview.Count} 项将变更"
-                : $"应用完成: 成功 {result.Ok} 项, 失败 {result.Fail} 项");
+            if (dryRun) SetStatusFormat("预览完成: {0} 项将变更", result.Preview.Count);
+            else SetStatusFormat("应用完成: 成功 {0} 项, 失败 {1} 项", result.Ok, result.Fail);
             if (!dryRun)
             {
                 Snapshot = null;
@@ -143,7 +183,7 @@ public sealed class AppState
         catch (Exception ex)
         {
             LastError = ex.Message;
-            SetStatus("操作失败: " + ex.Message);
+            SetStatusFormat("操作失败: {0}", ex.Message);
             throw;
         }
         finally { SetBusy(false, null); Changed?.Invoke(); }

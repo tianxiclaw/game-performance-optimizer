@@ -177,6 +177,30 @@
             <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="#12343C" />
             <SolidColorBrush x:Key="ListViewItemForegroundPointerOver" Color="#F4F6F9" />
             <SolidColorBrush x:Key="ListViewItemForegroundSelected" Color="#F4F6F9" />
+
+            <!-- 滚动条：浮层式细条，轨道完全透明；深色下不再出现系统浅灰轨道与按钮 -->
+            <SolidColorBrush x:Key="ScrollBarBackground" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarTrackFill" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarTrackFillPointerOver" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarTrackFillDisabled" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarTrackStroke" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarTrackStrokePointerOver" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarTrackStrokeDisabled" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarThumbFill" Color="#8C5E6878" />
+            <SolidColorBrush x:Key="ScrollBarThumbBackground" Color="#8C5E6878" />
+            <SolidColorBrush x:Key="ScrollBarThumbFillPointerOver" Color="#B3707C8E" />
+            <SolidColorBrush x:Key="ScrollBarThumbFillPressed" Color="#CC8A96A8" />
+            <SolidColorBrush x:Key="ScrollBarThumbFillDisabled" Color="#4D4E5866" />
+            <SolidColorBrush x:Key="ScrollBarThumbBorderBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarButtonBackground" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarButtonBackgroundPointerOver" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarButtonBackgroundPressed" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarButtonBackgroundDisabled" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarButtonArrowForeground" Color="#A3AAB5" />
+            <SolidColorBrush x:Key="ScrollBarButtonArrowForegroundPointerOver" Color="#F4F6F9" />
+            <SolidColorBrush x:Key="ScrollBarButtonArrowForegroundPressed" Color="#F4F6F9" />
+            <SolidColorBrush x:Key="ScrollBarButtonArrowForegroundDisabled" Color="#4E5866" />
+            <SolidColorBrush x:Key="ScrollBarPanningThumbBackground" Color="#8C5E6878" />
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="Light">
@@ -344,6 +368,30 @@
             <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="#CDE7EE" />
             <SolidColorBrush x:Key="ListViewItemForegroundPointerOver" Color="#111824" />
             <SolidColorBrush x:Key="ListViewItemForegroundSelected" Color="#111824" />
+
+            <!-- 滚动条：浅色下用中性灰蓝细条，轨道透明，不抢正文注意力 -->
+            <SolidColorBrush x:Key="ScrollBarBackground" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarTrackFill" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarTrackFillPointerOver" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarTrackFillDisabled" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarTrackStroke" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarTrackStrokePointerOver" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarTrackStrokeDisabled" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarThumbFill" Color="#B37D8A9C" />
+            <SolidColorBrush x:Key="ScrollBarThumbBackground" Color="#B37D8A9C" />
+            <SolidColorBrush x:Key="ScrollBarThumbFillPointerOver" Color="#CC5F6C80" />
+            <SolidColorBrush x:Key="ScrollBarThumbFillPressed" Color="#E64A5668" />
+            <SolidColorBrush x:Key="ScrollBarThumbFillDisabled" Color="#66808C9E" />
+            <SolidColorBrush x:Key="ScrollBarThumbBorderBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarButtonBackground" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarButtonBackgroundPointerOver" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarButtonBackgroundPressed" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarButtonBackgroundDisabled" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarButtonArrowForeground" Color="#4C596C" />
+            <SolidColorBrush x:Key="ScrollBarButtonArrowForegroundPointerOver" Color="#111824" />
+            <SolidColorBrush x:Key="ScrollBarButtonArrowForegroundPressed" Color="#111824" />
+            <SolidColorBrush x:Key="ScrollBarButtonArrowForegroundDisabled" Color="#94A3B8" />
+            <SolidColorBrush x:Key="ScrollBarPanningThumbBackground" Color="#B37D8A9C" />
         </ResourceDictionary>
 
         <!-- 高对比度：只覆盖承载内容的键，其余沿用 Default 兜底。
@@ -467,6 +515,30 @@
             <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="ListViewItemForegroundPointerOver" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="ListViewItemForegroundSelected" Color="{ThemeResource SystemColorWindowTextColor}" />
+
+            <!-- 滚动条：高对比度下轨道透明，滑块与箭头走系统窗口文字色 -->
+            <SolidColorBrush x:Key="ScrollBarBackground" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="ScrollBarTrackFill" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="ScrollBarTrackFillPointerOver" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="ScrollBarTrackFillDisabled" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="ScrollBarTrackStroke" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarTrackStrokePointerOver" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarTrackStrokeDisabled" Color="Transparent" />
+            <SolidColorBrush x:Key="ScrollBarThumbFill" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="ScrollBarThumbBackground" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="ScrollBarThumbFillPointerOver" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="ScrollBarThumbFillPressed" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="ScrollBarThumbFillDisabled" Color="{ThemeResource SystemColorGrayTextColor}" />
+            <SolidColorBrush x:Key="ScrollBarThumbBorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="ScrollBarButtonBackground" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="ScrollBarButtonBackgroundPointerOver" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="ScrollBarButtonBackgroundPressed" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="ScrollBarButtonBackgroundDisabled" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="ScrollBarButtonArrowForeground" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="ScrollBarButtonArrowForegroundPointerOver" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="ScrollBarButtonArrowForegroundPressed" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="ScrollBarButtonArrowForegroundDisabled" Color="{ThemeResource SystemColorGrayTextColor}" />
+            <SolidColorBrush x:Key="ScrollBarPanningThumbBackground" Color="{ThemeResource SystemColorWindowTextColor}" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 
@@ -1044,7 +1116,7 @@
                                        Style="{StaticResource PageTitleStyle}" />
                             <TextBlock x:Name="SubtitleText" Text="{TemplateBinding Subtitle}"
                                        Style="{StaticResource SecondaryTextStyle}"
-                                       TextWrapping="Wrap" MaxLines="1" TextTrimming="CharacterEllipsis" />
+                                       TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" />
                         </StackPanel>
 
                         <ContentPresenter x:Name="ActionsHost" Grid.Column="1" Content="{TemplateBinding Content}"
