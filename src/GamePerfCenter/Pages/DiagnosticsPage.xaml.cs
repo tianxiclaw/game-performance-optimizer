@@ -17,6 +17,8 @@ public sealed partial class DiagnosticsPage : Page, IThemeAware, ILanguageAware
     private string? _lastExport;
     private bool _loaded;
     private bool _running;
+    private bool _memoryBusy;
+    private MemorySnapshot? _memory;
 
     public DiagnosticsPage()
     {
@@ -31,8 +33,52 @@ public sealed partial class DiagnosticsPage : Page, IThemeAware, ILanguageAware
     {
         if (_loaded) return;
         _loaded = true;
-        await RunDiagnosticsAsync();
+        await Task.WhenAll(RunDiagnosticsAsync(), RefreshMemoryAsync());
     }
+
+    /// <summary>只读采样内存构成；WMI 查询放后台线程，避免首次进入诊断页时卡住界面。</summary>
+    private async Task RefreshMemoryAsync()
+    {
+        if (_memoryBusy) return;
+        _memoryBusy = true;
+        MemoryRefreshButton.IsEnabled = false;
+        MemoryStamp.Text = Localization.T("正在读取内存构成...");
+        try
+        {
+            _memory = await Task.Run(MemoryDiagnosticsService.Sample);
+            RenderMemory();
+        }
+        catch (Exception ex)
+        {
+            MemoryStamp.Text = Localization.F("内存构成读取失败: {0}", ex.Message);
+        }
+        finally
+        {
+            _memoryBusy = false;
+            MemoryRefreshButton.IsEnabled = true;
+        }
+    }
+
+    private void RenderMemory()
+    {
+        if (_memory is not { } m) return;
+
+        MemUsedValue.Text = $"{m.UsedGb:0.0} / {m.TotalGb:0.0} GB";
+        MemAvailableValue.Text = $"{m.AvailableGb:0.0} GB";
+        MemStandbyValue.Text = $"{m.StandbyGb:0.0} GB";
+        MemCommittedValue.Text = $"{m.CommittedGb:0.0} / {m.CommitLimitGb:0.0} GB";
+        MemPagedPoolValue.Text = $"{m.PagedPoolGb:0.00} GB";
+        MemNonPagedPoolValue.Text = $"{m.NonPagedPoolGb:0.00} GB";
+        MemFreeValue.Text = $"{m.FreeGb:0.0} GB";
+        MemProcessTotalValue.Text = $"{m.ProcessTotalGb:0.0} GB";
+
+        MemoryProcessList.ItemsSource = m.Processes;
+        MemoryEmpty.Text = Localization.T("暂无进程数据");
+        MemoryEmpty.Visibility = m.Processes.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        MemoryStamp.Text = Localization.F("更新于 {0}", m.UpdatedAt.ToString("HH:mm:ss"));
+    }
+
+    private async void MemoryRefresh_Click(object sender, RoutedEventArgs e) => await RefreshMemoryAsync();
 
     private async Task RunDiagnosticsAsync()
     {
@@ -282,5 +328,7 @@ private async void Run_Click(object sender, RoutedEventArgs e) => await RunDiagn
     {
         UpdateSummary();
         ApplyFilter();
+        if (_memory is null) MemoryStamp.Text = Localization.T("正在读取内存构成...");
+        else RenderMemory();
     }
 }

@@ -544,3 +544,27 @@ public sealed class LiveMetrics
     public double NetDownKbps { get; set; }
     public double NetUpKbps { get; set; }
 }
+
+/// <summary>只读内存构成快照，用于解释“总量”和“进程累加”之间的差额。</summary>
+public sealed class MemorySnapshot
+{
+    public double TotalGb { get; set; }
+    public double UsedGb { get; set; }
+    public double AvailableGb { get; set; }
+    public double StandbyGb { get; set; }
+    public double CommittedGb { get; set; }
+    public double CommitLimitGb { get; set; }
+    public double PagedPoolGb { get; set; }
+    public double NonPagedPoolGb { get; set; }
+    public double FreeGb { get; set; }
+    public double ProcessTotalGb { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public List<MemoryProcessInfo> Processes { get; set; } = new();
+}
+
+public sealed class MemoryProcessInfo
+{
+    public string Name { get; init; } = "";
+    public double PrivateMb { get; init; }
+    public string PrivateText => $"{PrivateMb:0} MB";
+}

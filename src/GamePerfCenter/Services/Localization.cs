@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using GamePerfCenter.Controls;
+using GamePerfCenter.Models;
 
 namespace GamePerfCenter.Services;
 
@@ -158,6 +159,8 @@ public static class Localization
 
         void Check(DependencyObject element, string kind, string? text)
         {
+            // 进程名是运行时数据，不参与中英文词表审计。
+            if (element is FrameworkElement { DataContext: MemoryProcessInfo }) return;
             if (string.IsNullOrWhiteSpace(text)) return;
             var value = text.Trim();
             if (value.Length < 2) return;
@@ -198,6 +201,8 @@ public static class Localization
 
         void Check(DependencyObject element, string kind, string? text)
         {
+            // 进程名是运行时数据，不参与中英文词表审计。
+            if (element is FrameworkElement { DataContext: MemoryProcessInfo }) return;
             if (string.IsNullOrWhiteSpace(text)) return;
             var value = text.Trim();
             if (value.Length < 2) return;
@@ -344,6 +349,21 @@ public static class Localization
         ["实时负载"] = "Live load",
         ["每 2 秒"] = "Every 2 s",
         ["内存"] = "Memory",
+        ["内存构成"] = "Memory breakdown",
+        ["正在读取内存构成..."] = "Reading memory breakdown...",
+        ["物理使用"] = "Physical used",
+        ["可用"] = "Available",
+        ["待机缓存"] = "Standby cache",
+        ["已提交"] = "Committed",
+        ["分页池"] = "Paged pool",
+        ["非分页池"] = "Non-paged pool",
+        ["空闲页"] = "Free pages",
+        ["进程合计"] = "Process total",
+        ["可用内存包含待机缓存；待机缓存是可回收的文件缓存，不属于内存压力。"] = "Available memory includes standby cache; standby is reclaimable file cache, not memory pressure.",
+        ["内存占用较高的进程"] = "Top memory processes",
+        ["按专用工作集排序，同名进程已合并。"] = "Sorted by private working set; same-name processes are merged.",
+        ["暂无进程数据"] = "No process data",
+        ["内存构成读取失败: {0}"] = "Failed to read memory breakdown: {0}",
         ["待应用"] = "To apply",
         ["查看"] = "View",
         ["快捷操作"] = "Quick actions",

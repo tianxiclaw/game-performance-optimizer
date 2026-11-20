@@ -83,6 +83,125 @@
                       HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
                       HorizontalContentAlignment="Stretch">
             <StackPanel Spacing="12" MaxWidth="1500" HorizontalAlignment="Stretch">
+                <!-- 只读内存构成：解释“总量”和“进程累加”之间的差额 -->
+                <controls:TechPanel x:Name="MemoryCard" Style="{StaticResource TechCardStyle}" Padding="18,14">
+                    <StackPanel Spacing="12">
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="内存构成" FontSize="14.5" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource TextBrush}" />
+                                <TextBlock x:Name="MemoryStamp" Text="正在读取内存构成..."
+                                           Style="{StaticResource CaptionTextStyle}" />
+                            </StackPanel>
+                            <Button x:Name="MemoryRefreshButton" Grid.Column="1" Content="刷新"
+                                    Style="{StaticResource GhostButtonStyle}" Click="MemoryRefresh_Click"
+                                    VerticalAlignment="Center" />
+                        </Grid>
+
+                        <Grid ColumnSpacing="18" RowSpacing="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="物理使用" Style="{StaticResource TechLabelStyle}" />
+                                <TextBlock x:Name="MemUsedValue" Text="--" FontSize="13.5"
+                                           FontWeight="SemiBold" Foreground="{ThemeResource TextBrush}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Text="可用" Style="{StaticResource TechLabelStyle}" />
+                                <TextBlock x:Name="MemAvailableValue" Text="--" FontSize="13.5"
+                                           FontWeight="SemiBold" Foreground="{ThemeResource TextBrush}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Spacing="2">
+                                <TextBlock Text="待机缓存" Style="{StaticResource TechLabelStyle}" />
+                                <TextBlock x:Name="MemStandbyValue" Text="--" FontSize="13.5"
+                                           FontWeight="SemiBold" Foreground="{ThemeResource TextBrush}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="3" Spacing="2">
+                                <TextBlock Text="已提交" Style="{StaticResource TechLabelStyle}" />
+                                <TextBlock x:Name="MemCommittedValue" Text="--" FontSize="13.5"
+                                           FontWeight="SemiBold" Foreground="{ThemeResource TextBrush}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1" Spacing="2">
+                                <TextBlock Text="分页池" Style="{StaticResource TechLabelStyle}" />
+                                <TextBlock x:Name="MemPagedPoolValue" Text="--" FontSize="13.5"
+                                           FontWeight="SemiBold" Foreground="{ThemeResource TextBrush}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="2">
+                                <TextBlock Text="非分页池" Style="{StaticResource TechLabelStyle}" />
+                                <TextBlock x:Name="MemNonPagedPoolValue" Text="--" FontSize="13.5"
+                                           FontWeight="SemiBold" Foreground="{ThemeResource TextBrush}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="2" Spacing="2">
+                                <TextBlock Text="空闲页" Style="{StaticResource TechLabelStyle}" />
+                                <TextBlock x:Name="MemFreeValue" Text="--" FontSize="13.5"
+                                           FontWeight="SemiBold" Foreground="{ThemeResource TextBrush}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="3" Spacing="2">
+                                <TextBlock Text="进程合计" Style="{StaticResource TechLabelStyle}" />
+                                <TextBlock x:Name="MemProcessTotalValue" Text="--" FontSize="13.5"
+                                           FontWeight="SemiBold" Foreground="{ThemeResource TextBrush}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="可用内存包含待机缓存；待机缓存是可回收的文件缓存，不属于内存压力。"
+                                   Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="内存占用较高的进程" FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{ThemeResource TextBrush}" />
+                            <TextBlock Grid.Column="1" Text="按专用工作集排序，同名进程已合并。"
+                                       Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
+                        </Grid>
+
+                        <ItemsControl x:Name="MemoryProcessList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:MemoryProcessInfo">
+                                    <Grid ColumnSpacing="12" Padding="0,5"
+                                          BorderBrush="{ThemeResource BorderBrush}" BorderThickness="0,1,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{x:Bind Name}" Style="{StaticResource SecondaryTextStyle}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="1" Text="{x:Bind PrivateText}"
+                                                   Style="{StaticResource TechCodeStyle}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock x:Name="MemoryEmpty" Text="暂无进程数据" Visibility="Collapsed"
+                                   Style="{StaticResource CaptionTextStyle}" />
+                    </StackPanel>
+                </controls:TechPanel>
+
                 <controls:TechPanel x:Name="ResultsCard" Style="{StaticResource TechCardStyle}" Padding="18,8">
                     <ItemsControl x:Name="GroupList">
                         <ItemsControl.ItemTemplate>

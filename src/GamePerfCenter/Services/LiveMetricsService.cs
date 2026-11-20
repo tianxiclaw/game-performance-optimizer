@@ -82,7 +82,7 @@ public sealed class LiveMetricsService
         return Math.Clamp(value, 0, 100);
     }
 
-    private static (double pct, double used, double total) SampleMemory()
+    internal static (double pct, double used, double total) SampleMemory()
     {
         var status = new MEMORYSTATUSEX { dwLength = (uint)Marshal.SizeOf<MEMORYSTATUSEX>() };
         if (!GlobalMemoryStatusEx(ref status)) return (0, 0, 0);
