@@ -6,7 +6,7 @@
     - 构建中间产物统一放在 dist\.build，不再散落在 dist 根目录
     - 最终发布件固定输出到「发布\游戏性能优化中心」，与程序目录放在一起
     - 每次同时生成带版本号的 zip 和固定名称的「游戏性能优化中心_便携版_最新.zip」
-    - 备用 WinForms 入口一并放入“备用-WinForms”
+    - 只发布 WinUI 3 主程序；旧版 WinForms 入口已归档，不再随包分发
     - CLI 以单文件方式发布，附带引擎脚本
     - 生成 SHA256.txt；可选调用 signtool 对主程序签名
 
@@ -164,7 +164,8 @@ if (-not $SkipTests) {
 if (-not $SkipWinUI) {
     $running = @(Get-Process -Name GamePerfCenter -ErrorAction SilentlyContinue)
     if ($running.Count -gt 0) {
-        throw "游戏性能优化中心正在运行（PID $($running.Id -join ', ')），请先关闭再发布。"
+        throw ("游戏性能优化中心正在运行（PID $($running.Id -join ', ')）。" +
+               "如果主窗口已关闭，它可能还停留在托盘：右键托盘图标选择「退出」，再重新发布。")
     }
 }
 
@@ -225,14 +226,6 @@ if (-not $SkipWinUI) {
     Copy-Item -Path (Join-Path $publishDir '*') -Destination $stage -Recurse -Force
     Get-ChildItem -LiteralPath $stage -Filter *.pdb -Recurse -File | Remove-Item -Force
 
-    $fallback = Join-Path $stage '备用-WinForms'
-    New-Item -ItemType Directory -Path $fallback -Force | Out-Null
-    foreach ($name in @('游戏性能优化-GUI.ps1', '游戏性能优化.ps1', '启动优化脚本.bat',
-                        '启动控制台版.bat', '赞赏码.png', '使用说明.txt')) {
-        $source = Join-Path $repo $name
-        if (-not (Test-Path -LiteralPath $source)) { throw "缺少文件：$name" }
-        Copy-Item -LiteralPath $source -Destination $fallback -Force
-    }
     Copy-Item -LiteralPath (Join-Path $repo 'README.md') -Destination $stage -Force
     Copy-Item -LiteralPath (Join-Path $repo 'LICENSE') -Destination $stage -Force
 

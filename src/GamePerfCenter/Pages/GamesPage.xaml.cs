@@ -296,17 +296,7 @@ public sealed partial class GamesPage : Page, IThemeAware
         _view.Clear();
         foreach (var game in _all)
         {
-            if (keyword.Length > 0 &&
-                !(game.Name ?? "").Contains(keyword, StringComparison.OrdinalIgnoreCase) &&
-                !(game.Exe ?? "").Contains(keyword, StringComparison.OrdinalIgnoreCase))
-                continue;
-            if (!string.IsNullOrEmpty(source) &&
-                !string.Equals(game.SourceText, source, StringComparison.OrdinalIgnoreCase))
-                continue;
-            var saved = game.Profile?.HasSaved == true;
-            if (profileFilter == "saved" && !saved) continue;
-            if (profileFilter == "none" && saved) continue;
-            _view.Add(game);
+            if (GameFiltering.Matches(game, keyword, source, profileFilter)) _view.Add(game);
         }
         CountText.Text = _loading ? "正在读取..." : $"{_view.Count} / {_all.Count} 个游戏";
         EmptyHint.Visibility = _view.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -857,12 +847,8 @@ public sealed partial class GamesPage : Page, IThemeAware
     }
 
     private void ShowInfo(string title, string message, InfoBarSeverity severity)
-    {
-        PageInfo.Title = Localization.T(title);
-        PageInfo.Message = Localization.T(message);
-        PageInfo.Severity = severity;
-        PageInfo.IsOpen = true;
-    }
+        => InfoBarPresenter.Show(PageInfo,
+            Localization.T(title), Localization.T(message), severity);
 
     public void OnThemeChanged() { }
 }

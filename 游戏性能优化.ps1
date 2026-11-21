@@ -71,7 +71,6 @@
 param(
     [switch]$NoElevate,
     [switch]$EngineOnly,
-    [switch]$Gui,
     [switch]$ConsoleMode,
     [switch]$ApplyRecommended,
     [switch]$Status,
@@ -92,7 +91,7 @@ try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 $ErrorActionPreference = 'Continue'
 $script:AppVersion   = '26.5'
 $script:TxEngineOnly = [bool]$EngineOnly
-$script:TxNoPrompt   = [bool]($EngineOnly -or $Gui)
+$script:TxNoPrompt   = [bool]$EngineOnly
 $script:DRY          = $false
 trap {
     Write-Host "`n[严重错误] $($_.Exception.Message)" -ForegroundColor Red
@@ -4042,26 +4041,8 @@ if ($Catalog) {
     return
 }
 
-# ── 命令行 / GUI 入口 ─────────────────────────────────────
+# ── 命令行入口 ───────────────────────────────────────────
 if ($EngineOnly) { return }
-
-if ($Gui) {
-    $gui = Join-Path $SD '游戏性能优化-GUI.ps1'
-    if (Test-Path $gui) {
-        # ★ v5.0: 图形界面独立进程运行, 隐藏控制台窗口; GUI 已继承管理员权限与启动者 SID
-        try {
-            Start-Process powershell.exe -ArgumentList @(
-                '-NoProfile','-ExecutionPolicy','Bypass','-STA','-WindowStyle','Hidden',
-                '-File',"`"$gui`"",'-NoElevate','-Sid',$Sid
-            ) | Out-Null
-        } catch {
-            Write-Host "GUI 启动失败: $($_.Exception.Message)" -ForegroundColor Red
-        }
-    } else {
-        Write-Host "GUI 文件缺失: $gui" -ForegroundColor Red
-    }
-    return
-}
 
 if ($Status) {
     $snap = Get-TxSnapshot

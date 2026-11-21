@@ -43,15 +43,8 @@ Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.i
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加图标："; Flags: unchecked
 
 [Files]
-; WinUI 3 主程序与运行时
+; WinUI 3 主程序与运行时（引擎脚本与说明随主程序目录一并安装）
 Source: "..\dist\win-x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-; WinForms 旧版界面仅作为备用入口
-Source: "..\游戏性能优化-GUI.ps1"; DestDir: "{app}\备用-WinForms"; Flags: ignoreversion
-Source: "..\游戏性能优化.ps1"; DestDir: "{app}\备用-WinForms"; Flags: ignoreversion
-Source: "..\启动优化脚本.bat"; DestDir: "{app}\备用-WinForms"; Flags: ignoreversion
-Source: "..\启动控制台版.bat"; DestDir: "{app}\备用-WinForms"; Flags: ignoreversion
-Source: "..\赞赏码.png"; DestDir: "{app}\备用-WinForms"; Flags: ignoreversion
-Source: "..\使用说明.txt"; DestDir: "{app}\备用-WinForms"; Flags: ignoreversion
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion isreadme
 Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 

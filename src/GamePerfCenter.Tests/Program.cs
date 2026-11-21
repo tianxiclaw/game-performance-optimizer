@@ -166,6 +166,14 @@ finally
     try { Directory.Delete(blockedRoot, true); } catch { }
 }
 
+// TextMatch: 优化项与游戏库共用的筛选规则
+Check("TagMatches 空筛选视为全部", TextMatch.TagMatches("", "GPU") && TextMatch.TagMatches(null, "GPU"));
+Check("TagMatches 不区分大小写", TextMatch.TagMatches("gpu", "GPU"));
+Check("TagMatches 不同值不命中", !TextMatch.TagMatches("内存", "GPU"));
+Check("FieldsContain 空关键词命中", TextMatch.FieldsContain("  ", null, ""));
+Check("FieldsContain 命中任一字段", TextMatch.FieldsContain("hags", "示例", "HAGS 硬件加速"));
+Check("FieldsContain 不跨字段拼接", !TextMatch.FieldsContain("示例 HAGS", "示例", "HAGS"));
+
 // 仓库级一致性检查：引擎 Kind、界面文案
 var repoRoot = FindRepoRoot();
 Check("定位仓库根目录", repoRoot is not null);

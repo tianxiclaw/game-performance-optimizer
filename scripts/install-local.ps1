@@ -26,6 +26,14 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 if (-not $Target) { $Target = Join-Path $repo '发布\游戏性能优化中心' }
 
+# 以 Directory.Build.props 为准，避免把 dist\.build 里遗留的高版本目录装回去。
+$repoVersion = $null
+$propsPath = Join-Path $repo 'Directory.Build.props'
+if (Test-Path -LiteralPath $propsPath) {
+    $m = [regex]::Match([IO.File]::ReadAllText($propsPath), '<AppVersion>\s*([^<]+?)\s*</AppVersion>')
+    if ($m.Success) { $repoVersion = [version]$m.Groups[1].Value.Trim() }
+}
+
 function Get-BuildVersion([string]$folder) {
     $exe = Join-Path $folder 'GamePerfCenter.exe'
     if (-not (Test-Path -LiteralPath $exe)) { return [version]'0.0' }
@@ -45,13 +53,21 @@ if (-not $Source) {
         }
     })
     if ($candidates.Count -eq 0) { throw '没有找到构建产物，请先执行 scripts\publish.ps1。' }
-    $Source = ($candidates | Sort-Object { Get-BuildVersion $_.FullName } -Descending | Select-Object -First 1).FullName
+    $preferred = @($candidates | Where-Object {
+        $null -ne $repoVersion -and
+        (Get-BuildVersion $_.FullName).ToString(2) -eq $repoVersion.ToString(2)
+    })
+    $pool = if ($preferred.Count -gt 0) { $preferred } else { $candidates }
+    $Source = ($pool | Sort-Object { Get-BuildVersion $_.FullName } -Descending | Select-Object -First 1).FullName
 }
 $Source = (Resolve-Path -LiteralPath $Source).Path
 
 $sourceExe = Join-Path $Source 'GamePerfCenter.exe'
 if (-not (Test-Path -LiteralPath $sourceExe)) { throw "源目录缺少 GamePerfCenter.exe：$Source" }
 $version = Get-BuildVersion $Source
+if ($null -ne $repoVersion -and $version.ToString(2) -ne $repoVersion.ToString(2)) {
+    Write-Warning "选中的构建版本 $version 与 Directory.Build.props 的 $repoVersion 不一致，请确认 dist\.build 是否有遗留目录。"
+}
 
 $running = @(Get-Process -Name GamePerfCenter -ErrorAction SilentlyContinue)
 if ($running.Count -gt 0) {
@@ -98,3 +114,9 @@ $shortcut.Save()
 Write-Output "已安装 $version -> $Target"
 Write-Output "快捷方式：$lnkPath -> $($shortcut.TargetPath)"
 Write-Output '用户数据 data / backups / diagnostics / gui-settings.json 未改动。'
+
+# 旧版 WinForms 兜底已停止维护，不从安装目录自动删除，只提示用户按需清理。
+$legacy = Join-Path $Target '备用-WinForms'
+if (Test-Path -LiteralPath $legacy) {
+    Write-Output "提示：$legacy 是已停用的旧版入口，不再随包更新；确认不需要后可手动删除。"
+}

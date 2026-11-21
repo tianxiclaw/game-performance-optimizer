@@ -144,7 +144,7 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <InfoBar x:Name="EngineInfoBar" Grid.Row="0" IsOpen="False" Severity="Error"
-                         Margin="22,12,22,0" Title="引擎错误" IsClosable="True" />
+                         Visibility="Collapsed" Margin="22,12,22,0" Title="引擎错误" IsClosable="True" />
                 <Frame x:Name="ContentFrame" Grid.Row="1" Background="Transparent" />
             </Grid>
 

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Security.Principal;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
 using GamePerfCenter.Helpers;
 using GamePerfCenter.Services;
@@ -261,6 +262,13 @@ public partial class App : Application
             {
                 window.QaShowPendingTip();
                 await Task.Delay(300);
+            }
+
+            // QA：打开顶部提示条，核对它会推开页面内容而不是压住标题。
+            if (cmd.Any(a => string.Equals(a, "--info", StringComparison.OrdinalIgnoreCase)))
+            {
+                window.ShowInfo("状态已刷新", "优化项状态与硬件快照已更新。", InfoBarSeverity.Success);
+                await Task.Delay(700);
             }
 
             // QA：模拟勾选一行，核对“只更新计数、不重建列表”。

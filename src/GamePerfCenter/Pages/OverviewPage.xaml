@@ -29,8 +29,8 @@
             </StackPanel>
         </controls:PageHeader>
 
-        <InfoBar x:Name="PendingBar" Grid.Row="1" IsOpen="False" Severity="Warning" Title="系统等待重启"
-                 Message="部分优化项需要重启后才能生效。" IsClosable="False" />
+        <InfoBar x:Name="PendingBar" Grid.Row="1" IsOpen="False" Visibility="Collapsed" Severity="Warning"
+                 Title="系统等待重启" Message="部分优化项需要重启后才能生效。" IsClosable="False" />
 
         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,0,4,8"
                       HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"

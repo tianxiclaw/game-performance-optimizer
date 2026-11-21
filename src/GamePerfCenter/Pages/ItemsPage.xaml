@@ -302,7 +302,7 @@
             </Grid>
         </controls:TechPanel>
 
-        <InfoBar x:Name="PageInfo" Grid.Row="3" IsOpen="False" IsClosable="True" Margin="0,0,0,2" />
+        <InfoBar x:Name="PageInfo" Grid.Row="3" IsOpen="False" Visibility="Collapsed" IsClosable="True" Margin="0,0,0,2" />
 
         <!-- 操作栏 -->
         <controls:TechPanel x:Name="ActionPanel" Grid.Row="4" Style="{StaticResource TechCardStyle}"

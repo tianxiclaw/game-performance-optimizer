@@ -31,10 +31,10 @@ public static class MemoryDiagnosticsService
             snapshot.UsedGb = mem.used;
             snapshot.AvailableGb = Math.Max(0, mem.total - mem.used);
         }
-        catch { }
+        catch (Exception ex) { Log("物理内存", ex); }
 
-        try { ReadOsMemory(snapshot); } catch { }
-        try { ReadProcesses(snapshot); } catch { }
+        try { ReadOsMemory(snapshot); } catch (Exception ex) { Log("系统内存计数器", ex); }
+        try { ReadProcesses(snapshot); } catch (Exception ex) { Log("进程工作集", ex); }
 
         snapshot.UpdatedAt = DateTime.Now;
         return snapshot;
@@ -60,6 +60,7 @@ public static class MemoryDiagnosticsService
     private static void ReadProcesses(MemorySnapshot snapshot)
     {
         var byName = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        var skipped = 0;
         using var searcher = new ManagementObjectSearcher("root\\CIMV2", ProcessQuery);
         foreach (ManagementObject obj in searcher.Get())
         {
@@ -81,8 +82,13 @@ public static class MemoryDiagnosticsService
 
                 byName[rawName] = byName.GetValueOrDefault(rawName) + privateMb;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                skipped++;
+                if (skipped == 1) Log("单个进程条目", ex);
+            }
         }
+        if (skipped > 1) AppLog.Write($"内存构成读取：另有 {skipped - 1} 个进程条目被跳过。");
 
         snapshot.ProcessTotalGb = byName.Values.Sum() / 1024.0;
         snapshot.Processes = byName
@@ -99,6 +105,13 @@ public static class MemoryDiagnosticsService
     private static double ToGb(ManagementObject obj, string property)
     {
         try { return Convert.ToDouble(obj[property] ?? 0d) / 1024.0 / 1024.0 / 1024.0; }
-        catch { return 0; }
+        catch (Exception ex)
+        {
+            Log("字段 " + property, ex);
+            return 0;
+        }
     }
+
+    private static void Log(string stage, Exception ex) =>
+        AppLog.Write($"内存构成读取失败({stage}): {ex.Message}");
 }

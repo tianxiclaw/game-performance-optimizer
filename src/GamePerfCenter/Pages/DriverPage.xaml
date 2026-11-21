@@ -53,7 +53,7 @@
             </StackPanel>
         </controls:PageHeader>
 
-        <InfoBar x:Name="PageInfo" Grid.Row="1" IsOpen="False" IsClosable="True" />
+        <InfoBar x:Name="PageInfo" Grid.Row="1" IsOpen="False" Visibility="Collapsed" IsClosable="True" />
 
         <ScrollViewer x:Name="PageScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0"
                       HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"

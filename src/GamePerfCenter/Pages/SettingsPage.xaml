@@ -20,7 +20,7 @@
                     VerticalAlignment="Center" Click="OpenConfig_Click" />
         </controls:PageHeader>
 
-        <InfoBar x:Name="PageInfo" Grid.Row="1" IsOpen="False" IsClosable="True" />
+        <InfoBar x:Name="PageInfo" Grid.Row="1" IsOpen="False" Visibility="Collapsed" IsClosable="True" />
 
         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="0,0,4,8"
                       HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"

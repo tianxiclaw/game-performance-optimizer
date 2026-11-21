@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Text.Json;
+using GamePerfCenter.Helpers;
 using GamePerfCenter.Models;
 using GamePerfCenter.Services;
 using Microsoft.UI.Xaml;
@@ -211,12 +212,8 @@ public sealed partial class BackupPage : Page, IThemeAware
     }
 
     private void ShowInfo(string title, string message, InfoBarSeverity severity)
-    {
-        PageInfo.Title = Localization.T(title);
-        PageInfo.Message = Localization.T(message);
-        PageInfo.Severity = severity;
-        PageInfo.IsOpen = true;
-    }
+        => InfoBarPresenter.Show(PageInfo,
+            Localization.T(title), Localization.T(message), severity);
 
     public void OnThemeChanged() { }
 }

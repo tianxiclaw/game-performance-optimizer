@@ -377,12 +377,8 @@ public sealed partial class SettingsPage : Page, IThemeAware
     }
 
     private void ShowInfo(string title, string message, InfoBarSeverity severity)
-    {
-        PageInfo.Title = Localization.T(title);
-        PageInfo.Message = Localization.T(message);
-        PageInfo.Severity = severity;
-        PageInfo.IsOpen = true;
-    }
+        => InfoBarPresenter.Show(PageInfo,
+            Localization.T(title), Localization.T(message), severity);
 
     // 顶栏也能切换主题；回到本页时同步单选项，避免界面显示与已保存设置不一致。
     public void OnThemeChanged() => LoadIntoUi();

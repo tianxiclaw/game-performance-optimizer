@@ -223,17 +223,7 @@ public sealed partial class ItemsPage : Page, IThemeAware, ILanguageAware
                 : Localization.F("上次应用 {0}", ShortTime(lastApply!.Time));
         }
 
-        var filtered = App.Services.State.Items.Where(i =>
-        {
-            if (!string.IsNullOrEmpty(cat) && !string.Equals(i.Cat, cat, StringComparison.OrdinalIgnoreCase)) return false;
-            if (!string.IsNullOrEmpty(risk) && !string.Equals(i.Risk, risk, StringComparison.OrdinalIgnoreCase)) return false;
-            if (search.Length > 0)
-            {
-                var hay = $"{i.Name} {i.Cat} {i.Desc} {i.StatusText}".ToLowerInvariant();
-                if (hay.IndexOf(search.ToLowerInvariant(), StringComparison.Ordinal) < 0) return false;
-            }
-            return true;
-        }).ToList();
+        var filtered = ItemFiltering.Filter(App.Services.State.Items, cat, risk, search);
 
         // 主题 / 语言 / 状态刷新会重建一次行容器，但用户并没有换筛选条件。
         // 这时保留展开行与滚动位置，避免看起来像整页被刷新回顶部。
@@ -782,12 +772,8 @@ public sealed partial class ItemsPage : Page, IThemeAware, ILanguageAware
     }
 
     private void ShowInfo(string title, string message, InfoBarSeverity severity)
-    {
-        PageInfo.Title = Localization.T(title);
-        PageInfo.Message = Localization.T(message);
-        PageInfo.Severity = severity;
-        PageInfo.IsOpen = true;
-    }
+        => InfoBarPresenter.Show(PageInfo,
+            Localization.T(title), Localization.T(message), severity);
 
     public void OnThemeChanged()
     {

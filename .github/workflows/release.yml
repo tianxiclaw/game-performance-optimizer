@@ -71,21 +71,7 @@ jobs:
           Copy-Item -Path (Join-Path $publish '*') -Destination $stage -Recurse -Force
           Get-ChildItem -LiteralPath $stage -Filter *.pdb -Recurse | Remove-Item -Force
 
-          $fallback = Join-Path $stage '备用-WinForms'
-          New-Item -ItemType Directory -Path $fallback -Force | Out-Null
-          $files = @(
-            '游戏性能优化-GUI.ps1',
-            '游戏性能优化.ps1',
-            '启动优化脚本.bat',
-            '启动控制台版.bat',
-            '赞赏码.png',
-            '使用说明.txt'
-          )
-          foreach ($f in $files) {
-            if (-not (Test-Path -LiteralPath $f)) { throw "缺少文件: $f" }
-            Copy-Item -LiteralPath $f -Destination $fallback -Force
-          }
-
+          # 只发布 WinUI 3 主程序；引擎脚本、说明与赞赏码由 publish 输出一并带入。
           # 引擎脚本内的展示版本号同步为标签版本，避免与程序集漂移。
           Get-ChildItem -LiteralPath $stage -Filter *.ps1 -File -Recurse | ForEach-Object {
             $text = [IO.File]::ReadAllText($_.FullName, [Text.Encoding]::UTF8)

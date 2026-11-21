@@ -344,10 +344,11 @@ public sealed partial class OverviewPage : Page, IThemeAware, ILanguageAware
             ? Localization.T("还没有优化记录。")
             : Localization.F("{0} 项优化 · {1}", snap.LastApply.Items.Count, ShortTime(snap.LastApply.Time));
 
-        PendingBar.IsOpen = snap.PendingReboot?.Pending == true;
-        if (snap.PendingReboot?.Pending == true)
+        var pendingReboot = snap.PendingReboot;
+        if (pendingReboot?.Pending == true)
             PendingBar.Message = Localization.F("检测到系统等待重启：{0}。部分优化需要重启后才会生效。",
-                string.Join(Localization.IsEnglish ? ", " : "、", snap.PendingReboot.Reasons));
+                string.Join(Localization.IsEnglish ? ", " : "、", pendingReboot.Reasons));
+        InfoBarPresenter.SetOpen(PendingBar, pendingReboot?.Pending == true);
     }
 
     /// <summary>诊断值形如“32.0 GB | 2 根”，拆成主值与说明两部分。</summary>

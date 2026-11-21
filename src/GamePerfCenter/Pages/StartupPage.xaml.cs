@@ -135,12 +135,8 @@ public sealed partial class StartupPage : Page, IThemeAware
     }
 
     private void ShowInfo(string title, string message, InfoBarSeverity severity)
-    {
-        PageInfo.Title = Localization.T(title);
-        PageInfo.Message = Localization.T(message);
-        PageInfo.Severity = severity;
-        PageInfo.IsOpen = true;
-    }
+        => InfoBarPresenter.Show(PageInfo,
+            Localization.T(title), Localization.T(message), severity);
 
     public void OnThemeChanged() { }
 }
