@@ -16,6 +16,8 @@ public sealed class AppServices
 
     public AppServices()
     {
+        // Core 的静默失败统一落到 data\winui.log，便于从用户日志定位真实原因。
+        CoreDiagnostics.SetSink(AppLog.Write);
         OptimizationCatalog = new OptimizationCatalogService(AppPaths.BaseDir, AppPaths.EnginePath);
         OptimizationExecution = new OptimizationExecutionService(AppPaths.BaseDir, AppPaths.BackupDir,
             AppPaths.UserSid);

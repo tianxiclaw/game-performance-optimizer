@@ -382,6 +382,7 @@ public static class Localization
         ["预览完成: {0} 项将变更"] = "Preview complete: {0} item(s) to change",
         ["应用完成: 成功 {0} 项, 失败 {1} 项"] = "Apply complete: {0} succeeded, {1} failed",
         ["操作失败: {0}"] = "Operation failed: {0}",
+        ["无法加载优化项目录，已中止应用: {0}"] = "Could not load the optimization catalog; apply was cancelled: {0}",
         ["引擎连接中断: {0}"] = "Engine disconnected: {0}",
         ["引擎异常，请查看故障报告"] = "Engine error; check the failure report",
         ["引擎连接中断，正在整理故障报告..."] = "Engine disconnected; preparing a failure report...",
@@ -516,6 +517,13 @@ public static class Localization
         ["把所有已记录项目恢复为原值"] = "Restore every recorded item to its original value",
         ["在资源管理器中选中该备份文件夹"] = "Select this backup folder in Explorer",
         ["把该时间点记录的原值写回系统"] = "Write the original values from this backup back to the system",
+        ["清理旧备份"] = "Clean up old backups",
+        ["删除最早的备份，保留最近 10 份"] = "Delete the oldest backups, keeping the latest 10",
+        ["删除"] = "Delete",
+        ["删除这份备份，删除后无法恢复"] = "Delete this backup permanently",
+        ["无需清理"] = "Nothing to clean up",
+        ["已删除备份"] = "Backups deleted",
+        ["部分备份未能删除"] = "Some backups could not be deleted",
 
         // 诊断页
         ["尚未导出"] = "Not exported yet",

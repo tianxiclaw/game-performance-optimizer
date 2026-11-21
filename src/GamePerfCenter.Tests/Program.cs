@@ -123,6 +123,17 @@ try
     Check("同一秒内备份文件名不冲突",
         !string.Equals(backupPath, second, StringComparison.OrdinalIgnoreCase));
 
+    Check("DeleteBackup 拒绝目录外文件",
+        !service.DeleteBackup(Path.Combine(tempRoot, "backup_outside.json")));
+    var nonBackup = Path.Combine(backupDir, "state_last_apply.json");
+    File.WriteAllText(nonBackup, "{}");
+    Check("DeleteBackup 拒绝非备份文件", !service.DeleteBackup(nonBackup));
+    Check("DeleteBackup 拒绝上跳路径",
+        !service.DeleteBackup(Path.Combine(backupDir, "..", "backup_evil.json")));
+    Check("DeleteBackup 删除备份", service.DeleteBackup(second) && !File.Exists(second));
+    Check("DeleteBackup 后列表不再包含该备份",
+        service.GetBackups().All(b => !string.Equals(b.Path, second, StringComparison.OrdinalIgnoreCase)));
+
     var emptyPath = Path.Combine(tempRoot, "empty.json");
     File.WriteAllText(emptyPath, "{\"version\":\"v5.0\",\"records\":[]}");
     var emptyThrew = false;
@@ -136,6 +147,23 @@ try
     try { service.Restore(badPath, dryRun: true); }
     catch (InvalidOperationException) { badThrew = true; }
     Check("损坏备份被拒绝", badThrew);
+
+    // 旧版引擎备份使用 Path/Name 等字段名，Core 必须能直接读取，
+    // 这样收掉 PowerShell 还原回退后，历史备份仍然可用。
+    var legacyPath = Path.Combine(tempRoot, "legacy.json");
+    File.WriteAllText(legacyPath, """
+        {"Time":"2026-01-01T00:00:00","Version":"v5.0","Records":[
+          {"Id":"old_reg","Kind":"reg","Path":"HKCU:\\Software\\GamePerfCenter.Tests","Name":"Example","VT":"DWord","OV":9,"OE":true}
+        ]}
+        """);
+    var legacy = service.Restore(legacyPath, dryRun: true);
+    Equal("旧备份可还原记录数", 1, legacy.Records);
+    var legacyData = JsonSerializer.Deserialize<OptimizationBackupFile>(
+        File.ReadAllText(legacyPath, Encoding.UTF8),
+        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+    Equal("旧备份 Path 字段", @"HKCU:\Software\GamePerfCenter.Tests",
+        legacyData!.Records[0].GetString("Path"));
+    Equal("旧备份 Name 字段", "Example", legacyData.Records[0].GetString("Name"));
 }
 finally
 {
@@ -190,6 +218,15 @@ if (repoRoot is not null)
     Check("引擎 Kind 均有 Core 处理器", missingKinds.Length == 0,
         string.Join(",", missingKinds));
     Check("引擎 Kind 数量", engineKinds.Count >= 15, $"count={engineKinds.Count}");
+
+    // 主链路（预演/应用/备份列表/还原）只允许走 Core。
+    // 这里做源码级守卫，防止以后又把 PowerShell 回退加回来。
+    var appStateText = File.ReadAllText(Path.Combine(repoRoot,
+        "src", "GamePerfCenter", "Services", "AppState.cs"));
+    var engineFallbacks = new[] { "\"apply\"", "\"restore\"", "\"restore_all\"", "\"backups\"" }
+        .Where(appStateText.Contains).ToArray();
+    Check("主链路不再回退 PowerShell 引擎", engineFallbacks.Length == 0,
+        string.Join(",", engineFallbacks));
 
     var localizationPath = Path.Combine(repoRoot,
         "src", "GamePerfCenter", "Services", "Localization.cs");

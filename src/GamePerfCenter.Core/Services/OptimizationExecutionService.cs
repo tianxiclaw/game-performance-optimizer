@@ -184,6 +184,7 @@ public sealed class OptimizationExecutionService
             }
             catch (Exception ex)
             {
+                CoreDiagnostics.Log($"应用失败 {item.Id}: {ex.Message}");
                 result.Errors.Add(new OptimizationError
                 {
                     Id = item.Id, Name = item.Name, Message = ex.Message, Stage = "apply"
@@ -263,6 +264,7 @@ public sealed class OptimizationExecutionService
             }
             catch (Exception ex)
             {
+                CoreDiagnostics.Log($"还原失败 {record.Id}: {ex.Message}");
                 result.Fail++;
                 result.Errors.Add(new OptimizationError
                 {
@@ -293,6 +295,7 @@ public sealed class OptimizationExecutionService
             }
             catch (Exception ex)
             {
+                CoreDiagnostics.Log($"还原备份 {file.Name} 失败: {ex.Message}");
                 result.Fail++;
                 result.Errors.Add(new OptimizationError { Id = file.Name, Message = ex.Message, Stage = "restore" });
                 result.Report.Add(new OptimizationRestoreFileResult { File = file.Name, Ok = 0, Fail = 1 });
@@ -316,7 +319,10 @@ public sealed class OptimizationExecutionService
                 if (!string.IsNullOrWhiteSpace(data?.Time)) time = data!.Time!;
                 count = data?.Records.Count ?? 0;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                CoreDiagnostics.Log($"读取备份 {file.Name} 失败: {ex.Message}");
+            }
 
             list.Add(new OptimizationBackupInfo
             {
@@ -330,6 +336,30 @@ public sealed class OptimizationExecutionService
         return list;
     }
 
+    /// <summary>删除单份备份。只接受备份目录根层、文件名符合 backup_*.json 的文件。</summary>
+    public bool DeleteBackup(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+        try
+        {
+            var full = Path.GetFullPath(path);
+            var root = Path.GetFullPath(_backupDirectory);
+            var name = Path.GetFileName(full);
+            var relative = Path.GetRelativePath(root, full);
+            if (!string.Equals(relative, name, StringComparison.OrdinalIgnoreCase)) return false;
+            if (!name.StartsWith("backup_", StringComparison.OrdinalIgnoreCase) ||
+                !name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                return false;
+            if (File.Exists(full)) File.Delete(full);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            CoreDiagnostics.Log($"删除备份失败 {path}: {ex.Message}");
+            return false;
+        }
+    }
+
     public OptimizationPendingState? GetPendingState()
     {
         var path = Path.Combine(_backupDirectory, "state_last_apply.json");
@@ -339,7 +369,11 @@ public sealed class OptimizationExecutionService
             return JsonSerializer.Deserialize<OptimizationPendingState>(File.ReadAllText(path, Encoding.UTF8),
                 BackupReadJson);
         }
-        catch { return null; }
+        catch (Exception ex)
+        {
+            CoreDiagnostics.Log($"读取待重启状态失败: {ex.Message}");
+            return null;
+        }
     }
 
     public OptimizationPendingReboot GetPendingReboot()
@@ -372,7 +406,10 @@ public sealed class OptimizationExecutionService
                 }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            CoreDiagnostics.Log($"读取待重启文件列表失败: {ex.Message}");
+        }
 
         if (KeyExists(@"HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\PackagesPending"))
             reasons.Add("PackagesPending");
@@ -441,7 +478,10 @@ public sealed class OptimizationExecutionService
                     {
                         // 第二个值写入失败时回滚第一个，避免留下没有备份记录的部分修改。
                         try { RestoreRegistryValue(path, name, type, ToElement(original.Value), original.Exists); }
-                        catch { }
+                        catch (Exception rollbackEx)
+                        {
+                            CoreDiagnostics.Log($"回滚注册表值失败 {path}\\{name}: {rollbackEx.Message}");
+                        }
                         throw;
                     }
                 }
@@ -524,7 +564,10 @@ public sealed class OptimizationExecutionService
                                 WriteUInt32($@"HKLM:\SYSTEM\CurrentControlSet\Services\{service}",
                                     "Start", StartValue(previous));
                             }
-                            catch { }
+                            catch (Exception rollbackEx)
+                            {
+                                CoreDiagnostics.Log($"恢复服务启动类型失败 {service}: {rollbackEx.Message}");
+                            }
                             if (StartValue(previous) <= 2)
                             {
                                 try
@@ -532,7 +575,10 @@ public sealed class OptimizationExecutionService
                                     PowerShellRunner.Execute("sc.exe", new[] { "start", service },
                                         TimeSpan.FromSeconds(20));
                                 }
-                                catch { }
+                                catch (Exception startEx)
+                                {
+                                    CoreDiagnostics.Log($"重新启动服务失败 {service}: {startEx.Message}");
+                                }
                             }
                         }
                         throw;
@@ -778,13 +824,19 @@ public sealed class OptimizationExecutionService
                         DeleteValue($@"HKLM:\SYSTEM\CurrentControlSet\Services\{service}", "Priority");
                         DeleteValue($@"HKLM:\SYSTEM\CurrentControlSet\Services\{service}", "DelayedAutoStart");
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        CoreDiagnostics.Log($"清理服务配额残留失败 {service}: {ex.Message}");
+                    }
                     try
                     {
                         PowerShellRunner.Execute("schtasks.exe",
                             new[] { "/Delete", "/TN", $"SvcQuota_{service}", "/F" }, TimeSpan.FromSeconds(20));
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        CoreDiagnostics.Log($"删除服务配额计划任务失败 {service}: {ex.Message}");
+                    }
                 }
                 break;
             }
@@ -1099,7 +1151,11 @@ public sealed class OptimizationExecutionService
                 JsonSerializer.Serialize(state, BackupJson), new UTF8Encoding(false));
             return true;
         }
-        catch { return false; }
+        catch (Exception ex)
+        {
+            CoreDiagnostics.Log($"写入待重启状态失败: {ex.Message}");
+            return false;
+        }
     }
 
     private (string? Dir, int Failures) ExportRegSnapshot(IReadOnlyList<OptimizationBackupRecord> records)
@@ -1131,7 +1187,11 @@ public sealed class OptimizationExecutionService
                 PowerShellRunner.Execute("reg.exe", new[] { "export", key, file, "/y" },
                     TimeSpan.FromSeconds(30));
             }
-            catch { failures++; }
+            catch (Exception ex)
+            {
+                failures++;
+                CoreDiagnostics.Log($"导出注册表快照失败 {key}: {ex.Message}");
+            }
         }
         return (dir, failures);
     }
@@ -1201,7 +1261,10 @@ public sealed class OptimizationExecutionService
             if (names.Any(n => string.Equals(n, name, StringComparison.OrdinalIgnoreCase)))
                 key.DeleteValue(name, throwOnMissingValue: false);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            CoreDiagnostics.Log($"删除注册表值失败 {path}\\{name}: {ex.Message}");
+        }
     }
 
     private static bool KeyExists(string path)
@@ -1405,6 +1468,10 @@ if (-not $pm -or 'AllowComputerToTurnOffDevice' -notin $pm.PSObject.Properties.N
     private static string GetCurrentSid()
     {
         try { return WindowsIdentity.GetCurrent().User?.Value ?? ""; }
-        catch { return ""; }
+        catch (Exception ex)
+        {
+            CoreDiagnostics.Log($"读取当前用户 SID 失败: {ex.Message}");
+            return "";
+        }
     }
 }

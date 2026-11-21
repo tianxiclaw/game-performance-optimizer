@@ -19,6 +19,8 @@
                              Subtitle="怎么安全回退：每次应用前都记录原值，可选择任意时间点恢复。">
             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                 <Button Content="打开备份目录" Style="{StaticResource GhostButtonStyle}" Click="OpenFolder_Click" />
+                <Button Content="清理旧备份" Style="{StaticResource GhostButtonStyle}" Click="Cleanup_Click"
+                        ToolTipService.ToolTip="删除最早的备份，保留最近 10 份" />
                 <Button Content="创建还原点" Style="{StaticResource SubtleButtonStyle}" Click="RestorePoint_Click"
                         ToolTipService.ToolTip="调用系统还原点功能，耗时较长" />
                 <Button Content="恢复全部" Style="{StaticResource DangerButtonStyle}" Click="RestoreAll_Click"
@@ -82,6 +84,8 @@
                                                     ToolTipService.ToolTip="在资源管理器中选中该备份文件夹" />
                                             <Button Content="恢复" Style="{StaticResource SubtleButtonStyle}" Click="Restore_Click"
                                                     ToolTipService.ToolTip="把该时间点记录的原值写回系统" />
+                                            <Button Content="删除" Style="{StaticResource GhostButtonStyle}" Click="Delete_Click"
+                                                    ToolTipService.ToolTip="删除这份备份，删除后无法恢复" />
                                         </StackPanel>
                                     </Grid>
                                 </Border>

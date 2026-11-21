@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -13,7 +14,7 @@ public sealed class SettingsService
     public string Theme { get; set; } = "dark";
     public string Material { get; set; } = "deep";
     /// <summary>界面语言：zh 为中文，en 为英文。只影响界面文案，不改引擎输出。</summary>
-    public string Language { get; set; } = "zh";
+    public string Language { get; set; } = DefaultLanguage();
     public bool MinimizeToTray { get; set; }
     public bool NotifyDriver { get; set; } = true;
     /// <summary>关闭界面动效：数值滚动与入场淡入直接跳到终态。</summary>
@@ -47,7 +48,7 @@ public sealed class SettingsService
             Theme = theme is "light" or "system" ? theme : "dark";
             var material = GetString(nameof(Material), "deep").ToLowerInvariant();
             Material = material is "mica" or "mica-alt" or "glass" ? material : "deep";
-            Language = GetString(nameof(Language), "zh").ToLowerInvariant() == "en" ? "en" : "zh";
+            Language = GetString(nameof(Language), DefaultLanguage()).ToLowerInvariant() == "en" ? "en" : "zh";
             MinimizeToTray = GetBool(nameof(MinimizeToTray), false);
             NotifyDriver = GetBool(nameof(NotifyDriver), true);
             ReduceMotion = GetBool(nameof(ReduceMotion), false);
@@ -96,6 +97,10 @@ public sealed class SettingsService
     {
         try { return _root[key]?.GetValue<string>() ?? fallback; } catch { return fallback; }
     }
+
+    /// <summary>首次启动没有 Language 字段时跟随系统：中文系统用中文，其余语言回退英文。</summary>
+    private static string DefaultLanguage()
+        => CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "zh" ? "zh" : "en";
 
     private bool GetBool(string key, bool fallback)
     {

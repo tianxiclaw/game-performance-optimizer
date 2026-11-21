@@ -11,6 +11,7 @@ namespace GamePerfCenter.Pages;
 
 public sealed partial class BackupPage : Page, IThemeAware
 {
+    private const int KeepBackups = 10;
     private readonly ObservableCollection<BackupInfo> _backups = new();
     private bool _loaded;
 
@@ -63,6 +64,63 @@ public sealed partial class BackupPage : Page, IThemeAware
     }
 
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await LoadAsync();
+
+    private async void Cleanup_Click(object sender, RoutedEventArgs e)
+    {
+        var remove = _backups
+            .OrderByDescending(b => b.Time, StringComparer.Ordinal)
+            .Skip(KeepBackups)
+            .ToList();
+        if (remove.Count == 0)
+        {
+            ShowInfo("无需清理", $"当前 {_backups.Count} 份备份，未超过保留数量 {KeepBackups} 份。",
+                InfoBarSeverity.Informational);
+            return;
+        }
+
+        if (!await ConfirmAsync("清理旧备份？",
+                $"将删除最早的 {remove.Count} 份备份，保留最近 {Math.Min(_backups.Count, KeepBackups)} 份。\n\n删除后无法用这些时间点恢复，系统当前设置不受影响。",
+                "删除", "取消", ContentDialogButton.Close))
+            return;
+
+        await DeleteBackupsAsync(remove);
+    }
+
+    private async void Delete_Click(object sender, RoutedEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is not BackupInfo backup) return;
+        if (!await ConfirmAsync("删除这份备份？",
+                $"将删除 {backup.Time} 的备份文件。\n\n删除后无法用该时间点恢复，系统当前设置不受影响。",
+                "删除", "取消", ContentDialogButton.Close))
+            return;
+
+        await DeleteBackupsAsync(new[] { backup });
+    }
+
+    private async Task DeleteBackupsAsync(IReadOnlyList<BackupInfo> backups)
+    {
+        var deleted = 0;
+        foreach (var backup in backups)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(backup.Path) && await App.Services.State.DeleteBackupAsync(backup.Path))
+                    deleted++;
+            }
+            catch (Exception ex)
+            {
+                AppLog.Write($"删除备份失败 {backup.Path}: {ex.Message}");
+            }
+        }
+
+        var failed = backups.Count - deleted;
+        ShowInfo(failed == 0 ? "已删除备份" : "部分备份未能删除",
+            failed == 0
+                ? $"已删除 {deleted} 份备份。"
+                : $"已删除 {deleted} 份，{failed} 份失败，请查看运行日志。",
+            failed == 0 ? InfoBarSeverity.Success : InfoBarSeverity.Warning);
+        await LoadAsync();
+    }
 
     private void OpenFolder_Click(object sender, RoutedEventArgs e) => OpenFolder(AppPaths.BackupDir);
 

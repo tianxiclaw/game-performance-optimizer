@@ -139,36 +139,24 @@ public sealed class AppState
         if (!dryRun) SetStatusFormat("正在应用 {0} 项优化...", list.Length);
         try
         {
-            ApplyResult result;
-            OptimizationCatalog? catalog = null;
+            // 预演与应用统一走 Core。PowerShell 引擎只负责生成项目录，
+            // 不再保留第二条写入路径，避免两套实现产生行为差异。
+            OptimizationCatalog catalog;
             try
             {
                 catalog = await Task.Run(() => _catalog.Load(), ct);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                AppLog.Write("Core 项目录加载失败，回退引擎: " + ex);
+                AppLog.Write("加载优化项目录失败: " + ex);
+                throw new InvalidOperationException(
+                    Localization.F("无法加载优化项目录，已中止应用: {0}", ex.Message), ex);
             }
 
-            if (catalog is null)
-            {
-                result = await ApplyViaEngineAsync(list, dryRun, restorePoint, ct);
-            }
-            else
-            {
-                try
-                {
-                    var options = new OptimizationApplyOptions { DryRun = dryRun, RestorePoint = restorePoint };
-                    var core = await Task.Run(() => _execution.Apply(catalog, list, options), ct);
-                    result = MapApply(core);
-                    AppLog.Write($"Core 应用完成: 成功 {result.Ok} 项, 失败 {result.Fail} 项");
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException && dryRun)
-                {
-                    AppLog.Write("Core 预览失败，回退引擎: " + ex);
-                    result = await ApplyViaEngineAsync(list, dryRun, restorePoint, ct);
-                }
-            }
+            var options = new OptimizationApplyOptions { DryRun = dryRun, RestorePoint = restorePoint };
+            var core = await Task.Run(() => _execution.Apply(catalog, list, options), ct);
+            var result = MapApply(core);
+            AppLog.Write($"Core 应用完成: 成功 {result.Ok} 项, 失败 {result.Fail} 项");
 
             LastError = null;
             if (dryRun) SetStatusFormat("预览完成: {0} 项将变更", result.Preview.Count);
@@ -187,15 +175,6 @@ public sealed class AppState
             throw;
         }
         finally { SetBusy(false, null); Changed?.Invoke(); }
-    }
-
-    private async Task<ApplyResult> ApplyViaEngineAsync(string[] ids, bool dryRun, bool restorePoint,
-        CancellationToken ct)
-    {
-        AppLog.Write("使用 PowerShell 引擎执行优化项");
-        var data = await _engine.RequestAsync("apply", new { ids, dryRun, restorePoint },
-            TimeSpan.FromMinutes(10), ct);
-        return data.Deserialize<ApplyResult>(JsonOptions) ?? new ApplyResult();
     }
 
     private static ApplyResult MapApply(OptimizationApplyResult source) => new()
@@ -226,20 +205,16 @@ public sealed class AppState
 
     public async Task<List<BackupInfo>> GetBackupsAsync(CancellationToken ct = default)
     {
-        try
+        var list = await Task.Run(() => _execution.GetBackups(), ct);
+        return list.Select(b => new BackupInfo
         {
-            var list = await Task.Run(() => _execution.GetBackups(), ct);
-            return list.Select(b => new BackupInfo
-            {
-                Name = b.Name, Path = b.Path, Time = b.Time, Size = b.Size, Records = b.Records
-            }).ToList();
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            AppLog.Write("Core 备份列表失败，回退引擎: " + ex);
-            return await _engine.RequestAsync<List<BackupInfo>>("backups", null, TimeSpan.FromMinutes(2), ct);
-        }
+            Name = b.Name, Path = b.Path, Time = b.Time, Size = b.Size, Records = b.Records
+        }).ToList();
     }
+
+    /// <summary>删除一份备份文件；返回 false 表示路径不在备份目录或文件无法删除。</summary>
+    public Task<bool> DeleteBackupAsync(string path, CancellationToken ct = default)
+        => Task.Run(() => _execution.DeleteBackup(path), ct);
 
     public Task<List<ProfileInfo>> GetProfilesAsync(CancellationToken ct = default)
         => _engine.RequestAsync<List<ProfileInfo>>("profiles", null, TimeSpan.FromMinutes(2), ct);
@@ -287,8 +262,8 @@ public sealed class AppState
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            AppLog.Write("Core 还原失败，回退引擎: " + ex);
-            return await _engine.RequestAsync<JsonElement>("restore", new { path }, TimeSpan.FromMinutes(8), ct);
+            AppLog.Write("Core 还原失败: " + ex);
+            throw;
         }
     }
 
@@ -307,8 +282,8 @@ public sealed class AppState
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            AppLog.Write("Core 全量还原失败，回退引擎: " + ex);
-            return await _engine.RequestAsync<JsonElement>("restore_all", null, TimeSpan.FromMinutes(10), ct);
+            AppLog.Write("Core 全量还原失败: " + ex);
+            throw;
         }
     }
 

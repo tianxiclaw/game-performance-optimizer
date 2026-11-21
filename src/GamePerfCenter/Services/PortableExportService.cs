@@ -50,16 +50,20 @@ public static class PortableExportService
                 {
                     token.ThrowIfCancellationRequested();
                     var relative = Path.GetRelativePath(baseDir, path).Replace('\\', '/');
-                    var bytes = File.ReadAllBytes(path);
-                    total += bytes.Length;
 
+                    // 流式计算哈希并写入 ZIP：便携包里可能有几十 MB 的运行时文件，
+                    // 不再把整个文件读进内存。
+                    using var source = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
                     using (var sha = SHA256.Create())
-                        hashes.Add($"{Convert.ToHexString(sha.ComputeHash(bytes)).ToLowerInvariant()}  {relative}");
+                        hashes.Add($"{Convert.ToHexString(sha.ComputeHash(source)).ToLowerInvariant()}  {relative}");
+
+                    total += source.Length;
+                    source.Position = 0;
 
                     var entry = archive.CreateEntry(relative, CompressionLevel.Optimal);
                     entry.LastWriteTime = File.GetLastWriteTime(path);
                     using var entryStream = entry.Open();
-                    entryStream.Write(bytes, 0, bytes.Length);
+                    source.CopyTo(entryStream);
                 }
 
                 var checksumEntry = archive.CreateEntry("SHA256.txt", CompressionLevel.Optimal);
